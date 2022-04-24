@@ -89,17 +89,17 @@ library(scDataviz)
 # As you know, CyTOF data is typically normalised by hyperbolic arc-sine with a factor of 5.
 
 # exmaple from https://github.com/kevinblighe/scDataviz 
-mat <- jitter(matrix(
-  MASS::rnegbin(rexp(50000, rate=.1), theta = 4.5),
-  ncol = 20))
-colnames(mat) <- paste0('CD', 1:ncol(mat))
-rownames(mat) <- paste0('cell', 1:nrow(mat))
-
-metadata <- data.frame(
-  group = rep('A', nrow(mat)),
-  row.names = rownames(mat),
-  stringsAsFactors = FALSE)
-head(metadata)
+# mat <- jitter(matrix(
+#   MASS::rnegbin(rexp(50000, rate=.1), theta = 4.5),
+#   ncol = 20))
+# colnames(mat) <- paste0('CD', 1:ncol(mat))
+# rownames(mat) <- paste0('cell', 1:nrow(mat))
+# 
+# metadata <- data.frame(
+#   group = rep('A', nrow(mat)),
+#   row.names = rownames(mat),
+#   stringsAsFactors = FALSE)
+# head(metadata)
 
 # import our own data
 aa =  readRDS(file = paste0(RdataDir, '/facs_data.rds'))
@@ -111,12 +111,22 @@ colnames(mat) = gsub('.H', '', gsub('Comp.','', colnames(mat)))
 
 meta2 = readRDS(file = paste0(RdataDir, '/metadata.rds'))
 metadata = data.frame(metadata, meta2[match(metadata$SampleID, meta2$sampleID), ], stringsAsFactors = FALSE)
-metadata = metadata[, c(1, 10, 11, 2:9, 12:13)]
+metadata$treatment = metadata$condition
+metadata$condition = paste0(metadata$condition, '_', metadata$time)
+
 rm(meta2)
+
+metadata = metadata[, c(1, 10, 14, 11, 2:9, 12:13)]
 
 saveRDS(metadata, file = paste0(RdataDir, '/metadata_cells_CyTOF.rds'))
 
+save(mat, metadata, file = paste0(RdataDir, '/cytof_mat_metadata.Rdata'))
 
+
+##########################################
+# start the normalization and transformation
+##########################################
+load(file = paste0(RdataDir, '/cytof_mat_metadata.Rdata'))
 # Set background noise threshold - values below this are set to 0
 BackgroundNoiseThreshold <- 1
 
@@ -149,38 +159,39 @@ assayNames(sce)
 
 p <- pca(assay(sce, 'normcounts'), metadata = metadata(sce))
 
-biplot(p,
+p1 = biplot(p,
        x = 'PC1', y = 'PC2',
        lab = NULL,
        xlim = c(min(p$rotated[,'PC1'])-1, max(p$rotated[,'PC1'])+1),
        ylim = c(min(p$rotated[,'PC2'])-1, max(p$rotated[,'PC2'])+1),
        pointSize = 1.0,
        colby = 'time',
-       shape = 'condition',
+       shape = 'treatment',
        legendPosition = 'right',
        title = 'PCA applied to CyTOF data',
        caption = paste0('10000 cells randomly selected after ',
                         'having filtered for low variance'))
 
-biplot(p,
+p2 = biplot(p,
        x = 'PC2', y = 'PC3',
        lab = NULL,
        xlim = c(min(p$rotated[,'PC2'])-1, max(p$rotated[,'PC2'])+1),
        ylim = c(min(p$rotated[,'PC3'])-1, max(p$rotated[,'PC3'])+1),
        pointSize = 1.0,
        colby = 'time',
-       shape = 'condition',
+       shape = 'treatment',
        legendPosition = 'right',
        title = 'PCA applied to CyTOF data',
        caption = paste0('10000 cells randomly selected after ',
                         'having filtered for low variance'))
 
+p1 + p2
 
 reducedDim(sce, 'PCA') <- p$rotated
 
 config <- umap::umap.defaults
 config$min_dist <- 0.05
-config$n_neighbors = 30
+config$n_neighbors = 15
 config$metric = "euclidean"
 
 library(tictoc)
@@ -189,6 +200,30 @@ sce = performUMAP(sce, assay = 'normcounts', config = config)
 toc()
 
 # sce <- performUMAP(sce, reducedDim = 'PCA', dims = c(1:5))
+
+p1 = metadataPlot(sce,
+             colby = 'condition',
+             #colkey = c(Healthy = 'royalblue', Disease = 'red2'),
+             title = 'Disease status',
+             subtitle = 'UMAP performed on expression values',
+             legendLabSize = 16,
+             axisLabSize = 20,
+             titleLabSize = 20,
+             subtitleLabSize = 16,
+             captionLabSize = 16)
+
+p2 = metadataPlot(sce,
+                           colby = 'time',
+                           title = 'Treatment type',
+                           subtitle = 'UMAP performed on expression values',
+                           legendLabSize = 16,
+                           axisLabSize = 20,
+                           titleLabSize = 20,
+                           subtitleLabSize = 16,
+                           captionLabSize = 16)
+
+p1 + p2
+
 ggout1 <- contourPlot(sce,
                       reducedDim = 'UMAP',
                       bins = 150,
@@ -198,4 +233,6 @@ ggout1 <- contourPlot(sce,
                       titleLabSize = 22,
                       subtitleLabSize = 18,
                       captionLabSize = 18)
+
+
 
