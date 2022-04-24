@@ -59,6 +59,17 @@ saveRDS(metadata, file = paste0(RdataDir, '/metadata.rds'))
 ##########################################
 aa = read.csv(file = paste0(dataDir, 'AIgood_AllSingleLive_AllParam_1_ScaleVal.csv'), header = TRUE)
 
+jj = grep('Comp.*.H', colnames(aa))
+aa = aa[, c(1, jj, 2:5, 31:32)]
+
 saveRDS(aa, file = paste0(RdataDir, '/facs_data.rds'))
+
+########################################################
+########################################################
+# Section : QCs and processing
+# 
+########################################################
+########################################################
+
 
 
