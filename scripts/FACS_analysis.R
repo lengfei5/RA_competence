@@ -137,9 +137,10 @@ NoiseCorrected[NoiseCorrected<BackgroundNoiseThreshold] <- 0
 x <- transFun(NoiseCorrected/asinhFactor)
 
 # make singleCellExperiment object
-sce <- importData(x,
+subsample = sample(c(1:nrow(x)), size = 15000, replace = FALSE)
+sce <- importData(x[subsample, ],
                   assayname = 'normcounts',
-                  metadata = metadata)
+                  metadata = metadata[subsample, ])
 sce
 
 ## PCA analysis
@@ -180,12 +181,14 @@ reducedDim(sce, 'PCA') <- p$rotated
 config <- umap::umap.defaults
 config$min_dist <- 0.05
 config$n_neighbors = 30
-config$metric = "cosine"
+config$metric = "euclidean"
 
+library(tictoc)
+tic()
 sce = performUMAP(sce, assay = 'normcounts', config = config)
+toc()
 
 # sce <- performUMAP(sce, reducedDim = 'PCA', dims = c(1:5))
-
 ggout1 <- contourPlot(sce,
                       reducedDim = 'UMAP',
                       bins = 150,
