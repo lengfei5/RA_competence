@@ -66,10 +66,133 @@ saveRDS(aa, file = paste0(RdataDir, '/facs_data.rds'))
 
 ########################################################
 ########################################################
-# Section : QCs and processing
+# Section : data processing and QCs
 # 
 ########################################################
 ########################################################
+library(CATALYST)
+library(dplyr)
+library(flowCore)
+library(flowWorkspace)
+library(ggcyto)
+library(ggplot2)
+library(mvtnorm)
+library(openCyto)
+library(scDataviz)
+
+##########################################
+# normalize data
+# original code from https://www.biostars.org/p/393974/
+# or https://github.com/kevinblighe/scDataviz
+##########################################
+# After reading in the data, you need to normalise it and eliminate junk cells. 
+# As you know, CyTOF data is typically normalised by hyperbolic arc-sine with a factor of 5.
+
+# exmaple from https://github.com/kevinblighe/scDataviz 
+mat <- jitter(matrix(
+  MASS::rnegbin(rexp(50000, rate=.1), theta = 4.5),
+  ncol = 20))
+colnames(mat) <- paste0('CD', 1:ncol(mat))
+rownames(mat) <- paste0('cell', 1:nrow(mat))
+
+metadata <- data.frame(
+  group = rep('A', nrow(mat)),
+  row.names = rownames(mat),
+  stringsAsFactors = FALSE)
+head(metadata)
+
+# import our own data
+aa =  readRDS(file = paste0(RdataDir, '/facs_data.rds'))
+rownames(aa) = paste0('cell_', c(1:nrow(aa)))
+
+mat = aa[, c(2:6)]
+metadata = aa[, -c(2:6)]
+colnames(mat) = gsub('.H', '', gsub('Comp.','', colnames(mat)))
+
+meta2 = readRDS(file = paste0(RdataDir, '/metadata.rds'))
+metadata = data.frame(metadata, meta2[match(metadata$SampleID, meta2$sampleID), ], stringsAsFactors = FALSE)
+metadata = metadata[, c(1, 10, 11, 2:9, 12:13)]
+rm(meta2)
+
+saveRDS(metadata, file = paste0(RdataDir, '/metadata_cells_CyTOF.rds'))
 
 
+# Set background noise threshold - values below this are set to 0
+BackgroundNoiseThreshold <- 1
+
+# Euclidean norm threshold - this is the square root of the sum of all the squares
+EuclideanNormThreshold <- 1
+
+# Choose a transformation function (any mathematical function)
+transFun <- function (x) asinh(x)
+
+# Set hyperbolic arc-sine factor (NB - asinh(x/5) is recommended for CyTOF and FACS data)
+asinhFactor <- 5
+
+x = as.matrix(mat)
+
+x <- x[apply(x, 1, FUN=function(x) sqrt(sum(x^2)))>EuclideanNormThreshold,]
+NoiseCorrected <- x
+NoiseCorrected[NoiseCorrected<BackgroundNoiseThreshold] <- 0
+x <- transFun(NoiseCorrected/asinhFactor)
+
+# make singleCellExperiment object
+sce <- importData(x,
+                  assayname = 'normcounts',
+                  metadata = metadata)
+sce
+
+## PCA analysis
+library(PCAtools)
+assayNames(sce)
+
+p <- pca(assay(sce, 'normcounts'), metadata = metadata(sce))
+
+biplot(p,
+       x = 'PC1', y = 'PC2',
+       lab = NULL,
+       xlim = c(min(p$rotated[,'PC1'])-1, max(p$rotated[,'PC1'])+1),
+       ylim = c(min(p$rotated[,'PC2'])-1, max(p$rotated[,'PC2'])+1),
+       pointSize = 1.0,
+       colby = 'time',
+       shape = 'condition',
+       legendPosition = 'right',
+       title = 'PCA applied to CyTOF data',
+       caption = paste0('10000 cells randomly selected after ',
+                        'having filtered for low variance'))
+
+biplot(p,
+       x = 'PC2', y = 'PC3',
+       lab = NULL,
+       xlim = c(min(p$rotated[,'PC2'])-1, max(p$rotated[,'PC2'])+1),
+       ylim = c(min(p$rotated[,'PC3'])-1, max(p$rotated[,'PC3'])+1),
+       pointSize = 1.0,
+       colby = 'time',
+       shape = 'condition',
+       legendPosition = 'right',
+       title = 'PCA applied to CyTOF data',
+       caption = paste0('10000 cells randomly selected after ',
+                        'having filtered for low variance'))
+
+
+reducedDim(sce, 'PCA') <- p$rotated
+
+config <- umap::umap.defaults
+config$min_dist <- 0.05
+config$n_neighbors = 30
+config$metric = "cosine"
+
+sce = performUMAP(sce, assay = 'normcounts', config = config)
+
+# sce <- performUMAP(sce, reducedDim = 'PCA', dims = c(1:5))
+
+ggout1 <- contourPlot(sce,
+                      reducedDim = 'UMAP',
+                      bins = 150,
+                      subtitle = 'UMAP performed on expression values',
+                      legendLabSize = 18,
+                      axisLabSize = 22,
+                      titleLabSize = 22,
+                      subtitleLabSize = 18,
+                      captionLabSize = 18)
 
