@@ -1,8 +1,8 @@
 # RA competence project
 
-# Aim 
+## Aim 
 
-# Analysis
+## Analysis
 - RA target prediction
 - facs data analysis for cell states and trajectory analysis in organoid heterogeneity emergence
 - bulk RNA-seq data analysis
