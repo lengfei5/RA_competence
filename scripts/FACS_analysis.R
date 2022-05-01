@@ -122,7 +122,6 @@ saveRDS(metadata, file = paste0(RdataDir, '/metadata_cells_CyTOF.rds'))
 
 save(mat, metadata, file = paste0(RdataDir, '/cytof_mat_metadata.Rdata'))
 
-
 ##########################################
 # start the normalization and transformation
 ##########################################
@@ -190,8 +189,8 @@ p1 + p2
 reducedDim(sce, 'PCA') <- p$rotated
 
 config <- umap::umap.defaults
-config$min_dist <- 0.05
-config$n_neighbors = 15
+config$min_dist <- 0.01
+config$n_neighbors = 10
 config$metric = "euclidean"
 
 library(tictoc)
@@ -201,8 +200,19 @@ toc()
 
 # sce <- performUMAP(sce, reducedDim = 'PCA', dims = c(1:5))
 
+# metadataPlot(sce,
+#              colby = 'condition',
+#              #colkey = c(Healthy = 'royalblue', Disease = 'red2'),
+#              title = 'Disease status',
+#              subtitle = 'UMAP performed on expression values',
+#              legendLabSize = 16,
+#              axisLabSize = 20,
+#              titleLabSize = 20,
+#              subtitleLabSize = 16,
+#              captionLabSize = 16)
+
 p1 = metadataPlot(sce,
-             colby = 'condition',
+             colby = 'treatment',
              #colkey = c(Healthy = 'royalblue', Disease = 'red2'),
              title = 'Disease status',
              subtitle = 'UMAP performed on expression values',
