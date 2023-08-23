@@ -120,13 +120,14 @@ require(ggplot2)
 library(ggrepel)
 require(gridExtra)
 library(dplyr)
+library(ggrepel)
 library(patchwork)
 require(pheatmap)
 library(org.Mm.eg.db)
 library(enrichplot)
 library(clusterProfiler)
 library(stringr)
-library(ggrepel)
+
 
 load(file = paste0(RdataDir, 'design_rawCounts', version.analysis, '.Rdata'))
 design$condition = paste0(design[, c(2)], "_", design[,3], "_", design[,4], '_', design[,5])
@@ -813,19 +814,119 @@ dev.off()
 # 
 ########################################################
 ########################################################
-RARtargetDir = '../results/RA_targets_L118404_smartseq3_20221117/Compare.diffRAstimulationTime.Batch1/'
-# peaks = readRDS(file = paste0(RARtargetDir, 
-#                               'RAR_chipseq.peak.assignment_promoters.genebody.downstream.chiapet.closestTSS.rds'))
-# 
-# ggs = unlist(peaks[, c(13:17)])
-# ggs = ggs[!is.na(ggs)]
-# ggs = unique(ggs)
-ggs = read.csv2(paste0(RARtargetDir, 
-                       'RARtarget_intersection/DESeq2_DEgenes_pairwiseComparison_RA_d2.18h.vs.noRA_d2.18h.csv'),
-                row.names = c(1))
-ggs = rownames(ggs)[which(abs(ggs$log2FoldChange_RA_d2.18hvs.noRA_d2.18h)>2 & 
-                            ggs$padj_RA_d2.18hvs.noRA_d2.18h<0.01)]
+require(ggplot2)
+library(ggrepel)
+require(gridExtra)
+library(dplyr)
+library(ggrepel)
 
+# import the mouse RA target by comparing the RA vs noRA
+RARtargetDir = '../results/RA_targets_L118404_smartseq3_20221117/'
+ggs = read.csv2(paste0(RARtargetDir, 'fpm_stat.allpairwseCompares.csv'),
+                row.names = c(1))
+ggs = ggs[, grep('RA_d2.18hvs.noRA_d2.18h', colnames(ggs))]
+ggs = ggs[, c(1:3)] # select the batch 1
+colnames(ggs) = gsub('RA_d2.18hvs.noRA_d2.18h', 'mm', colnames(ggs))
+
+ggs = data.frame(ggs, gene = rownames(ggs), stringsAsFactors = FALSE)
+
+#ggs = rownames(ggs)[which(abs(ggs$log2FoldChange_RA_d2.18hvs.noRA_d2.18h)>2 & 
+#                            ggs$padj_RA_d2.18hvs.noRA_d2.18h<0.01)]
+
+# import the human RA targets by comparing the RA vs noRA at day2.18h
+res = read.csv(file = paste0("../results/R15282_hNT_quantseq_20230614/out_mTesr_LDNSB/", 
+                'DE_table_d4.18h_mTesr_LDNSB_d4.250nM_vs._d4_mTesr_LDNSB_no.csv'), row.names = c(1))
+res = res[, c(2,5,6,7)]
+colnames(res) = paste0(colnames(res), '_hs')
+
+names = toupper(ggs$gene)
+mm = match(names, res$gene_hs)
+
+hmc = data.frame(ggs[!is.na(mm), ], res[mm[!is.na(mm)], ], stringsAsFactors = FALSE)
+hmc$pvalue_mm = -log10(hmc$pvalue_mm)
+
+hmc = hmc[order(-hmc$pvalue_mm), ]
+
+hmc = hmc[order(-hmc$pvalue_hs), ]
+
+#hmc$pval.combine = apply(as.matrix(hmc[, grep('pvalue_', colnames(hmc))]), 1, 
+#                         function(x){abs(x[1]-x[2])/(min(x) + 0.1)})
+#hmc = hmc[order(hmc$pval.combine), ]
+
+write.csv(hmc, file = paste0(resDir, '/RAtargets_combined_mouse_human.csv'), row.names = TRUE, quote = FALSE)
+
+sels = which((hmc$padj_mm<0.05 & abs(hmc$log2FoldChange_mm) > 1) | (hmc$padj_hs <0.05 & abs(hmc$lfc_hs) >1))
+hmc = hmc[sels, ]
+hmc = hmc[order(hmc$pval.combine), ]
+
+#hmc$pvalue_hs = -log10(hmc$pvalue_hs)
+
+ggplot(data = hmc, aes(x = pvalue_mm, y = pvalue_hs, label = gene)) +
+  geom_point(size = 1) + 
+  labs(title = paste0('-log10 pvalues'), x = 'mNT', y = 'hNT') + 
+  theme(axis.text.x = element_text(size = 12), 
+        axis.text.y = element_text(size = 12)) + 
+  xlim(0, 270) + ylim(0, 270) +
+  geom_abline(intercept = 0, slope = 1, colour = "red") +
+  theme_bw() +
+  #geom_text(data=subset(yy, pvalue_pos > 2), size = 4, nudge_y = 0.5) + 
+  geom_text_repel(data=subset(hmc, pvalue_mm > 10 & pvalue_hs > 10), size = 2, col = 'blue')
+
+ggsave(paste0(resDir, '/RAtargets_comparison_mouse_human_pvalues.pdf'),  width=12, height = 12)
+
+ggplot(data = hmc, aes(x = log2FoldChange_mm, y = lfc_hs, label = gene)) +
+  geom_point(size = 1) + 
+  labs(title = paste0('log2 fold-change'), x = 'mNT', y = 'hNT') + 
+  theme(axis.text.x = element_text(size = 12), 
+        axis.text.y = element_text(size = 12)) + 
+  xlim(-7, 10) + ylim(-7, 10) +
+  geom_abline(intercept = 0, slope = 1, colour = "red") +
+  theme_bw() +
+  #geom_text(data=subset(yy, pvalue_pos > 2), size = 4, nudge_y = 0.5) + 
+  geom_text_repel(data=subset(hmc, log2FoldChange_mm > 1 & lfc_hs > 1), size = 2, col = 'blue') +
+  geom_text_repel(data=subset(hmc, log2FoldChange_mm < -1 & lfc_hs < -1), size = 2, col = 'orange') 
+
+ggsave(paste0(resDir, '/RAtargets_comparison_mouse_human_log2FC.pdf'),  width=12, height = 12)
+
+
+##########################################
+# signaling pathway analysis 
+##########################################
+
+
+
+########################################################
+########################################################
+# Section V: compare the trajectory of N2B27 (Adv_LDNSB) vs 
+# mTesr_LDNSB
+########################################################
+########################################################
+treatment = 'compare_mTesr_LDNSB_vs._Adv_LDNSB'
+outDir = paste0(resDir, '/out_', treatment, '/')
+if(!dir.exists(outDir)) dir.create(outDir)
+
+jj = which(design$RA == 'no' & (design$treatment == 'Adv_LDNSB'| design$treatment == 'mTesr_LDNSB'))
+dds1 = dds[, jj]
+
+dds1$condition <- droplevels(dds1$condition)
+dds1$condition = factor(gsub(' ','.', dds1$condition))
+dds1 <- estimateDispersions(dds1, fitType = 'parametric')
+plotDispEsts(dds1, ymin = 10^-3)
+
+vsd <- varianceStabilizingTransformation(dds1, blind = FALSE)
+pca2save = as.data.frame(plotPCA(vsd, intgroup = c('timepoint', 'Wash', 'Culture'), 
+                                 returnData = TRUE, ntop = 1000))
+
+pca2save$time = as.factor(pca2save$timepoint)
+pca2save$treatment = paste0(pca2save$Wash, '_', pca2save$Culture)
+
+ggplot(data=pca2save, aes(PC1, PC2, label = name, color= time, shape = treatment))  + 
+  geom_point(size=3) + 
+  scale_shape_manual(values=1:nlevels(pca2save$time)) +
+  #geom_text(hjust = 0.5, nudge_y = 0.5, size=3.0) + 
+  geom_text_repel(data= pca2save, size = 2) 
+
+ggsave(paste0(outDir, '/PCA_quantseq_samples_', treatment, '.pdf'),  width=16, height = 10)
 
 
 
