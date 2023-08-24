@@ -892,8 +892,187 @@ ggsave(paste0(resDir, '/RAtargets_comparison_mouse_human_log2FC.pdf'),  width=12
 ##########################################
 # signaling pathway analysis 
 ##########################################
+library(enrichplot)
+library(clusterProfiler)
+library(openxlsx)
+library(ggplot2)
+library(stringr)
+library(org.Hs.eg.db)
+library(org.Mm.eg.db)
+
+## mouse data 
+
+if(species_sel == 'Mouse'){
+  
+  species_sel = 'Mouse'
+  RARtargetDir = '../results/RA_targets_L118404_smartseq3_20221117/'
+  
+  ggs = read.csv2(paste0(RARtargetDir, 'fpm_stat.allpairwseCompares.csv'),
+                  row.names = c(1))
+  ggs = ggs[, grep('RA_d2.18hvs.noRA_d2.18h', colnames(ggs))]
+  ggs = ggs[, c(1:3)] # select the batch 1
+  colnames(ggs) = gsub('_RA_d2.18hvs.noRA_d2.18h', '', colnames(ggs))
+  
+  ggs = data.frame(ggs, gene = rownames(ggs), stringsAsFactors = FALSE)
+  
+  res = ggs
+  rm(ggs)
+  
+  sels = which(res$padj<0.05 & abs(res$log2FoldChange) > 1)
+  # background
+  bgs = unique(rownames(res))
+  gg.expressed = unique(rownames(res)[sels])
+  
+  gene.df <- bitr(gg.expressed, fromType = "SYMBOL",
+                  toType = c("ENSEMBL", "ENTREZID"),
+                  OrgDb = org.Mm.eg.db)
+  head(gene.df)
+  
+  bgs.df <- bitr(bgs, fromType = "SYMBOL",
+                 toType = c("ENSEMBL", "ENTREZID"),
+                 OrgDb = org.Mm.eg.db)
+  head(bgs.df)
+  
+  
+  #pval.cutoff = 0.05
+  ego <-  enrichGO(gene         = gene.df$ENSEMBL,
+                   #universe     = bgs0.df$ENSEMBL,
+                   universe     = bgs.df$ENSEMBL,
+                   #OrgDb         = org.Hs.eg.db,
+                   OrgDb         = org.Mm.eg.db,
+                   keyType       = 'ENSEMBL',
+                   ont           = "BP",
+                   pAdjustMethod = "BH",
+                   pvalueCutoff  = 0.05,
+                   qvalueCutoff  = 0.1)
+  
+  
+  #head(ego)
+  xx = data.frame(ego)
+  jj = grep('response|signaling pathway|adhesion', xx$Description)
+  barplot(ego, showCategory=100) + ggtitle("Go term enrichment for positional genes")
+  
+  print(xx$Description[jj])
+  
+  xx$geneSymbols = NA
+  for(n in 1:nrow(xx))
+  {
+    # n = 1
+    ids = xx$geneID[n]
+    ids = unlist(strsplit(as.character(ids), '/'))
+    xx$geneSymbols[n] = paste0(bgs.df$SYMBOL[match(ids, bgs.df$ENSEMBL)],  collapse = '/')
+    
+  }
+  
+  write.csv2(xx, file = paste0(resDir, '/enriched_signalingPathways_', species_sel, '_all.csv'), 
+            row.names = TRUE, quote = FALSE)
+  
+  write.csv2(xx[jj, ], file = paste0(resDir, '/enriched_signalingPathways_', species_sel, '.csv'), 
+            row.names = TRUE, quote = FALSE)
+  
+  
+}else{
+  res = read.csv(file = paste0("../results/R15282_hNT_quantseq_20230614/out_mTesr_LDNSB/", 
+                               'DE_table_d4.18h_mTesr_LDNSB_d4.250nM_vs._d4_mTesr_LDNSB_no.csv'), row.names = c(1))
+  res = res[, c(2,5,6,7)]
+  
+  sels = which(res$padj<0.05 & abs(res$lfc) > 1)
+  
+  # background
+  bgs = unique(rownames(res))
+  gg.expressed = unique(rownames(res)[sels])
+  
+  gene.df <- bitr(gg.expressed, fromType = "SYMBOL",
+                  toType = c("ENSEMBL", "ENTREZID"),
+                  OrgDb = org.Hs.eg.db)
+  head(gene.df)
+  
+  bgs.df <- bitr(bgs, fromType = "SYMBOL",
+                 toType = c("ENSEMBL", "ENTREZID"),
+                 OrgDb = org.Hs.eg.db)
+  head(bgs.df)
+  
+  #pval.cutoff = 0.05
+  ego <-  enrichGO(gene         = gene.df$ENSEMBL,
+                   #universe     = bgs0.df$ENSEMBL,
+                   universe     = bgs.df$ENSEMBL,
+                   OrgDb         = org.Hs.eg.db,
+                   #OrgDb         = org.Mm.eg.db,
+                   keyType       = 'ENSEMBL',
+                   ont           = "BP",
+                   pAdjustMethod = "BH",
+                   pvalueCutoff  = 0.05,
+                   qvalueCutoff  = 0.1)
+ 
+  #head(ego)
+  xx = data.frame(ego)
+  jj = grep('response|signaling pathway|adhesion', xx$Description)
+  barplot(ego) + ggtitle("Go term enrichment for positional genes")
+  
+  write.csv(xx, file = paste0(resDir, '/enriched_signalingPathways_human_all.csv'), 
+            row.names = TRUE, quote = FALSE)
+  
+  write.csv(xx[jj, ], file = paste0(resDir, '/enriched_signalingPathways_human.csv'), 
+            row.names = TRUE, quote = FALSE)
+  
+}
+
+xx1 = read.csv(file = paste0(resDir, '/enriched_signalingPathways_Mouse.csv'))
+
+pdfname = paste0(resDir, '/Barplot_enrichedSignaling_mouse.pdf')
+pdf(pdfname,  width = 18, height = 12)
+par(cex = 1.0, las = 1, mgp = c(3,2,0), mar = c(6,28,2,0.2), tcl = -0.3)
+
+xx1 = xx1[order(-as.numeric(xx1$qvalue)), ]
+barplot(-log10(as.numeric(xx1$qvalue)), horiz = TRUE, names.arg = xx1$Description, las = 1,
+        xlab = '-log10(qvalue)')
+#ids = unique(c(xx1$ID, xx2$ID))
+
+dev.off()
+
+pdfname = paste0(resDir, '/Barplot_enrichedSignaling_human.pdf')
+pdf(pdfname,  width = 18, height = 12)
+par(cex = 1.0, las = 1, mgp = c(3,2,0), mar = c(6,28,2,0.2), tcl = -0.3)
+
+xx2 = read.csv(file = paste0(resDir, '/enriched_signalingPathways_human.csv'))
+xx2 = xx2[order(-as.numeric(xx2$qvalue)), ]
+barplot(-log10(as.numeric(xx2$qvalue)), horiz = TRUE, names.arg = xx2$Description, las = 1,
+        xlab = '-log10(qvalue)')
+#ids = unique(c(xx1$ID, xx2$ID))
+
+dev.off()
 
 
+
+Test_ssGSEA = FALSE
+if(Test_ssGSEA){
+  # Download example input
+  download.file(url = "https://raw.githubusercontent.com/nicolerg/ssGSEA2/master/example/PI3K_pert_logP_n2x23936.gct",
+                destfile = "../data/PI3K_pert_logP_n2x23936.gct")
+  
+  # Download gene set database 
+  download.file(url = "https://raw.githubusercontent.com/nicolerg/ssGSEA2/master/example/ptm.sig.db.all.flanking.human.v1.8.1.gmt",
+                destfile = "../data/ptm.sig.db.all.flanking.human.v1.8.1.gmt")
+  
+  
+  library(ssGSEA2)
+  res = run_ssGSEA2("../data/PI3K_pert_logP_n2x23936.gct",
+                    output.prefix = "example",
+                    gene.set.databases = "../data/ptm.sig.db.all.flanking.human.v1.8.1.gmt",
+                    output.directory = "../data",
+                    sample.norm.type = "none", 
+                    weight = 0.75, 
+                    correl.type = "rank", 
+                    statistic = "area.under.RES",
+                    output.score.type = "NES", 
+                    nperm = 1000, 
+                    min.overlap = 5, 
+                    extended.output = TRUE, 
+                    global.fdr = FALSE,
+                    log.file = "../data/run.log")
+  
+  
+}
 
 ########################################################
 ########################################################
