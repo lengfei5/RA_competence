@@ -839,25 +839,35 @@ res = read.csv(file = paste0("../results/R15282_hNT_quantseq_20230614/out_mTesr_
 res = res[, c(2,5,6,7)]
 colnames(res) = paste0(colnames(res), '_hs')
 
-names = toupper(ggs$gene)
-mm = match(names, res$gene_hs)
+ggs$gene_hs = NA
+annots = read.table(file = paste0('/groups/tanaka/People/current/jiwang/Genomes/mouse/annotatioin/mm10/', 
+                                  'mouse_GRCm39_human_homolog.txt'), header = TRUE, sep = '\t')
 
-hmc = data.frame(ggs[!is.na(mm), ], res[mm[!is.na(mm)], ], stringsAsFactors = FALSE)
+ggs$gene_hs = annots$Human.gene.name[match(ggs$gene, annots$Gene.name)]
+
+#names = toupper(ggs$gene)
+mm = match(ggs$gene_hs, res$gene_hs)
+
+hmc = data.frame(ggs, res[mm, ], stringsAsFactors = FALSE)
+
 hmc$pvalue_mm = -log10(hmc$pvalue_mm)
 
 hmc = hmc[order(-hmc$pvalue_mm), ]
+hmc$pvalue_hs[which(is.na(hmc$pvalue_hs))] = 0
+hmc$lfc_hs[which(is.na(hmc$lfc_hs))] = 0
 
-hmc = hmc[order(-hmc$pvalue_hs), ]
+#hmc = hmc[order(-hmc$pvalue_hs), ]
 
 #hmc$pval.combine = apply(as.matrix(hmc[, grep('pvalue_', colnames(hmc))]), 1, 
 #                         function(x){abs(x[1]-x[2])/(min(x) + 0.1)})
 #hmc = hmc[order(hmc$pval.combine), ]
 
-write.csv(hmc, file = paste0(resDir, '/RAtargets_combined_mouse_human.csv'), row.names = TRUE, quote = FALSE)
+write.csv2(hmc, file = paste0(resDir, '/RAtargets_combined_mouse_human.csv'), 
+           row.names = TRUE, quote = FALSE)
 
 sels = which((hmc$padj_mm<0.05 & abs(hmc$log2FoldChange_mm) > 1) | (hmc$padj_hs <0.05 & abs(hmc$lfc_hs) >1))
 hmc = hmc[sels, ]
-hmc = hmc[order(hmc$pval.combine), ]
+#hmc = hmc[order(hmc$pval.combine), ]
 
 #hmc$pvalue_hs = -log10(hmc$pvalue_hs)
 
@@ -875,7 +885,7 @@ ggplot(data = hmc, aes(x = pvalue_mm, y = pvalue_hs, label = gene)) +
 ggsave(paste0(resDir, '/RAtargets_comparison_mouse_human_pvalues.pdf'),  width=12, height = 12)
 
 ggplot(data = hmc, aes(x = log2FoldChange_mm, y = lfc_hs, label = gene)) +
-  geom_point(size = 1) + 
+  geom_point(size = 0.1) + 
   labs(title = paste0('log2 fold-change'), x = 'mNT', y = 'hNT') + 
   theme(axis.text.x = element_text(size = 12), 
         axis.text.y = element_text(size = 12)) + 
@@ -883,10 +893,9 @@ ggplot(data = hmc, aes(x = log2FoldChange_mm, y = lfc_hs, label = gene)) +
   geom_abline(intercept = 0, slope = 1, colour = "red") +
   theme_bw() +
   #geom_text(data=subset(yy, pvalue_pos > 2), size = 4, nudge_y = 0.5) + 
-  geom_text_repel(data=subset(hmc, log2FoldChange_mm > 1 & lfc_hs > 1), size = 2, col = 'blue') +
-  geom_text_repel(data=subset(hmc, log2FoldChange_mm < -1 & lfc_hs < -1), size = 2, col = 'orange') 
+  geom_text_repel(data=subset(hmc, (abs(log2FoldChange_mm) > 2 | abs(lfc_hs) > 2)), size = 1.5, col = 'blue') 
 
-ggsave(paste0(resDir, '/RAtargets_comparison_mouse_human_log2FC.pdf'),  width=12, height = 12)
+ggsave(paste0(resDir, '/RAtargets_comparison_mouse_human_log2FC.pdf'),  width=20, height = 18)
 
 
 ##########################################
@@ -897,11 +906,10 @@ library(clusterProfiler)
 library(openxlsx)
 library(ggplot2)
 library(stringr)
-library(org.Hs.eg.db)
+#library(org.Hs.eg.db)
 library(org.Mm.eg.db)
 
 ## mouse data 
-
 if(species_sel == 'Mouse'){
   
   species_sel = 'Mouse'
@@ -982,22 +990,27 @@ if(species_sel == 'Mouse'){
   bgs = unique(rownames(res))
   gg.expressed = unique(rownames(res)[sels])
   
+  annots = read.table(file = paste0('/groups/tanaka/People/current/jiwang/Genomes/mouse/annotatioin/mm10/', 
+                                    'mouse_GRCm39_human_homolog.txt'), header = TRUE, sep = '\t')
+  
+  gg.expressed = annots$Gene.name[match(gg.expressed, annots$Human.gene.name)]
+  bgs = annots$Gene.name[match(bgs, annots$Human.gene.name)]
+  
   gene.df <- bitr(gg.expressed, fromType = "SYMBOL",
                   toType = c("ENSEMBL", "ENTREZID"),
-                  OrgDb = org.Hs.eg.db)
+                  OrgDb = org.Mm.eg.db)
   head(gene.df)
   
   bgs.df <- bitr(bgs, fromType = "SYMBOL",
                  toType = c("ENSEMBL", "ENTREZID"),
-                 OrgDb = org.Hs.eg.db)
+                 OrgDb = org.Mm.eg.db)
   head(bgs.df)
   
   #pval.cutoff = 0.05
   ego <-  enrichGO(gene         = gene.df$ENSEMBL,
                    #universe     = bgs0.df$ENSEMBL,
                    universe     = bgs.df$ENSEMBL,
-                   OrgDb         = org.Hs.eg.db,
-                   #OrgDb         = org.Mm.eg.db,
+                   OrgDb         = org.Mm.eg.db,
                    keyType       = 'ENSEMBL',
                    ont           = "BP",
                    pAdjustMethod = "BH",
@@ -1009,17 +1022,28 @@ if(species_sel == 'Mouse'){
   jj = grep('response|signaling pathway|adhesion', xx$Description)
   barplot(ego) + ggtitle("Go term enrichment for positional genes")
   
-  write.csv(xx, file = paste0(resDir, '/enriched_signalingPathways_human_all.csv'), 
+  xx$geneSymbols = NA
+  for(n in 1:nrow(xx))
+  {
+    # n = 1
+    ids = xx$geneID[n]
+    ids = unlist(strsplit(as.character(ids), '/'))
+    xx$geneSymbols[n] = paste0(bgs.df$SYMBOL[match(ids, bgs.df$ENSEMBL)],  collapse = '/')
+    
+  }
+  
+  
+  write.csv2(xx, file = paste0(resDir, '/enriched_signalingPathways_human_all.csv'), 
             row.names = TRUE, quote = FALSE)
   
-  write.csv(xx[jj, ], file = paste0(resDir, '/enriched_signalingPathways_human.csv'), 
+  write.csv2(xx[jj, ], file = paste0(resDir, '/enriched_signalingPathways_human.csv'), 
             row.names = TRUE, quote = FALSE)
   
 }
 
-xx1 = read.csv(file = paste0(resDir, '/enriched_signalingPathways_Mouse.csv'))
+xx1 = read.csv2(file = paste0(resDir, '/enriched_signalingPathways_Mouse.csv'))
 
-pdfname = paste0(resDir, '/Barplot_enrichedSignaling_mouse.pdf')
+pdfname = paste0(resDir, '/Barplot_enrichedSignaling_mouse_v2.pdf')
 pdf(pdfname,  width = 18, height = 12)
 par(cex = 1.0, las = 1, mgp = c(3,2,0), mar = c(6,28,2,0.2), tcl = -0.3)
 
@@ -1030,11 +1054,11 @@ barplot(-log10(as.numeric(xx1$qvalue)), horiz = TRUE, names.arg = xx1$Descriptio
 
 dev.off()
 
-pdfname = paste0(resDir, '/Barplot_enrichedSignaling_human.pdf')
+pdfname = paste0(resDir, '/Barplot_enrichedSignaling_human_v2.pdf')
 pdf(pdfname,  width = 18, height = 12)
 par(cex = 1.0, las = 1, mgp = c(3,2,0), mar = c(6,28,2,0.2), tcl = -0.3)
 
-xx2 = read.csv(file = paste0(resDir, '/enriched_signalingPathways_human.csv'))
+xx2 = read.csv2(file = paste0(resDir, '/enriched_signalingPathways_human.csv'))
 xx2 = xx2[order(-as.numeric(xx2$qvalue)), ]
 barplot(-log10(as.numeric(xx2$qvalue)), horiz = TRUE, names.arg = xx2$Description, las = 1,
         xlab = '-log10(qvalue)')

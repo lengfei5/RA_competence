@@ -1,0 +1,169 @@
+##########################################################################
+##########################################################################
+# Project: RA competence 
+# Script purpose: predict Foxa2 and Pax6 regulators
+# Usage example: 
+# Author: Jingkui Wang (jingkui.wang@imp.ac.at)
+# Date of creation: Wed Aug 23 16:11:31 2023
+##########################################################################
+##########################################################################
+library(Seurat)
+library(decoupleR)
+library(tictoc)
+library(dplyr)
+library(tibble)
+library(tidyr)
+library(patchwork)
+library(ggplot2)
+library(pheatmap)
+
+levels_sels = c("day2_beforeRA", "day2.5_RA", "day3_RA.rep1", "day3.5_RA", "day4_RA", "day5_RA")
+
+data_version = "_timePoint"
+
+names(cols) = levels
+cols_sel = cols[match(levels_sels, names(cols))]
+
+outDir = paste0(resDir, '/RA_symetryBreaking/regulators_prediction')
+system(paste0('mkdir -p ', outDir))
+
+# tfs and sps annotations 
+sps = readRDS(file = paste0('../data/annotations/curated_signaling.pathways_gene.list_v3.rds'))
+sps = unique(sps$gene)
+
+tfs = readRDS(file = paste0('../data/annotations/curated_human_TFs_Lambert.rds'))
+tfs = unique(tfs$`HGNC symbol`)
+tfs = as.character(unlist(sapply(tfs, firstup)))
+
+source('functions_utility.R')
+
+##########################################
+# import the data
+##########################################
+aa = readRDS(file = paste0(RdataDir, 
+                           'seuratObject_RA.symmetry.breaking_doublet.rm_mt.ribo.filtered_regressout.nCounts_',
+                           'cellCycleScoring_annot.v2_newUMAP_clusters_sparseFeatures', data_version, '_',
+                           species, version.analysis, '.rds'))
+
+# bb  = aa
+p1 = DimPlot(aa, group.by = 'condition', label = TRUE, repel = TRUE)
+p2 = DimPlot(aa, group.by = 'clusters', label = TRUE, repel = TRUE)
+
+p1 + p2
+
+
+########################################################
+########################################################
+# Section I : make some guess
+# 
+########################################################
+########################################################
+FeaturePlot(aa, features = c('Pax6', 'Foxa2', "Tet2", "Tet3", "Tet1",
+                             "Dnmt3b", "Dnmt1", "Dnmt3a", "Crabp2"))
+
+ggsave(filename = paste0(outDir, '/FeaturePlots_Foxa2_pax6_regulatorGuesss.pdf'), 
+       width = 14, height = 12)
+
+FeaturePlot(aa, features = c('Pax6', 'Foxa2', 'Stra8', 'Halr1', 'Phc1', 'Aldh1a2'))
+
+
+ggsave(filename = paste0(outDir, '/FeaturePlots_Foxa2_pax6_RAresponseGenesGuesss.pdf'), 
+       width = 14, height = 12)
+
+FeaturePlot(aa, features = c('Foxa2', 'Sox17'))
+
+FeaturePlot(aa, features = c('Foxa2', 'Lhx1', 'Otx2', 'Eomes', 'Ldb1'))
+FeaturePlot(aa, features = c('Foxa2', 'Smad2', 'Smad4', 'Amot', 'Dkk1'))
+
+FeaturePlot(aa, features = c('Foxa2', 'Yap1', 'Tead1', 'Tead2', 'Tead3', 'Tead4'))
+
+ggsave(filename = paste0(outDir, '/FeaturePlots_Foxa2_pax6_TeadGenes.pdf'), 
+       width = 12, height = 8)
+
+##########################################
+# check the Yap targets
+##########################################
+FeaturePlot(aa, features = c('Foxa2', 'Ajuba', 'Limd1', 'Dlg5'))
+
+targets = read.csv(file = paste0('/groups/tanaka/Collaborations/Jingkui-Hannah/RA_competence/',
+                                 'scRNAseq_mNT/RA_symetryBreaking/decoupleR_Smad_Tead_targets/', 
+                                 'targets_decoupleR_for_Smad_Tead_activtiyInference.csv'))
+
+targets = targets[grep('Tead', targets$source), ]
+
+pdf(paste0(outDir, '/TransientGenes_Tead_targets.pdf'),
+    width =16, height = 10, useDingbats = FALSE)
+
+plot_manyFeatures_seurat(seurat_obj = aa, features = unique(c('Foxa2', targets$target)))
+
+dev.off()
+
+
+FeaturePlot(aa, features = c('Foxa2', 'Ctgf', 'Cyr61', 'Ax6', 'Birc5', 'Ankrd1', 'Amot',
+                             'Amotl1', 'Amotl2', 'Axin2', 'Sox2', 'Id1', 'Id2'))
+
+FeaturePlot(aa, features = c('Foxa2', 'Pax6', 'Etv6'))
+
+FeaturePlot(aa, features = c('Foxa2', 'Pax6', 'Cdx1'))
+FeaturePlot(aa, features = c('Foxa2', 'Pax6', "Mafb",  "Cflar",  "Bbx", 
+                             "Prdm1",  "Prrx2",  "Sox17",  "Lhx1",  "Pdcd4",  
+                             "Atp6ap2",  "Fgf3",  "Tmf1",  "Fzd2"))
+
+##########################################
+# transiently expressed gene at day2.5 and day3
+##########################################
+Idents(aa) = aa$condition
+all.markers <- FindMarkers(aa, ident.1 = 'day2.5_RA', 
+                           ident.2 = c('day2_beforeRA', 'day3.5_RA', 'day4_RA', 'day5_RA'),
+                           only.pos = TRUE, min.pct = 0.2, logfc.threshold = 0.2)
+
+markers2 <- FindMarkers(aa, ident.1 = 'day3_RA.rep1', 
+                           ident.2 = c('day2_beforeRA', 'day3.5_RA', 'day4_RA', 'day5_RA'),
+                           only.pos = TRUE, min.pct = 0.2, logfc.threshold = 0.2)
+
+all.markers =rbind(all.markers, markers2[which(is.na(match(rownames(markers2), rownames(all.markers)))), ])
+
+all.markers = all.markers[order(-all.markers$avg_log2FC), ]
+
+saveRDS(all.markers, file = paste0(outDir, '/transiently_expressed_genes_day2.5_andDay3.rds'))
+
+## import the RA and noRA samples
+bb =  readRDS(file = paste0(RdataDir, 
+                            'seuratObject_merged_cellFiltered_doublet.rm_mt.ribo.geneFiltered_regressout.nCounts_',
+                            'cellCycleScoring_annot.v1_', species, version.analysis, '.rds'))
+
+levels_sels = c("day2_beforeRA",  
+                "day2.5_RA", "day3_RA.rep1", "day3.5_RA",   "day4_RA", 
+                "day2.5_noRA", "day3_noRA",  "day3.5_noRA", "day4_noRA")
+
+Idents(bb) = factor(bb$condition, levels = levels)
+
+bb = subset(bb, idents = levels_sels)
+
+bb <- FindVariableFeatures(bb, selection.method = "vst", nfeatures = 3000) # find subset-specific HVGs
+
+## because the data was regressed and scaled already, only the HVGs were used to calculate PCA
+bb <- RunPCA(bb, features = VariableFeatures(object = bb), verbose = FALSE, weight.by.var = TRUE)
+ElbowPlot(bb, ndims = 50)
+
+Idents(bb) = bb$condition
+bb <- RunUMAP(bb, dims = 1:30, n.neighbors = 100, min.dist = 0.2)
+DimPlot(bb, label = TRUE, repel = TRUE, group.by = 'condition', raster=FALSE)
+
+
+pdf(paste0(outDir, '/TransientGenes_day2.5_day3_top120.pdf'),
+    width =16, height = 10, useDingbats = FALSE)
+
+plot_manyFeatures_seurat(seurat_obj = bb, features = rownames(all.markers)[1:120])
+
+dev.off()
+
+xx = all.markers[which(!is.na(match(rownames(all.markers), c(tfs, sps)))), ]
+
+
+pdf(paste0(outDir, '/TransientGenes_day2.5_day3_top124_onlyTFs.SPs.pdf'),
+    width =16, height = 10, useDingbats = FALSE)
+
+plot_manyFeatures_seurat(seurat_obj = bb, features = rownames(xx))
+
+dev.off()
