@@ -133,8 +133,8 @@ bb =  readRDS(file = paste0(RdataDir,
                             'cellCycleScoring_annot.v1_', species, version.analysis, '.rds'))
 
 levels_sels = c("day2_beforeRA",  
-                "day2.5_RA", "day3_RA.rep1", "day3.5_RA",   "day4_RA", 
-                "day2.5_noRA", "day3_noRA",  "day3.5_noRA", "day4_noRA")
+                "day2.5_RA", "day3_RA.rep1", "day3.5_RA",   "day4_RA", "day5_RA",
+                "day2.5_noRA", "day3_noRA",  "day3.5_noRA", "day4_noRA", "day5_noRA")
 
 Idents(bb) = factor(bb$condition, levels = levels)
 
@@ -150,20 +150,32 @@ Idents(bb) = bb$condition
 bb <- RunUMAP(bb, dims = 1:30, n.neighbors = 100, min.dist = 0.2)
 DimPlot(bb, label = TRUE, repel = TRUE, group.by = 'condition', raster=FALSE)
 
+p1 = DimPlot(bb, group.by = 'condition', label = TRUE, repel = TRUE) + NoLegend()
+p2 = FeaturePlot(bb, features = c('Foxa2', 'Pax6'), ncol = 1)
 
-pdf(paste0(outDir, '/TransientGenes_day2.5_day3_top120.pdf'),
+p1 + p2
+
+ggsave(filename = paste0(outDir, '/UMAP_RA_noRA_samples.pdf'), 
+       width = 16, height = 8)
+
+pdf(paste0(outDir, '/TransientGenes_day2.5_day3_top124_onlyTFs.SPs_umap.RAnoRA.pdf'),
     width =16, height = 10, useDingbats = FALSE)
 
-plot_manyFeatures_seurat(seurat_obj = bb, features = rownames(all.markers)[1:120])
-
-dev.off()
+all.markers = readRDS(file = paste0(outDir, '/transiently_expressed_genes_day2.5_andDay3.rds'))
 
 xx = all.markers[which(!is.na(match(rownames(all.markers), c(tfs, sps)))), ]
-
-
-pdf(paste0(outDir, '/TransientGenes_day2.5_day3_top124_onlyTFs.SPs.pdf'),
-    width =16, height = 10, useDingbats = FALSE)
 
 plot_manyFeatures_seurat(seurat_obj = bb, features = rownames(xx))
 
 dev.off()
+
+########################################################
+########################################################
+# Section : Test scran correlaton analysis
+# 
+########################################################
+########################################################
+
+
+
+
