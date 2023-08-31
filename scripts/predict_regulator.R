@@ -171,11 +171,59 @@ dev.off()
 
 ########################################################
 ########################################################
-# Section : Test scran correlaton analysis
+# Section II : Test scran correlaton analysis
 # 
 ########################################################
 ########################################################
 
 
 
+
+
+
+########################################################
+########################################################
+# Section III : scan Foxa2 enhancer and promoter
+# 
+########################################################
+########################################################
+Dir_mouse_annot = "/groups/tanaka/People/current/jiwang/Genomes/mouse/mm10_ens/"
+
+promoters = read.delim(paste0(Dir_mouse_annot, 'ens_BioMart_GRCm38.p6.txt'))
+promoters = promoters[which(promoters$Gene.type == 'protein_coding'), ]
+promoters = promoters[which(promoters$GENCODE.basic.annotation == 'GENCODE basic'), ]
+
+promoters = promoters[which(!is.na(match(promoters$Chromosome.scaffold.name, c(1:19)))), ]
+
+# select only one promoter for each gene symbols
+Make_background = FALSE
+
+if(Make_background){
+  ggs = unique(promoters$Gene.name)
+  promoters = promoters[match(ggs, promoters$Gene.name), ]
+  
+  # randomly select 2000 promoters as background
+  set.seed(2023)
+  sels = sample(c(1:nrow(promoters)), size = 2000)
+}else{
+  sels = which(promoters$Gene.name == 'Foxa2'| promoters$Gene.name == 'Pax6')
+}
+
+promoters = promoters[sels, ]
+
+bgs = data.frame(promoters$Chromosome.scaffold.name, promoters$Transcription.start.site..TSS.,
+                 promoters$Transcription.start.site..TSS., promoters$Transcript.name, rep(0, nrow(promoters)), 
+                 promoters$Strand, stringsAsFactors = FALSE)
+colnames(bgs) = c('chr', 'start', 'end', 'gene', 'score', 'strand')
+bgs$strand[which(bgs$strand == '1')] = '+'
+bgs$strand[which(bgs$strand == '-1')] = '-'
+
+jj = which(bgs$strand == '+')
+bgs$start[jj] = bgs$end[jj] - 2000
+
+jj = which(bgs$strand == '-')
+bgs$end[jj] = bgs$start[jj] + 2000
+
+write.table(bgs, file = paste0(Dir_mouse_annot, 'mm10_Foxa2_Pax6_promoters.bed'), 
+            quote = FALSE, row.names = FALSE, col.names = FALSE, sep = '\t')
 
