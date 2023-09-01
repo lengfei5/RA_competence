@@ -80,6 +80,7 @@ FeaturePlot(aa, features = c('Foxa2', 'Yap1', 'Tead1', 'Tead2', 'Tead3', 'Tead4'
 ggsave(filename = paste0(outDir, '/FeaturePlots_Foxa2_pax6_TeadGenes.pdf'), 
        width = 12, height = 8)
 
+
 ##########################################
 # check the Yap targets
 ##########################################
@@ -169,21 +170,10 @@ plot_manyFeatures_seurat(seurat_obj = bb, features = rownames(xx))
 
 dev.off()
 
-########################################################
-########################################################
-# Section II : Test scran correlaton analysis
-# 
-########################################################
-########################################################
-
-
-
-
-
 
 ########################################################
 ########################################################
-# Section III : scan Foxa2 enhancer and promoter
+# Section II : scan Foxa2 enhancer and promoter
 # 
 ########################################################
 ########################################################
@@ -226,4 +216,63 @@ bgs$end[jj] = bgs$start[jj] + 2000
 
 write.table(bgs, file = paste0(Dir_mouse_annot, 'mm10_Foxa2_Pax6_promoters.bed'), 
             quote = FALSE, row.names = FALSE, col.names = FALSE, sep = '\t')
+
+
+##########################################
+# double check the potential TFs after FoxA2 promoter and enhancer scanning
+##########################################
+# test AME enriched motifs
+pdf(paste0(outDir, '/AME_enrichedMotifs.pdf'),
+    width =16, height = 10, useDingbats = FALSE)
+
+features = c('Foxa2', 'Pax6', 
+             rownames(aa)[grep('Onecut', rownames(aa))], 
+             rownames(aa)[grep('Zfp384', rownames(aa))],
+             'RREB1',
+             rownames(aa)[grep('Egr', rownames(aa))],
+             rownames(aa)[grep('Prdm', rownames(aa))],
+             rownames(aa)[grep('Fox', rownames(aa))],
+             rownames(aa)[grep('Pou', rownames(aa))],
+             rownames(aa)[grep('Klf', rownames(aa))]
+)
+plot_manyFeatures_seurat(seurat_obj = aa, features = unique(features))
+
+dev.off()
+
+FeaturePlot(aa, features = c('Foxa2', 'Pax6', 'Klf4', 'Rreb1', 'Mzf1', 
+                             'Zfp384','Zfp148', 'Zfp281','Patz1'
+                             #rownames(aa)[grep('Zic', rownames(aa))],
+                             #rownames(aa)[grep('Cdx', rownames(aa))]
+                             ))
+
+FeaturePlot(aa, features = c('Foxa2', 'Pax6', 
+                             rownames(aa)[grep('Sp', rownames(aa))]
+                             #rownames(aa)[grep('Cdx', rownames(aa))]
+))
+
+FeaturePlot(aa, features = c('Foxa2', 'Pax6', 
+                             rownames(aa)[grep('Bptf', rownames(aa))]
+                             #rownames(aa)[grep('Cdx', rownames(aa))]
+                             ),
+            max.cutoff = 'q99')
+
+FeaturePlot(aa, features = c('Foxa2', 'Pax6', 
+                             rownames(aa)[grep('^Rar|^Rxr', rownames(aa))]
+                             #rownames(aa)[grep('Cdx', rownames(aa))]
+))
+
+FeaturePlot(aa, features = c('Foxa2', 'Pax6', 
+                             rownames(aa)[grep('^Stat', rownames(aa))]
+                             #rownames(aa)[grep('Cdx', rownames(aa))]
+))
+
+
+########################################################
+########################################################
+# Section III : Test scran correlaton analysis
+# 
+########################################################
+########################################################
+
+
 
