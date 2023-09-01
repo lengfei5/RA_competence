@@ -266,13 +266,65 @@ FeaturePlot(aa, features = c('Foxa2', 'Pax6',
                              #rownames(aa)[grep('Cdx', rownames(aa))]
 ))
 
+FeaturePlot(aa, features = c('Foxa2', 'Pax6', 
+                             'Otx1', 'Lhx1'
+))
+
+
+##########################################
+# make summary of motif occurrency in Foxa2 promoters and enhancers 
+##########################################
+library(data.table)
+
+fimo.out = paste0('../results/scRNAseq_R13547_10x_mNT_20220813/motif_analysis/fimo/',
+                  'FoxA2_promoters_enhancers/', 'fimo.tsv')
+
+fimo = fread(fimo.out, header = TRUE)
+fimo = fimo[which(fimo$`p-value` < 10^-4), ]
+
+motif.oc = table(fimo$motif_id, fimo$sequence_name, useNA = 'ifany')
+colnames(motif.oc) = c('enhancer.fp', 'enhancer.node', 'promoter_201', 'promoter_202')
+motif.oc[grep('SMAD|TEAD|LEF|^TCF|FOXA|RAR|GLI|PAX', rownames(motif.oc)), ]
+
+motif.oc = t(motif.oc)
+
+print(head(rownames(motif.oc), 20))
+
+saveRDS(motif.oc, file = paste0(outDir, '/motif_oc_fimo_jaspar2022_pval.0.0001_Foxa2.enhancers.promoters.rds'))
+
+ss = apply(motif.oc, 2, sum)
+motif.oc = motif.oc[, order(-ss)]
 
 ########################################################
 ########################################################
 # Section III : Test scran correlaton analysis
-# 
+# original code from 
+# https://bioconductor.org/packages/release/workflows/vignettes/simpleSingleCell/inst/doc/misc.html
 ########################################################
 ########################################################
+library(R.utils)
+library(SingleCellExperiment)
+library(scater)
+library(scran)
 
 
+data_version = "_d2_d2.5_d3_d3.5_d4_d5"
+
+names(cols) = levels
+cols_sel = cols[match(levels_sels, names(cols))]
+
+outDir = paste0(resDir, '/RA_symetryBreaking/sparse_featureSelection', data_version)
+system(paste0('mkdir -p ', outDir))
+
+set.seed(100)
+var.cor <- correlatePairs(sce.hsc, subset.row=grep("^H2-", rownames(sce.hsc)))
+head(var.cor)
+
+sig.cor <- var.cor$FDR <= 0.05
+summary(sig.cor)
+
+correlatePairs(sce.hsc, subset.row=cbind("Fos", "Jun"))
+
+library(scater)
+plotExpression(sce.hsc, features="Fos", x="Jun")
 
