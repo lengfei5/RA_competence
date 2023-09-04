@@ -20,7 +20,8 @@ wtm = GENIE3_withSpecificTargets(expr.matrix = E, priorTargets = c('Foxa2'), nco
 
 toc()
 
-wtm = data.frame(weight.matrix, regulator = rownames(weight.matrix), stringsAsFactors = FALSE)
+wtm = data.frame(wtm, regulator = rownames(wtm), stringsAsFactors = FALSE)
 wtm = wtm[order(-wtm$Foxa2), ]
 
 saveRDS(wtm, file = paste0('analysis_examples/Genie3/ranked_predictedRegulators_FoxA2.rds'))
+
