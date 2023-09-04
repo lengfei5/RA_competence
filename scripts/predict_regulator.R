@@ -306,25 +306,84 @@ library(R.utils)
 library(SingleCellExperiment)
 library(scater)
 library(scran)
+library(dplyr)
+library(tibble)
+library(tidyr)
+library(patchwork)
+library(ggplot2)
+library(ggrepel)
+
+motif.oc = readRDS(file = paste0(outDir, '/motif_oc_fimo_jaspar2022_pval.0.0001_Foxa2.enhancers.promoters.rds'))
+motif.oc = t(motif.oc)
+mapping = readRDS(paste0('../results/scRNAseq_R13547_10x_mNT_20220813/motif_analysis/', 
+                         'JASPAR2022_CORE_UNVALIDED_vertebrates_nonRedundant_metadata_manual_rmRedundantUNVALIDED.rds'))
+
+mapping = mapping[which(!is.na(match(mapping$name, rownames(motif.oc)))), ]
+mapping$gene = firstup(mapping$gene)
+
+Idents(aa) = factor(aa$condition)
 
 
-data_version = "_d2_d2.5_d3_d3.5_d4_d5"
+levels_sels = c("day3_RA.rep1")
 
-names(cols) = levels
-cols_sel = cols[match(levels_sels, names(cols))]
+data_version = "_d3"
 
-outDir = paste0(resDir, '/RA_symetryBreaking/sparse_featureSelection', data_version)
-system(paste0('mkdir -p ', outDir))
+outDir_cc = paste0(outDir, '/scran_pairCorrelation_scran', data_version)
+system(paste0('mkdir -p ', outDir_cc))
+
+sce = subset(aa, idents = levels_sels)
+sce = as.SingleCellExperiment(sce)
 
 set.seed(100)
-var.cor <- correlatePairs(sce.hsc, subset.row=grep("^H2-", rownames(sce.hsc)))
+mm = match(rownames(sce), c(tfs, sps))
+subset = which(!is.na(mm))
+var.cor <- correlatePairs(sce, pairings = list(rep(which(rownames(sce) == 'Foxa2'), length(subset)), 
+                                               subset))
+
 head(var.cor)
 
-sig.cor <- var.cor$FDR <= 0.05
+saveRDS(var.cor, file = paste0(outDir_cc, '/correlatePairs_FoxA2_vs_tfs.sps.rds'))
+
+var.cor = readRDS(file = paste0(outDir_cc, '/correlatePairs_FoxA2_vs_tfs.sps.rds'))
+
+sig.cor <- var.cor$FDR <= 0.01
 summary(sig.cor)
 
-correlatePairs(sce.hsc, subset.row=cbind("Fos", "Jun"))
+var.cor = var.cor[which(sig.cor == TRUE), ]
 
-library(scater)
-plotExpression(sce.hsc, features="Fos", x="Jun")
+ave.counts <- calculateAverage(sce)
 
+var.cor$findMotifs = !is.na(match(var.cor$gene2, mapping$gene))
+var.cor$fdr = -log10(var.cor$FDR+10^-10)
+var.cor$ave.counts = log10(ave.counts[match(var.cor$gene2, names(ave.counts))])
+
+var.cor = as.data.frame(var.cor)
+
+ggplot(data = var.cor, aes(x=rho, y=ave.counts, label = gene2)) +
+  geom_point(size = 0.2) + 
+  theme_classic() + 
+  labs(x = "Correlation", y = "log10(ave.counts)") +
+  geom_text_repel(data= var.cor[which(var.cor$findMotifs == TRUE & abs(var.cor$rho) >0.1), ], 
+                  aes(x=rho, y=ave.counts),
+                  size = 4,
+                  #color = "darkgreen",
+                  #family = 'Times',
+                  #fontface = 'bold',
+                  # Add extra padding around each text label.
+                  #box.padding = unit(0.3, 'lines'),
+                  # Add extra padding around each data point.
+                  #point.padding = unit(1.6, 'lines')
+                  )
+ggsave(filename = paste0(outDir_cc, '/scran_correlation.with.FoxA2.pdf'), width = 20, height = 16)
+
+dev.off()
+
+pdf(paste0(outDir_cc, '/Compare_expressionPattern.pdf'),
+    width =16, height = 10, useDingbats = FALSE)
+
+features = c('Foxa2', 'Pax6', 
+             var.cor$gene2[which(var.cor$findMotifs == TRUE & abs(var.cor$rho) >0.1)]
+)
+plot_manyFeatures_seurat(seurat_obj = aa, features = unique(features))
+
+dev.off()
