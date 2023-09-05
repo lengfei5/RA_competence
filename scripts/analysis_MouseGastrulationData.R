@@ -23,7 +23,8 @@ rm(list = ls())
 
 version.analysis = '_MouseGastrulationData/'
 
-resDir = paste0("../results/dataset_scRNAseq", version.analysis)
+#resDir = paste0("../results/dataset_scRNAseq", version.analysis)
+resDir = paste0('../results/scRNAseq_R13547_10x_mNT_20220813/mapping_to', version.analysis)
 RdataDir = paste0(resDir, 'Rdata/')
 
 if(!dir.exists(resDir)) dir.create(resDir)
@@ -108,22 +109,30 @@ if(Load_process_MouseGastrulation){
 # 
 ########################################################
 ########################################################
-aa = readRDS(file = paste0(RdataDir, 'seuratObject_EmbryoAtlasData_all36sample.rds'))
+srat = readRDS(file = paste0('../results/dataset_scRNAseq_MouseGastrulationData/Rdata/',
+                             'seuratObject_EmbryoAtlasData_all36sample.rds'))
+#srat = readRDS(paste0('/groups/tanaka/Collaborations/Jingkui-Hannah/RA_competence/scRNAseq_mNT/saved_seuratObj/',
+#                    'seuratObject_EmbryoAtlasData_all36sample.rds'))
+
+p1 = DimPlot(srat, reduction = 'umap', 
+        #cols = EmbryoCelltypeColours, 
+        group.by = 'celltype', 
+        label = TRUE, repel = TRUE,
+        raster=FALSE) 
+
+p2 = DimPlot(srat, reduction = 'umap', 
+        #cols = EmbryoCelltypeColours, 
+        group.by = 'stage', 
+        label = TRUE, repel = TRUE,
+        raster=FALSE) 
+
+p1 /p2
+
+ggsave(filename = paste0(resDir, '/MouseGastrulation_celltypes_stage.pdf'), width = 18, height = 20)
 
 ##########################################
 # check the Pax6 and FoxA2 co-expression
 ##########################################
-
-#aa = readRDS(paste0('/groups/tanaka/Collaborations/Jingkui-Hannah/RA_competence/scRNAseq_mNT/saved_seuratObj/',
-#                    'seuratObject_EmbryoAtlasData_all36sample.rds'))
-
-DimPlot(aa, reduction = 'umap', 
-        #cols = EmbryoCelltypeColours, 
-        group.by = 'celltype', 
-        label = TRUE, repel = TRUE,
-        raster=FALSE)
-
-
 p1 = VlnPlot(srat, features = c('Pax6'), group.by = 'celltype') + NoLegend()
 p2 = VlnPlot(srat, features = 'Foxa2', group.by = 'celltype') + NoLegend()
 
@@ -170,6 +179,100 @@ ggsave(filename = paste0(resDir, '/umap_subsetting_celltypes_stages.pdf'), width
 FeaturePlot(sub.obj, features = c('Pax6', 'Foxa2'), blend = TRUE, raster = TRUE, order = TRUE)
 ggsave(filename = paste0(resDir, '/Featureplots_Pax6_Foxa2_blended_ordered_subsetting.pdf'), 
        width = 20, height = 8)
+
+
+##########################################
+# test Seurat data integration
+##########################################
+aa =  readRDS(file = paste0('../results/Rdata/',  
+                            'seuratObject_merged_cellFiltered_doublet.rm_mt.ribo.geneFiltered_regressout.nCounts_',
+                            'cellCycleScoring_annot.v1_', 'mNT_scRNAseq',
+                            '_R13547_10x_mNT_20220813', '.rds'))
+
+## subset our scRNA-seq data 
+levels_sels = c("day2_beforeRA",  
+                "day2.5_RA", "day3_RA.rep1", "day3.5_RA",   "day4_RA", "day5_RA",
+                "day2.5_noRA", "day3_noRA",  "day3.5_noRA", "day4_noRA", "day5_noRA")
+
+Idents(aa) = factor(aa$condition)
+aa = subset(aa, idents = levels_sels)
+
+aa$dataset = 'mNT'
+
+srat$dataset = 'ref'
+
+#aa$annot.ref = aa$my_annot
+#cms$annot.ref = cms$CellType
+features.common = intersect(rownames(aa), rownames(srat))
+
+refs.merged = merge(aa, y = srat, add.cell.ids = c("mNT", "mouseGastrulation"), project = "RA_competence")
+
+ref.list <- SplitObject(refs.merged, split.by = "dataset")
+
+rm(list = c('aa', 'cms', 'refs.merged')) # remove big seurat objects to clear memory
+
+# normalize and identify variable features for each dataset independently
+ref.list <- lapply(X = ref.list, FUN = function(x) {
+  x <- NormalizeData(x)
+  x <- FindVariableFeatures(x, selection.method = "vst", nfeatures = 3000)
+})
+
+# select features that are repeatedly variable across datasets for integration run PCA on each
+# dataset using these features
+features <- SelectIntegrationFeatures(object.list = ref.list, nfeatures = 3000)
+
+ref.list <- lapply(X = ref.list, FUN = function(x) {
+  x <- ScaleData(x, features = features.common, verbose = FALSE)
+  x <- RunPCA(x, features = features, verbose = FALSE)
+  
+})
+
+ref.anchors <- FindIntegrationAnchors(object.list = ref.list, anchor.features = features, reduction = "rpca", 
+                                      k.anchor = 5)
+
+rm(ref.list)
+
+# this command creates an 'integrated' data assay
+ref.combined <- IntegrateData(anchorset = ref.anchors, features.to.integrate = features.common)
+
+rm(ref.anchors)
+# specify that we will perform downstream analysis on the corrected data note that the
+# original unmodified data still resides in the 'RNA' assay
+DefaultAssay(ref.combined) <- "integrated"
+
+xx = DietSeurat(ref.combined, counts = TRUE, data = TRUE, scale.data = FALSE, assays = 'integrated')
+xx@assays$integrated@counts = ref.combined@assays$RNA@counts
+
+saveRDS(xx, file = paste0(RdataDir, 'Seurat.obj_adultMiceHeart_Forte2020_Ren2020_refCombined_logNormalize_counts_v3.rds'))
+
+
+# Run the standard workflow for visualization and clustering
+ref.combined = readRDS(file =paste0(RdataDir, 
+                                    'Seurat.obj_adultMiceHeart_Forte2020_Ren2020_refCombined_logNormalize_counts_v3.rds'))
+
+ref.combined <- ScaleData(ref.combined, verbose = FALSE)
+ref.combined <- RunPCA(ref.combined, npcs = 30, verbose = FALSE)
+
+ElbowPlot(ref.combined, ndims = 30)
+
+ref.combined <- FindNeighbors(ref.combined, reduction = "pca", dims = 1:20)
+ref.combined <- FindClusters(ref.combined, resolution = 0.2)
+
+ref.combined <- RunUMAP(ref.combined, reduction = "pca", dims = 1:30, n.neighbors = 50, min.dist = 0.05) 
+
+DimPlot(ref.combined, reduction = "umap")
+
+kk = which(ref.combined$dataset == 'Ren2020' & ref.combined$celltype != 'CM')
+ref.combined$celltype[kk] = paste0(ref.combined$celltype[kk], '_Ren2020')
+
+# Visualization
+p1 <- DimPlot(ref.combined, reduction = "umap", group.by = "dataset")
+p2 <- DimPlot(ref.combined, reduction = "umap", group.by = "celltype", label = TRUE,
+              repel = TRUE)
+p1 + p2 
+
+ggsave(paste0(resDir, '/Forte2020_Ren2020_IntegrationRPCA_', Normalization, '.pdf'), 
+       width = 24, height = 10)
 
 
 
