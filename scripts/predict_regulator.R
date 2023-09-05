@@ -445,15 +445,12 @@ wtm = readRDS(file = paste0('analysis_examples/Genie3/ranked_predictedRegulators
 pdf(paste0(outDir_cc, '/GENIE3_regulators_expressionPattern.pdf'),
     width =16, height = 10, useDingbats = FALSE)
 
-features = c('Foxa2', 'Pax6', wtm$regulator[which(wtm$Foxa2>10^-)])
+features = c('Foxa2', 'Pax6', wtm$regulator[which(wtm$Foxa2>10^-3)])
 
 plot_manyFeatures_seurat(seurat_obj = aa, features = unique(features))
 
 dev.off()
 
-
-
-
-
+FeaturePlot(aa, features = c('Pax6', 'Foxa2', 'Rarg', 'Pou5f1', 'Zfp42', 'Lhx1', 'Jun', 'Lef1', 'Gata3'))
 
 
