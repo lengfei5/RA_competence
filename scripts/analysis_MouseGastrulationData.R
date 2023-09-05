@@ -55,58 +55,74 @@ library(MouseGastrulationData)
 ##########################################
 # make plots of processed data
 ##########################################
-head(AtlasSampleMetadata, n = 3)
+Load_process_MouseGastrulation = FALSE
+if(Load_process_MouseGastrulation){
+  head(AtlasSampleMetadata, n = 3)
+  
+  sce <- EmbryoAtlasData(type = 'processed', samples = NULL)
+  sce
+  
+  saveRDS(sce, file = paste0(RdataDir, 'EmbryoAtlasData_all36sample.rds'))
+  
+  
+  
+  head(rowData(sce))
+  rownames(sce) = rowData(sce)$SYMBOL
+  
+  head(colData(sce))
+  
+  #exclude technical artefacts
+  singlets <- which(!(colData(sce)$doublet | colData(sce)$stripped))
+  
+  plot(
+    x = reducedDim(sce, "umap")[singlets, 1],
+    y = reducedDim(sce, "umap")[singlets, 2],
+    col = EmbryoCelltypeColours[colData(sce)$celltype[singlets]],
+    pch = 19,
+    xaxt = "n", yaxt = "n",
+    xlab = "UMAP1", ylab = "UMAP2"
+  )
+  
+  sce = sce[, singlets]
+  EmbryoCelltypeColours = EmbryoCelltypeColours[colData(sce)$celltype[singlets]]
+  
+  sce = scuttle::logNormCounts(sce)
+  rownames(sce) = make.unique(rownames(sce))
+  srat = as.Seurat(sce, counts = "counts", data = "logcounts")
+  
+  rm(sce)
+  
+  DimPlot(srat, reduction = 'umap', cols = EmbryoCelltypeColours, group.by = 'celltype', 
+          label = TRUE, repel = TRUE,
+          raster=FALSE)
+  
+  ggsave(filename = paste0(resDir, '/umap_celltypes.pdf'), width = 20, height = 10)
+  
+  saveRDS(srat, file = paste0(RdataDir, 'seuratObject_EmbryoAtlasData_all36sample.rds'))
+  
+}
 
-sce <- EmbryoAtlasData(type = 'processed', samples = NULL)
-sce
-
-saveRDS(sce, file = paste0(RdataDir, 'EmbryoAtlasData_all36sample.rds'))
-
-head(rowData(sce))
-rownames(sce) = rowData(sce)$SYMBOL
-
-head(colData(sce))
-
-#exclude technical artefacts
-singlets <- which(!(colData(sce)$doublet | colData(sce)$stripped))
-
-plot(
-  x = reducedDim(sce, "umap")[singlets, 1],
-  y = reducedDim(sce, "umap")[singlets, 2],
-  col = EmbryoCelltypeColours[colData(sce)$celltype[singlets]],
-  pch = 19,
-  xaxt = "n", yaxt = "n",
-  xlab = "UMAP1", ylab = "UMAP2"
-)
-
-sce = sce[, singlets]
-EmbryoCelltypeColours = EmbryoCelltypeColours[colData(sce)$celltype[singlets]]
-
-sce = scuttle::logNormCounts(sce)
-rownames(sce) = make.unique(rownames(sce))
-srat = as.Seurat(sce, counts = "counts", data = "logcounts")
-
-rm(sce)
-
-DimPlot(srat, reduction = 'umap', cols = EmbryoCelltypeColours, group.by = 'celltype', 
-        label = TRUE, repel = TRUE,
-        raster=FALSE)
-
-ggsave(filename = paste0(resDir, '/umap_celltypes.pdf'), width = 20, height = 10)
-
-saveRDS(srat, file = paste0(RdataDir, 'seuratObject_EmbryoAtlasData_all36sample.rds'))
+########################################################
+########################################################
+# Section I: Explore the mapping between the mouse data and our scRNA-seq data
+# 
+########################################################
+########################################################
+aa = readRDS(file = paste0(RdataDir, 'seuratObject_EmbryoAtlasData_all36sample.rds'))
 
 ##########################################
 # check the Pax6 and FoxA2 co-expression
 ##########################################
-scrat = readRDS(file = paste0(RdataDir, 'seuratObject_EmbryoAtlasData_all36sample.rds'))
-aa = readRDS('/groups/tanaka/Collaborations/Jingkui-Hannah/RA_competence/scRNAseq_mNT/saved_seuratObj/seuratObject_EmbryoAtlasData_all36sample.rds')
+
+#aa = readRDS(paste0('/groups/tanaka/Collaborations/Jingkui-Hannah/RA_competence/scRNAseq_mNT/saved_seuratObj/',
+#                    'seuratObject_EmbryoAtlasData_all36sample.rds'))
 
 DimPlot(aa, reduction = 'umap', 
         #cols = EmbryoCelltypeColours, 
         group.by = 'celltype', 
         label = TRUE, repel = TRUE,
         raster=FALSE)
+
 
 p1 = VlnPlot(srat, features = c('Pax6'), group.by = 'celltype') + NoLegend()
 p2 = VlnPlot(srat, features = 'Foxa2', group.by = 'celltype') + NoLegend()
