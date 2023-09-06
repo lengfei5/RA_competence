@@ -46,18 +46,20 @@ library(edgeR)
 library(future)
 library(data.table)
 library(tidyverse)
-options(future.globals.maxSize = 80000 * 1024^2)
+
+options(future.globals.maxSize = 120000 * 1024^2)
 mem_used()
 
 species = '_mouseGastrulation'
 
-library(MouseGastrulationData)
+
 
 ##########################################
 # make plots of processed data
 ##########################################
 Load_process_MouseGastrulation = FALSE
 if(Load_process_MouseGastrulation){
+  library(MouseGastrulationData)
   head(AtlasSampleMetadata, n = 3)
   
   sce <- EmbryoAtlasData(type = 'processed', samples = NULL)
@@ -65,7 +67,8 @@ if(Load_process_MouseGastrulation){
   
   saveRDS(sce, file = paste0(RdataDir, 'EmbryoAtlasData_all36sample.rds'))
   
-  
+  sce = readRDS(paste0('../results/dataset_scRNAseq_MouseGastrulationData/Rdata/', 
+                       'EmbryoAtlasData_all36sample.rds'))
   
   head(rowData(sce))
   rownames(sce) = rowData(sce)$SYMBOL
@@ -78,7 +81,7 @@ if(Load_process_MouseGastrulation){
   plot(
     x = reducedDim(sce, "umap")[singlets, 1],
     y = reducedDim(sce, "umap")[singlets, 2],
-    col = EmbryoCelltypeColours[colData(sce)$celltype[singlets]],
+    col = sce$colour[singlets],
     pch = 19,
     xaxt = "n", yaxt = "n",
     xlab = "UMAP1", ylab = "UMAP2"
@@ -89,7 +92,7 @@ if(Load_process_MouseGastrulation){
   
   sce = scuttle::logNormCounts(sce)
   rownames(sce) = make.unique(rownames(sce))
-  srat = as.Seurat(sce, counts = "counts", data = "logcounts")
+  srat = as.Seurat(sce, counts = "counts",  assay = NULL)
   
   rm(sce)
   
@@ -109,10 +112,37 @@ if(Load_process_MouseGastrulation){
 # 
 ########################################################
 ########################################################
-srat = readRDS(file = paste0('../results/dataset_scRNAseq_MouseGastrulationData/Rdata/',
-                             'seuratObject_EmbryoAtlasData_all36sample.rds'))
-#srat = readRDS(paste0('/groups/tanaka/Collaborations/Jingkui-Hannah/RA_competence/scRNAseq_mNT/saved_seuratObj/',
-#                    'seuratObject_EmbryoAtlasData_all36sample.rds'))
+Modify.Assay.Name = FALSE
+if(Modify.Assay.Name){
+  srat = readRDS(file = paste0('../results/dataset_scRNAseq_MouseGastrulationData/Rdata/',
+                               'seuratObject_EmbryoAtlasData_all36sample.rds'))
+  
+  ## change assay name
+  adt.data <- GetAssayData(object =  srat[['originalexp']], slot = 'counts')
+  srat[["RNA"]] <- CreateAssayObject(counts = adt.data )
+  DefaultAssay(srat) <- "RNA"
+  srat[['originalexp']] = NULL
+  
+  srat <- NormalizeData(srat, normalization.method = "LogNormalize")
+  srat <- FindVariableFeatures(srat, selection.method = "vst", nfeatures = 3000)
+  srat <- ScaleData(srat, verbose = FALSE)
+  srat <- RunPCA(srat, verbose = FALSE)
+  
+  saveRDS(srat, file = paste0(RdataDir,  'seuratObject_EmbryoAtlasData_all36sample_RNAassay.rds'))
+}
+
+srat = readRDS(file = paste0(RdataDir,  'seuratObject_EmbryoAtlasData_all36sample_RNAassay.rds'))
+xx = readRDS(file = paste0('../results/dataset_scRNAseq_MouseGastrulationData/Rdata/',
+                      'seuratObject_EmbryoAtlasData_all36sample.rds'))
+
+umap.embedding = xx@reductions$umap@cell.embeddings
+umap.embedding = umap.embedding[match(colnames(srat), rownames(umap.embedding)), ]
+srat[['umap']] = Seurat::CreateDimReducObject(embeddings=umap.embedding,
+                                                 key='UMAP_',
+                                                 assay='RNA')
+rm(xx)
+rm(umap.embedding)
+
 
 p1 = DimPlot(srat, reduction = 'umap', 
         #cols = EmbryoCelltypeColours, 
@@ -194,12 +224,17 @@ levels_sels = c("day2_beforeRA",
                 "day2.5_RA", "day3_RA.rep1", "day3.5_RA",   "day4_RA", "day5_RA",
                 "day2.5_noRA", "day3_noRA",  "day3.5_noRA", "day4_noRA", "day5_noRA")
 
+levels_sels = c("day2_beforeRA",  "day2.5_RA", "day3_RA.rep1", "day3.5_RA")
+
 Idents(aa) = factor(aa$condition)
 aa = subset(aa, idents = levels_sels)
 
 aa$dataset = 'mNT'
-
 srat$dataset = 'ref'
+
+#refs <- CreateAssayObject(counts = srat@assays[["originalexp"]]@counts)
+#metadata = srat@meta.data
+#refs = AddMetaData(refs,  metadata, col.name = NULL) 
 
 #aa$annot.ref = aa$my_annot
 #cms$annot.ref = cms$CellType
@@ -209,12 +244,13 @@ refs.merged = merge(aa, y = srat, add.cell.ids = c("mNT", "mouseGastrulation"), 
 
 ref.list <- SplitObject(refs.merged, split.by = "dataset")
 
-rm(list = c('aa', 'cms', 'refs.merged')) # remove big seurat objects to clear memory
+rm(list = c('refs.merged')) # remove big seurat objects to clear memory
 
 # normalize and identify variable features for each dataset independently
 ref.list <- lapply(X = ref.list, FUN = function(x) {
-  x <- NormalizeData(x)
+  x <- NormalizeData(x, normalization.method = "LogNormalize")
   x <- FindVariableFeatures(x, selection.method = "vst", nfeatures = 3000)
+  
 })
 
 # select features that are repeatedly variable across datasets for integration run PCA on each
@@ -227,7 +263,10 @@ ref.list <- lapply(X = ref.list, FUN = function(x) {
   
 })
 
-ref.anchors <- FindIntegrationAnchors(object.list = ref.list, anchor.features = features, reduction = "rpca", 
+
+ref.anchors <- FindIntegrationAnchors(object.list = ref.list, 
+                                      anchor.features = features, 
+                                      reduction = "rpca", 
                                       k.anchor = 5)
 
 rm(ref.list)
