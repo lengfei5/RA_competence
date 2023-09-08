@@ -17,7 +17,6 @@
 # https://bioconductor.org/packages/release/data/experiment/html/MouseGastrulationData.html
 ########################################################
 ########################################################
-
 rm(list = ls())
 
 version.analysis = '_MouseGastrulationData/'
@@ -251,6 +250,11 @@ ggsave(filename = paste0(resDir, '/Featureplots_Pax6_Foxa2_blended_ordered_subse
 ##########################################
 # test Seurat data integration
 ##########################################
+data_version = "subsettingRef_mNT.noRA.RA.d2_d5_RPCA"
+outDir = paste0(resDir, 'dataMapping_', data_version)
+system(paste0('mkdir -p ', outDir))
+
+
 srat = readRDS(file = paste0(RdataDir,  
                              'seuratObject_EmbryoAtlasData_all36sample_RNAassay_keep.relevant.celltypes_v2.rds'))
 
@@ -289,9 +293,6 @@ levels_sels = c("day2_beforeRA",
 
 cols_sel = cols[match(levels_sels, names(cols))]
 
-data_version = "subsettingRef_mNT.noRA.RA.d2_d5_RPCA"
-outDir = paste0(resDir, 'dataMapping_', data_version)
-system(paste0('mkdir -p ', outDir))
 
 
 Idents(aa) = factor(aa$condition)

@@ -54,16 +54,17 @@ aa = readRDS(file = paste0(RdataDir,
                            'cellCycleScoring_annot.v1_',
                            species, version.analysis, '.rds'))
 
-aa =  readRDS(file = paste0(RdataDir, 
-                            'seuratObject_merged_cellFiltered_doublet.rm_mt.ribo.geneFiltered_regressout.nCounts_',
-                            'cellCycleScoring_annot.v1_', species, version.analysis, '.rds'))
+aa = readRDS(file = paste0(RdataDir, 
+                           'seuratObject_merged_cellFiltered_doublet.rm_mt.ribo.geneFiltered_regressout.nCounts_',
+                           'cellCycleScoring_annot.v1_', 
+                           species, version.analysis, '.rds'))
 
 Idents(aa) = factor(aa$condition, levels = levels)
 #Idents(aa) = aa$condition
 table(aa$condition)
 
 set.seed(2023)
-aa = subset(aa, downsample = 200)
+aa = subset(aa, downsample = 1000)
 
 aa = subset(aa, idents = levels_sels)
 
