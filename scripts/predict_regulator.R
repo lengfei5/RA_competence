@@ -314,25 +314,36 @@ library(ggplot2)
 library(ggrepel)
 
 motif.oc = readRDS(file = paste0(outDir, '/motif_oc_fimo_jaspar2022_pval.0.0001_Foxa2.enhancers.promoters.rds'))
-motif.oc = t(motif.oc)
+motif.oc = t(as.matrix(motif.oc))
+#motif.oc = as.data.frame(motif.oc)
+
 mapping = readRDS(paste0('../results/scRNAseq_R13547_10x_mNT_20220813/motif_analysis/', 
                          'JASPAR2022_CORE_UNVALIDED_vertebrates_nonRedundant_metadata_manual_rmRedundantUNVALIDED.rds'))
 
 mapping = mapping[which(!is.na(match(mapping$name, rownames(motif.oc)))), ]
 mapping$gene = firstup(mapping$gene)
+mapping$enhancer.fp = motif.oc[match(mapping$name, rownames(motif.oc)), 1]
+mapping$enhancer.node = motif.oc[match(mapping$name, rownames(motif.oc)), 2]
+mapping$enhancer = 'node'
+mapping$enhancer[which(mapping$enhancer.fp>mapping$enhancer.node)] = 'fp'
+
+xx = mapping[grep('Gli1|Gli2|Gli3', mapping$gene),]
+xx$gene = 'Shh'
+mapping = data.frame(rbind(mapping, xx))
 
 Idents(aa) = factor(aa$condition)
 
+levels_sels = c("day2.5_RA",  "day3_RA.rep1", "day3.5_RA", "day4_RA")
 
-levels_sels = c("day3_RA.rep1")
+data_version = "_d2.5.d3.d3.5.d4"
 
-data_version = "_d3"
-
-outDir_cc = paste0(outDir, '/scran_pairCorrelation_scran', data_version)
+outDir_cc = paste0(outDir, '/scran_pairCorrelation_scran_Pax6_Lhx1', data_version)
 system(paste0('mkdir -p ', outDir_cc))
 
 sce = subset(aa, idents = levels_sels)
 sce = as.SingleCellExperiment(sce)
+
+ave.counts <- calculateAverage(sce)
 
 set.seed(100)
 mm = match(rownames(sce), c(tfs, sps))
@@ -351,20 +362,25 @@ summary(sig.cor)
 
 var.cor = var.cor[which(sig.cor == TRUE), ]
 
-ave.counts <- calculateAverage(sce)
 
-var.cor$findMotifs = !is.na(match(var.cor$gene2, mapping$gene))
+
 var.cor$fdr = -log10(var.cor$FDR+10^-10)
 var.cor$ave.counts = log10(ave.counts[match(var.cor$gene2, names(ave.counts))])
+var.cor$enhancers = mapping$enhancer[match(var.cor$gene2, mapping$gene)]
 
 var.cor = as.data.frame(var.cor)
 
 ggplot(data = var.cor, aes(x=rho, y=ave.counts, label = gene2)) +
   geom_point(size = 0.2) + 
+  geom_point(data= var.cor[which(!is.na(var.cor$enhancers) & abs(var.cor$rho) >0.1), ], 
+             aes(x=rho, y=ave.counts, color = enhancers),
+             size=2) + 
+  #geom_point(data=res[which(res$logfc < -1 & res$pval > -log10(0.001)), ], aes(x=logfc, y=pval), 
+  #           colour="blue", size=1) +
   theme_classic() + 
-  labs(x = "Correlation", y = "log10(ave.counts)") +
-  geom_text_repel(data= var.cor[which(var.cor$findMotifs == TRUE & abs(var.cor$rho) >0.1), ], 
-                  aes(x=rho, y=ave.counts),
+  labs(x = "correlation with FoxA2", y = "log10(ave.counts)") +
+  geom_text_repel(data= var.cor[which(!is.na(var.cor$enhancers) & abs(var.cor$rho) >0.1), ], 
+                  aes(x=rho, y=ave.counts, color = enhancers),
                   size = 4,
                   #color = "darkgreen",
                   #family = 'Times',
@@ -374,19 +390,21 @@ ggplot(data = var.cor, aes(x=rho, y=ave.counts, label = gene2)) +
                   # Add extra padding around each data point.
                   #point.padding = unit(1.6, 'lines')
                   )
-ggsave(filename = paste0(outDir_cc, '/scran_correlation.with.FoxA2.pdf'), width = 20, height = 16)
+
+ggsave(filename = paste0(outDir_cc, '/scran_correlation.with.FoxA2.pdf'), width = 10, height = 6)
 
 dev.off()
-
 pdf(paste0(outDir_cc, '/Compare_expressionPattern.pdf'),
     width =16, height = 10, useDingbats = FALSE)
 
 features = c('Foxa2', 'Pax6', 
-             var.cor$gene2[which(var.cor$findMotifs == TRUE & abs(var.cor$rho) >0.1)]
+             var.cor$gene2[which(!is.na(var.cor$enhancers) & abs(var.cor$rho) >0.1)]
 )
+
 plot_manyFeatures_seurat(seurat_obj = aa, features = unique(features))
 
 dev.off()
+
 
 ########################################################
 ########################################################

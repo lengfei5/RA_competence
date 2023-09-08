@@ -18,7 +18,6 @@
 ########################################################
 ########################################################
 
-#BiocManager::install("MouseGastrulationData")
 rm(list = ls())
 
 version.analysis = '_MouseGastrulationData/'
@@ -107,7 +106,7 @@ if(Load_process_MouseGastrulation){
 
 ########################################################
 ########################################################
-# Section I: Explore the mapping between the mouse data and our scRNA-seq data
+# Section I: process the mouse gastrulation data and first check Pax6-FoxA2 positive cells
 # 
 ########################################################
 ########################################################
@@ -141,6 +140,38 @@ srat[['umap']] = Seurat::CreateDimReducObject(embeddings=umap.embedding,
                                                  assay='RNA')
 rm(xx)
 rm(umap.embedding)
+
+srat = readRDS(file = paste0(RdataDir,  'seuratObject_EmbryoAtlasData_all36sample_RNAassay.rds'))
+xx = readRDS(file = paste0('../results/dataset_scRNAseq_MouseGastrulationData/Rdata/',
+                           'seuratObject_EmbryoAtlasData_all36sample.rds'))
+
+umap.embedding = xx@reductions$umap@cell.embeddings
+umap.embedding = umap.embedding[match(colnames(srat), rownames(umap.embedding)), ]
+srat[['umap']] = Seurat::CreateDimReducObject(embeddings=umap.embedding,
+                                              key='UMAP_',
+                                              assay='RNA')
+rm(xx)
+rm(umap.embedding)
+
+## filter unlikely celltypes in the reference
+sels = grep('Erythroid|Blood|Allantois|mesoderm|Haemato|Cardiomy|Endothelium|Mesenchyme|ExE', srat$celltype, 
+            invert = TRUE)
+srat = subset(srat, cells = colnames(srat)[sels])
+
+saveRDS(srat, file = paste0(RdataDir,  
+                            'seuratObject_EmbryoAtlasData_all36sample_RNAassay_keep.relevant.celltypes.rds'))
+
+srat = readRDS(file = paste0(RdataDir,  
+                             'seuratObject_EmbryoAtlasData_all36sample_RNAassay_keep.relevant.celltypes.rds'))
+
+
+sels = grep('Parietal', srat$celltype, 
+            invert = TRUE)
+srat = subset(srat, cells = colnames(srat)[sels])
+
+saveRDS(srat, file = paste0(RdataDir,  
+                            'seuratObject_EmbryoAtlasData_all36sample_RNAassay_keep.relevant.celltypes_v2.rds'))
+
 
 
 p1 = DimPlot(srat, reduction = 'umap', 
@@ -210,63 +241,119 @@ ggsave(filename = paste0(resDir, '/Featureplots_Pax6_Foxa2_blended_ordered_subse
        width = 20, height = 8)
 
 
+########################################################
+########################################################
+# Section II: Explore the mapping between the mouse data and our scRNA-seq data
+# 
+########################################################
+########################################################
+
 ##########################################
 # test Seurat data integration
 ##########################################
-srat = readRDS(file = paste0(RdataDir,  'seuratObject_EmbryoAtlasData_all36sample_RNAassay.rds'))
-xx = readRDS(file = paste0('../results/dataset_scRNAseq_MouseGastrulationData/Rdata/',
-                           'seuratObject_EmbryoAtlasData_all36sample.rds'))
+srat = readRDS(file = paste0(RdataDir,  
+                             'seuratObject_EmbryoAtlasData_all36sample_RNAassay_keep.relevant.celltypes_v2.rds'))
 
-umap.embedding = xx@reductions$umap@cell.embeddings
-umap.embedding = umap.embedding[match(colnames(srat), rownames(umap.embedding)), ]
-srat[['umap']] = Seurat::CreateDimReducObject(embeddings=umap.embedding,
-                                              key='UMAP_',
-                                              assay='RNA')
-rm(xx)
-rm(umap.embedding)
-
-## filter unlikely celltypes in the reference
-sels = grep('Erythroid|Blood|Allantois|mesoderm|Haemato|Cardiomy|Endothelium|Mesenchyme', srat$celltype, 
-            invert = TRUE)
-srat = subset(srat, cells = colnames(srat)[sels])
-
+cols_mouse = sapply(srat$colour, function(x) {paste0('#', x, collapse = '')})
+names(cols_mouse) =srat$celltype
+cols_mouse = cols_mouse[match(unique(names(cols_mouse)), names(cols_mouse))]
 
 aa =  readRDS(file = paste0('../results/Rdata/',  
                             'seuratObject_merged_cellFiltered_doublet.rm_mt.ribo.geneFiltered_regressout.nCounts_',
                             'cellCycleScoring_annot.v1_', 'mNT_scRNAseq',
                             '_R13547_10x_mNT_20220813', '.rds'))
 
+levels = c("day0_beforeRA", "day1_beforeRA", 
+           "day2_beforeRA",
+           "day2.5_RA", "day3_RA.rep1", "day3_RA.rep2", 'day3.5_RA',
+           "day4_RA", "day5_RA", "day6_RA",
+           "day2.5_noRA", "day3_noRA", 'day3.5_noRA', "day4_noRA", "day5_noRA", "day6_noRA")
+
+# manually set colors by Hannah
+library(RColorBrewer)
+library("viridis")
+cols = rep(NA, length = 16)
+names(cols) = levels
+cols[grep('_beforeRA', names(cols))] = colorRampPalette((brewer.pal(n = 3, name ="Greys")))(3)
+#cols[1:3] = viridis(3)
+cols[grep('_noRA', names(cols))] = colorRampPalette((brewer.pal(n = 6, name ="Blues")))(6)
+cols[grep('_RA', names(cols))] = colorRampPalette((brewer.pal(n = 7, name ="OrRd")))(7)
+
 ## subset our scRNA-seq data 
 levels_sels = c("day2_beforeRA",  
                 "day2.5_RA", "day3_RA.rep1", "day3.5_RA",   "day4_RA", "day5_RA",
                 "day2.5_noRA", "day3_noRA",  "day3.5_noRA", "day4_noRA", "day5_noRA")
 
-levels_sels = c("day2_beforeRA",  "day2.5_RA", "day3_RA.rep1", "day3.5_RA",
-                "day4_RA", "day5_RA", "day6_RA")
+#levels_sels = c("day2_beforeRA",  "day2.5_RA", "day3_RA.rep1", "day3.5_RA",
+#                "day4_RA", "day5_RA", "day6_RA")
 
-data_version = "subsettingRef_mNT.RA.d2_d6_Harmony"
+cols_sel = cols[match(levels_sels, names(cols))]
+
+data_version = "subsettingRef_mNT.noRA.RA.d2_d5_RPCA"
 outDir = paste0(resDir, 'dataMapping_', data_version)
 system(paste0('mkdir -p ', outDir))
+
 
 Idents(aa) = factor(aa$condition)
 aa = subset(aa, idents = levels_sels)
 
-aa = subset(x = aa, downsample = 2000)
+# downsample for each condition
+aa = subset(x = aa, downsample = 1000)
 
 aa$dataset = 'mNT'
 aa$stage = aa$condition
 srat$dataset = 'ref'
 
-
-#refs <- CreateAssayObject(counts = srat@assays[["originalexp"]]@counts)
-#metadata = srat@meta.data
-#refs = AddMetaData(refs,  metadata, col.name = NULL) 
-
-#aa$annot.ref = aa$my_annot
-#cms$annot.ref = cms$CellType
 features.common = intersect(rownames(aa), rownames(srat))
+aa = subset(aa, features = features.common)
+srat = subset(srat, features = features.common)
 
 refs.merged = merge(aa, y = srat, add.cell.ids = c("mNT", "mouseGastrulation"), project = "RA_competence")
+
+
+Save_data_scVI = FALSE
+if(Save_data_scVI){
+  library(SeuratDisk)
+  
+  data_version = "subsettingRef_mNT.RA.d2_d6_scVI"
+  outDir = paste0(resDir, 'dataMapping_', data_version)
+  system(paste0('mkdir -p ', outDir))
+  
+  mnt = refs.merged
+  mnt = subset(mnt, features = features.common)
+  
+  VariableFeatures(mnt) = NULL
+  #mnt@assays$RNA@scale.data = NULL
+  #mnt@assays$RNA@data = NULL
+  
+  DefaultAssay(mnt) = 'RNA'
+  mnt = DietSeurat(mnt, counts = TRUE, data = TRUE,
+                   scale.data = FALSE,
+                   features = rownames(mnt), 
+                   assays = c('RNA', 'spliced', 'unspliced'), 
+                   dimreducs = c('pca'), graphs = NULL, 
+                   misc = TRUE
+  )
+  
+  DefaultAssay(mnt) = 'RNA'
+  VariableFeatures(mnt)
+  
+  Idents(mnt) = mnt$condition
+  #mnt = subset(mnt, downsample = 1500)
+  
+  #saveRDS(mnt, file = paste0(outDir, '/mouseGastrulation_mNT.rds'))
+  #saveDir = paste0("/Volumes/groups/tanaka/People/current/jiwang/projects/RA_competence/",
+  #                "results/scRNAseq_R13547_10x_mNT_20220813/RA_symetryBreaking/")
+  
+  saveFile = 'RNAmatrix_mouseGastrulation_mNT.h5Seurat'
+  
+  SaveH5Seurat(mnt, filename = paste0(outDir, saveFile), 
+               overwrite = TRUE)
+  Convert(paste0(outDir, saveFile), 
+          dest = "h5ad", overwrite = TRUE)
+  
+  
+}
 
 Run_Harmony = FALSE
 if(!Run_Harmony){
@@ -274,6 +361,7 @@ if(!Run_Harmony){
   refs.merged <- FindVariableFeatures(refs.merged, selection.method = "vst")
   refs.merged <- ScaleData(refs.merged, verbose = TRUE)
   refs.merged <- RunPCA(refs.merged, verbose = TRUE)
+  
   
   ## original code 
   # from http://htmlpreview.github.io/?https://github.com/immunogenomics/harmony/blob/master/docs/advanced.html
@@ -312,7 +400,6 @@ if(!Run_Harmony){
   ref.combined <- RunUMAP(refs.merged, reduction = "pca", dims = 1:50, n.neighbors = 50, 
                           min.dist = 0.1) 
   
-  
 }
 
 
@@ -333,14 +420,15 @@ features <- SelectIntegrationFeatures(object.list = ref.list)
 
 ref.list <- lapply(X = ref.list, FUN = function(x) {
   x <- ScaleData(x, features = features.common, verbose = TRUE)
-  x <- RunPCA(x, features = features, verbose = TRUE)
+  x <- RunPCA(x, features = features, verbose = FALSE)
   
 })
 
 ref.anchors <- FindIntegrationAnchors(object.list = ref.list, 
                                       anchor.features = features, 
-                                      reference = c(2),
+                                      #reference = c(2),
                                       reduction = "cca", 
+                                      #reduction = 'rpca',
                                       #k.anchor = 5,
                                       dims = 1:50)
 
@@ -356,15 +444,14 @@ rm(ref.anchors)
 # original unmodified data still resides in the 'RNA' assay
 DefaultAssay(ref.combined) <- "integrated"
 
-xx = DietSeurat(ref.combined, counts = TRUE, data = TRUE, scale.data = TRUE, assays = 'integrated')
-xx@assays$integrated@counts = ref.combined@assays$RNA@counts
-
+#xx = DietSeurat(ref.combined, counts = TRUE, data = TRUE, scale.data = TRUE, assays = 'integrated')
+#xx@assays$integrated@counts = ref.combined@assays$RNA@counts
 #saveRDS(xx, file = paste0(outDir, 
 #                          '/Seurat.obj_mouseGastrulation_mNT_integrated.rds'))
 
 # Run the standard workflow for visualization and clustering
-ref.combined = readRDS(file =paste0(outDir, 
-                                    '/Seurat.obj_mouseGastrulation_mNT_integrated.rds'))
+#ref.combined = readRDS(file =paste0(outDir, 
+#                                    '/Seurat.obj_mouseGastrulation_mNT_integrated.rds'))
 
 
 ref.combined <- ScaleData(ref.combined, verbose = FALSE)
@@ -372,36 +459,53 @@ ref.combined <- RunPCA(ref.combined, npcs = 50, verbose = FALSE)
 
 ElbowPlot(ref.combined, ndims = 50)
 
+kk = which(ref.combined$dataset == 'mNT') 
+ref.combined$celltype[kk] = paste0('mNT_', ref.combined$condition[kk])
+
+
 #ref.combined <- FindNeighbors(ref.combined, reduction = "pca", dims = 1:20)
 #ref.combined <- FindClusters(ref.combined, resolution = 0.2)
 ref.combined <- RunUMAP(ref.combined, reduction = "pca", dims = 1:50, n.neighbors = 50, 
-                        min.dist = 0.1) 
+                        min.dist = 0.2) 
 
 #DimPlot(ref.combined, reduction = "umap")
 
-kk = which(ref.combined$dataset == 'mNT') 
-ref.combined$celltype[kk] = ref.combined$condition[kk]
-
-
 # Visualization
-p1 <- DimPlot(ref.combined, reduction = "umap", group.by = "dataset", raster=FALSE)
-p2 <- DimPlot(ref.combined, reduction = "umap", group.by = "celltype", label = TRUE,
-              repel = TRUE, raster=FALSE) + NoLegend() 
+names(cols_sel) = paste0('mNT_', names(cols_sel))
 
-p1 / p2 
+DimPlot(ref.combined, reduction = "umap", group.by = "celltype", label = TRUE,
+        repel = TRUE, raster=FALSE, cols = c(cols_mouse, cols_sel))
 
 ggsave(paste0(outDir, '/Integration_dataset_celltypes.pdf'), 
-       width = 16, height = 24)
+       width = 14, height = 8)
+
+DimPlot(ref.combined, reduction = "umap", group.by = "dataset", raster=FALSE)
+ggsave(paste0(outDir, '/Integration_dataset.pdf'), 
+       width = 10, height = 8)
+
+pdf(paste0(outDir, '/FeaturePlot_Markers.pdf'),
+    width =10, height = 8, useDingbats = FALSE)
+
+ggs = c('Pax6', 'Foxa2', 'Pou5f1', 'Sox17', 'Sox1', 'Sox2')
+for(n in 1:length(ggs))
+{
+  p1 = FeaturePlot(ref.combined, features = ggs[n], min.cutoff = 'q5')
+  #FeaturePlot(ref.combined, features = 'Foxa2', min.cutoff = 'q5')
+  #FeaturePlot(ref.combined, features = 'Sox17', min.cutoff = 'q5')
+  plot(p1)
+}
+
+dev.off()
 
 DimPlot(ref.combined, reduction = "umap", group.by = "celltype", label = TRUE, split.by = 'dataset',
         repel = TRUE, raster=FALSE) + NoLegend()
 
 ggsave(paste0(outDir, '/Integration_celltypes_split.dataset.pdf'), 
-       width = 24, height = 10)
+       width = 24, height = 8)
 
 DimPlot(ref.combined, reduction = "umap", group.by = "stage", label = TRUE,
         repel = TRUE, raster=FALSE)
 
 ggsave(paste0(outDir, '/Integration_stage.pdf'), 
-       width = 16, height = 10)
+       width = 16, height = 8)
 
