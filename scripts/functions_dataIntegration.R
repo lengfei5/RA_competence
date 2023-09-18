@@ -353,10 +353,91 @@ IntegrateData_runHarmony = function(aa, ref)
 
 IntegrateData_runFastMNN = function()
 {
+  library(Seurat)
+  library(SeuratData)
+  library(SeuratWrappers)
+ 
+  # ref = srat;
+  refs.merged = merge(aa, y = ref, add.cell.ids = c("mNT", "mouseGastrulation"), project = "RA_competence")
+  
+  refs.merged <- NormalizeData(refs.merged)
+  refs.merged <- FindVariableFeatures(refs.merged)
+  refs.merged <- RunFastMNN(object.list = SplitObject(refs.merged, split.by = "dataset"))
+  
+  refs.merged <- RunUMAP(refs.merged, reduction = "mnn", dims = 1:30)
+  
+  kk = which(refs.merged$dataset == 'mNT')
+  refs.merged$celltype[kk] = paste0('mNT_', refs.merged$condition[kk])
+  #cat(cols_sel)
+  #names(cols_sel) = paste0('mNT_', names(cols_sel))
+  
+  DimPlot(refs.merged, group.by = c("celltype"), label = TRUE, repel = TRUE,
+          raster=FALSE, cols = c(cols_mouse, cols_sel))
+  ggsave(paste0(outDir, '/Integration_dataset_celltypes.pdf'), 
+         width = 14, height = 8)
+  
+  DimPlot(refs.merged, group.by = c("dataset"), label = TRUE)
+  ggsave(paste0(outDir, '/Integration_dataset.pdf'), 
+         width = 10, height = 8)
+  
+  
+  pdf(paste0(outDir, '/FeaturePlot_Markers.pdf'),
+      width =10, height = 8, useDingbats = FALSE)
+  
+  ggs = c('Pax6', 'Foxa2', 'Pou5f1', 'Sox17', 'Sox1', 'Sox2')
+  for(n in 1:length(ggs))
+  {
+    p1 = FeaturePlot(refs.merged, features = ggs[n], min.cutoff = 'q5')
+    #FeaturePlot(ref.combined, features = 'Foxa2', min.cutoff = 'q5')
+    #FeaturePlot(ref.combined, features = 'Sox17', min.cutoff = 'q5')
+    plot(p1)
+  }
+  
+  dev.off()
+  
+  
   
 }
 
 IntegrateData_runSCVI = function()
 {
+  library(SeuratDisk)
+  
+  data_version = "subsettingRef_mNT.RA.d2_d6_scVI"
+  outDir = paste0(resDir, 'dataMapping_', data_version)
+  system(paste0('mkdir -p ', outDir))
+  
+  mnt = refs.merged
+  mnt = subset(mnt, features = features.common)
+  
+  VariableFeatures(mnt) = NULL
+  #mnt@assays$RNA@scale.data = NULL
+  #mnt@assays$RNA@data = NULL
+  
+  DefaultAssay(mnt) = 'RNA'
+  mnt = DietSeurat(mnt, counts = TRUE, data = TRUE,
+                   scale.data = FALSE,
+                   features = rownames(mnt), 
+                   assays = c('RNA', 'spliced', 'unspliced'), 
+                   dimreducs = c('pca'), graphs = NULL, 
+                   misc = TRUE
+  )
+  
+  DefaultAssay(mnt) = 'RNA'
+  VariableFeatures(mnt)
+  
+  Idents(mnt) = mnt$condition
+  #mnt = subset(mnt, downsample = 1500)
+  
+  #saveRDS(mnt, file = paste0(outDir, '/mouseGastrulation_mNT.rds'))
+  #saveDir = paste0("/Volumes/groups/tanaka/People/current/jiwang/projects/RA_competence/",
+  #                "results/scRNAseq_R13547_10x_mNT_20220813/RA_symetryBreaking/")
+  
+  saveFile = 'RNAmatrix_mouseGastrulation_mNT.h5Seurat'
+  
+  SaveH5Seurat(mnt, filename = paste0(outDir, saveFile), 
+               overwrite = TRUE)
+  Convert(paste0(outDir, saveFile), 
+          dest = "h5ad", overwrite = TRUE)
   
 }
