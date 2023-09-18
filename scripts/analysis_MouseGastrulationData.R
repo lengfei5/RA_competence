@@ -250,10 +250,10 @@ ggsave(filename = paste0(resDir, '/Featureplots_Pax6_Foxa2_blended_ordered_subse
 ##########################################
 # test Seurat data integration
 ##########################################
-data_version = "subsettingRef_mNT.noRA.RA.d2_d5_RPCA"
+data_version = "subsettingRef_mNT.noRA.RA.d2_d5_Harmony"
+
 outDir = paste0(resDir, 'dataMapping_', data_version)
 system(paste0('mkdir -p ', outDir))
-
 
 srat = readRDS(file = paste0(RdataDir,  
                              'seuratObject_EmbryoAtlasData_all36sample_RNAassay_keep.relevant.celltypes_v2.rds'))
@@ -293,23 +293,25 @@ levels_sels = c("day2_beforeRA",
 
 cols_sel = cols[match(levels_sels, names(cols))]
 
-
-
 Idents(aa) = factor(aa$condition)
 aa = subset(aa, idents = levels_sels)
 
 # downsample for each condition
 aa = subset(x = aa, downsample = 1000)
 
-aa$dataset = 'mNT'
-aa$stage = aa$condition
-srat$dataset = 'ref'
-
 features.common = intersect(rownames(aa), rownames(srat))
 aa = subset(aa, features = features.common)
 srat = subset(srat, features = features.common)
 
-refs.merged = merge(aa, y = srat, add.cell.ids = c("mNT", "mouseGastrulation"), project = "RA_competence")
+ref = srat;
+rm(srat)
+
+aa$dataset = 'mNT'
+aa$stage = aa$condition
+aa$sequencing.batch = 'mNT'
+ref$dataset = 'ref'
+
+refs.merged = merge(aa, y = ref, add.cell.ids = c("mNT", "mouseGastrulation"), project = "RA_competence")
 
 
 Save_data_scVI = FALSE
@@ -356,157 +358,5 @@ if(Save_data_scVI){
   
 }
 
-Run_Harmony = FALSE
-if(!Run_Harmony){
-  refs.merged = NormalizeData(refs.merged, normalization.method = "LogNormalize")
-  refs.merged <- FindVariableFeatures(refs.merged, selection.method = "vst")
-  refs.merged <- ScaleData(refs.merged, verbose = TRUE)
-  refs.merged <- RunPCA(refs.merged, verbose = TRUE)
-  
-  
-  ## original code 
-  # from http://htmlpreview.github.io/?https://github.com/immunogenomics/harmony/blob/master/docs/advanced.html
-  #V <- harmony::cell_lines$scaled_pcs
-  #V_cos <- cosine_normalize(V, 1)
-  #meta_data <- harmony::cell_lines$meta_data  
-  V = refs.merged@reductions$pca@cell.embeddings
-  meta_data = refs.merged@meta.data
-  
-  set.seed(1)
-  harmony_embeddings <- harmony::HarmonyMatrix(
-    data_mat = V, ## PCA embedding matrix of cells
-    meta_data = meta_data, ## dataframe with cell labels
-    #vars_use = 'dataset',
-    theta = 0.5, ## cluster diversity enforcement
-    vars_use = 'dataset', ## variable to integrate out
-    npcs = 30,
-    nclust = 5, ## number of clusters in Harmony model
-    max.iter.harmony = 10, ## stop after initialization
-    return_object = FALSE, ## return the full Harmony model object
-    do_pca = FALSE ## don't recompute PCs
-    
-  )
-  
-  p1 <- do_scatter(harmony_embeddings, meta_data, 'dataset') + 
-    labs(title = 'Colored by dataset')
-  p2 <- do_scatter(harmony_embeddings, meta_data, 'cell_type') + 
-    labs(title = 'Colored by cell type')
-  cowplot::plot_grid(p1, p2, nrow = 1)
-  
-  
-  refs.merged[['harmony']] = Seurat::CreateDimReducObject(embeddings=harmony_embeddings,
-                                                key='HARMONY_',
-                                                assay='RNA')
-  
-  ref.combined <- RunUMAP(refs.merged, reduction = "pca", dims = 1:50, n.neighbors = 50, 
-                          min.dist = 0.1) 
-  
-}
 
-
-ref.list <- SplitObject(refs.merged, split.by = "dataset")
-
-rm(list = c('refs.merged', 'aa', 'srat')) # remove big seurat objects to clear memory
-
-# normalize and identify variable features for each dataset independently
-ref.list <- lapply(X = ref.list, FUN = function(x) {
-  x <- NormalizeData(x, normalization.method = "LogNormalize")
-  x <- FindVariableFeatures(x, selection.method = "vst")
-  
-})
-
-# select features that are repeatedly variable across datasets for integration run PCA on each
-# dataset using these features
-features <- SelectIntegrationFeatures(object.list = ref.list)
-
-ref.list <- lapply(X = ref.list, FUN = function(x) {
-  x <- ScaleData(x, features = features.common, verbose = TRUE)
-  x <- RunPCA(x, features = features, verbose = FALSE)
-  
-})
-
-ref.anchors <- FindIntegrationAnchors(object.list = ref.list, 
-                                      anchor.features = features, 
-                                      #reference = c(2),
-                                      reduction = "cca", 
-                                      #reduction = 'rpca',
-                                      #k.anchor = 5,
-                                      dims = 1:50)
-
-rm(ref.list)
-
-# this command creates an 'integrated' data assay
-ref.combined <- IntegrateData(anchorset = ref.anchors, features.to.integrate = features.common, 
-                              dims = 1:50) ## take ~100G memory
-
-rm(ref.anchors)
-
-# specify that we will perform downstream analysis on the corrected data note that the
-# original unmodified data still resides in the 'RNA' assay
-DefaultAssay(ref.combined) <- "integrated"
-
-#xx = DietSeurat(ref.combined, counts = TRUE, data = TRUE, scale.data = TRUE, assays = 'integrated')
-#xx@assays$integrated@counts = ref.combined@assays$RNA@counts
-#saveRDS(xx, file = paste0(outDir, 
-#                          '/Seurat.obj_mouseGastrulation_mNT_integrated.rds'))
-
-# Run the standard workflow for visualization and clustering
-#ref.combined = readRDS(file =paste0(outDir, 
-#                                    '/Seurat.obj_mouseGastrulation_mNT_integrated.rds'))
-
-
-ref.combined <- ScaleData(ref.combined, verbose = FALSE)
-ref.combined <- RunPCA(ref.combined, npcs = 50, verbose = FALSE)
-
-ElbowPlot(ref.combined, ndims = 50)
-
-kk = which(ref.combined$dataset == 'mNT') 
-ref.combined$celltype[kk] = paste0('mNT_', ref.combined$condition[kk])
-
-
-#ref.combined <- FindNeighbors(ref.combined, reduction = "pca", dims = 1:20)
-#ref.combined <- FindClusters(ref.combined, resolution = 0.2)
-ref.combined <- RunUMAP(ref.combined, reduction = "pca", dims = 1:50, n.neighbors = 50, 
-                        min.dist = 0.2) 
-
-#DimPlot(ref.combined, reduction = "umap")
-
-# Visualization
-names(cols_sel) = paste0('mNT_', names(cols_sel))
-
-DimPlot(ref.combined, reduction = "umap", group.by = "celltype", label = TRUE,
-        repel = TRUE, raster=FALSE, cols = c(cols_mouse, cols_sel))
-
-ggsave(paste0(outDir, '/Integration_dataset_celltypes.pdf'), 
-       width = 14, height = 8)
-
-DimPlot(ref.combined, reduction = "umap", group.by = "dataset", raster=FALSE)
-ggsave(paste0(outDir, '/Integration_dataset.pdf'), 
-       width = 10, height = 8)
-
-pdf(paste0(outDir, '/FeaturePlot_Markers.pdf'),
-    width =10, height = 8, useDingbats = FALSE)
-
-ggs = c('Pax6', 'Foxa2', 'Pou5f1', 'Sox17', 'Sox1', 'Sox2')
-for(n in 1:length(ggs))
-{
-  p1 = FeaturePlot(ref.combined, features = ggs[n], min.cutoff = 'q5')
-  #FeaturePlot(ref.combined, features = 'Foxa2', min.cutoff = 'q5')
-  #FeaturePlot(ref.combined, features = 'Sox17', min.cutoff = 'q5')
-  plot(p1)
-}
-
-dev.off()
-
-DimPlot(ref.combined, reduction = "umap", group.by = "celltype", label = TRUE, split.by = 'dataset',
-        repel = TRUE, raster=FALSE) + NoLegend()
-
-ggsave(paste0(outDir, '/Integration_celltypes_split.dataset.pdf'), 
-       width = 24, height = 8)
-
-DimPlot(ref.combined, reduction = "umap", group.by = "stage", label = TRUE,
-        repel = TRUE, raster=FALSE)
-
-ggsave(paste0(outDir, '/Integration_stage.pdf'), 
-       width = 16, height = 8)
 

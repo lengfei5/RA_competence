@@ -46,25 +46,30 @@ nb_cores = 64
 ##########################################
 # prepare and process the samples
 ##########################################
-#aa = readRDS(file = 
-#               paste0('../results/scRNAseq_R13547_10x_mNT_20220813/RA_symetryBreaking/branching_genes_BGP',
-#                           '/RA_d2.beforeRA_no.day6_noNeurons.rds'))
-aa = readRDS(file = paste0(RdataDir,
-                           'seuratObject_RA.vs.noRA.bifurcation_doublet.rm_mt.ribo.filtered_regressout.nCounts_',
-                           'cellCycleScoring_annot.v1_',
-                           species, version.analysis, '.rds'))
-
 aa = readRDS(file = paste0(RdataDir, 
                            'seuratObject_merged_cellFiltered_doublet.rm_mt.ribo.geneFiltered_regressout.nCounts_',
                            'cellCycleScoring_annot.v1_', 
                            species, version.analysis, '.rds'))
 
 Idents(aa) = factor(aa$condition, levels = levels)
+
+levels_sels = c("day0_beforeRA", "day1_beforeRA", "day2_beforeRA",
+                 "day2.5_RA", "day3_RA.rep1", "day3.5_RA",
+                 "day2.5_noRA", "day3_noRA",  "day3.5_noRA",
+                 'day4_noRA', 'day4_RA', 'day5_noRA', 'day5_RA')
+
+#levels_sels = c("day2_beforeRA",  
+#                 "day2.5_RA", "day3_RA.rep1", "day3.5_RA", 
+#                 "day2.5_noRA", "day3_noRA",  "day3.5_noRA")
+
+cols_sel = cols[match(levels_sels, names(cols))]
+
+
 #Idents(aa) = aa$condition
 table(aa$condition)
 
 set.seed(2023)
-aa = subset(aa, downsample = 1000)
+aa = subset(aa, downsample = 500)
 
 aa = subset(aa, idents = levels_sels)
 
@@ -85,29 +90,64 @@ if(Test_Heteregeneity_pairwiseDist){
   Idents(aa) = factor(aa$condition, levels = levels_sels)
   #cc = unique(aa$condition)
   
-  hete = c()
-  nb_features = 1000
-  for(n in 1:length(levels_sels))
-  {
-    # n = 1
-    cat(n, ' -- ', levels_sels[n], '\n')
-    sce = as.SingleCellExperiment(subset(aa, idents = levels_sels[n]))
+  Run_HVGs_perTimePoint = FALSE
+  if(Run_HVGs_perTimePoint){
+    hete = c()
+    nb_features = 1000
+    for(n in 1:length(levels_sels))
+    {
+      # n = 1
+      cat(n, ' -- ', levels_sels[n], '\n')
+      sce = as.SingleCellExperiment(subset(aa, idents = levels_sels[n]))
+      
+      dec <- modelGeneVar(sce)
+      top.hvgs <- getTopHVGs(dec, n=nb_features)
+      sce <- runPCA(sce, subset_row=top.hvgs, ncomponents = 30)
+      # reducedDimNames(sce)
+      #ll.pca = reducedDim(sce, 'PCA')[, c(1:30)]
+      ll.pca = logcounts(sce)
+      ll.pca = as.matrix(ll.pca[match(top.hvgs, rownames(ll.pca)), ])
+      dists = sqrt((1-cor((ll.pca), method = 'pearson'))/2)
+        
+      #dists = dists[which(dists>0)]
+      
+      hete = rbind(hete, data.frame(condition = rep(levels_sels[n], length(dists)), dists))
+      
+    }
+  }else{
+    
+    nb_features = 1000
+    sce = as.SingleCellExperiment(aa)
     
     dec <- modelGeneVar(sce)
     top.hvgs <- getTopHVGs(dec, n=nb_features)
-    sce <- runPCA(sce, subset_row=top.hvgs, ncomponents = 30)
-    # reducedDimNames(sce)
-    #ll.pca = reducedDim(sce, 'PCA')[, c(1:30)]
-    ll.pca = logcounts(sce)
-    ll.pca = as.matrix(ll.pca[match(top.hvgs, rownames(ll.pca)), ])
-    dists = sqrt((1-cor((ll.pca), method = 'spearman'))/2)
-    dists = dists[which(dists>0)]
+    sce <- runPCA(sce, subset_row=top.hvgs, ncomponents = 100)
     
-    hete = rbind(hete, data.frame(condition = rep(levels_sels[n], length(dists)), dists))
-       
+    # reducedDimNames(sce)
+    
+    ll.pca = reducedDim(sce, 'PCA')[, c(1:30)]
+    
+    hete = c()
+    #ll.pca = logcounts(sce)
+    #ll.pca = as.matrix(ll.pca[match(top.hvgs, rownames(ll.pca)), ])
+    for(n in 1:length(levels_sels))
+    {
+      # n = 1
+      cat(n, ' -- ', levels_sels[n], '\n')
+      kk = match(colnames(sce)[which(sce$condition == levels_sels[n])], rownames(ll.pca))
+      
+      dists =  dist(ll.pca[kk, ], method = "euclidean", diag = FALSE, upper = TRUE) #sqrt((1-cor((ll
+      #dists = dists[which(dists>0)]
+      
+      hete = rbind(hete, data.frame(condition = rep(levels_sels[n], length(dists)), as.numeric(dists)))
+    }
+    
   }
   
   #hete$dists = log10(hete$dists)
+  colnames(hete)[2] = 'dists'
+  hete = as.data.frame(hete)
+  
   ggplot(hete, aes(x=condition, y=dists, fill=condition)) + 
     geom_violin() + 
     scale_fill_manual(values = cols_sel) + 
@@ -117,7 +157,8 @@ if(Test_Heteregeneity_pairwiseDist){
     labs( x = '', y = 'pairwise distance' )
  
   ggsave(filename = paste0(outDir, '/pairwise_distance_', nb_features,
-                           'HVGs_allConditions.pdf'), width = 10, height = 8) 
+                           'HVGs_allConditions.pdf'), width = 12, height = 8) 
+  
   
   
 }

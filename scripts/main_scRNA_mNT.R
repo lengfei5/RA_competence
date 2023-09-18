@@ -497,9 +497,13 @@ Idents(aa) = aa$condition
 aa <- RunUMAP(aa, dims = 1:30, n.neighbors = 100, min.dist = 0.2)
 DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'condition', pt.size = 2, cols = cols_sel, raster=FALSE)
 
+
 ggsave(filename = paste0(resDir, '/RA_umap_rmDoublet_5000features_30pcs_100neighbor_dist0.2.pdf'), 
        width = 10, height = 8)
 
+FeaturePlot(aa, features = 'Dhrs3') + scale_y_reverse()
+
+FeaturePlot(aa, features = 'Rarg') + scale_y_reverse()
 
 Explore.umap.parameters = FALSE
 if(Explore.umap.parameters){

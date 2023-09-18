@@ -41,7 +41,7 @@ aa = readRDS(file =
 Idents(aa) = aa$condition
 
 set.seed(2023)
-aa = subset(aa, downsample = 1000)
+aa = subset(aa, downsample = 500)
 
 x <- aa@assays$RNA@counts
 rownames(x) <- rownames(aa)
@@ -50,19 +50,19 @@ colnames(x) <- colnames(aa)
 sc <- SCseq(x)
 
 ## filter the genes 
-sc <- filterdata(sc, mintotal=1000, 
-                 FGenes=grep("^Gm\\d",rownames(intestinalData),value=TRUE),
-                 CGenes=rownames(x)[grep("^(mt|Rp(l|s)|Gm\\d)",rownames(x))])
+sc <- filterdata(sc, mintotal=200, 
+                 FGenes=NULL,
+                 CGenes=NULL)
 
 expData <- getExpData(sc)
 
 parallel::detectCores()
 tic()
-res   <- pruneKnn(expData, no_cores = 64)
+res   <- pruneKnn(expData, no_cores = 32)
 toc()
 
-
-saveRDS(res, file = paste0(outDir, '/RA_d2.beforeRA_no.day6_noNeurons_varID2_pruneKnn.rds'))
+saveRDS(res, file = paste0(outDir, 
+          '/RA_d2.beforeRA_no.day6_noNeurons_varID2_pruneKnn_v3.rds'))
 
 tic()
 cl    <- graphCluster(res, pvalue= 0.01)
@@ -95,7 +95,7 @@ dev.off()
 #head(nn$pv.neighbours)
 #head(nn$expr.neighbours)
 
-x <- getFilteredCounts(sc, minexpr=5, minnumber=20)
+x <- getFilteredCounts(sc, minexpr=1, minnumber=10)
 tic()
 noise <- compTBNoise(res,x,pvalue=0.01, no_cores=64) # take 40 minutes  
 toc()
@@ -103,8 +103,10 @@ toc()
 #noise <- compTBNoise(res,expData,pvalue=0.01,no_cores=5) 
 sc <- updateSC(sc,res=res,cl=cl,noise=noise)
 
-saveRDS(sc, file = paste0(outDir, '/RA_d2.beforeRA_no.day6_noNeurons_varID2_noise_v2.rds'))
-save(sc, noise, cl, res, file = paste0(outDir, '/out_varID2_noise_v2.Rdata'))
+saveRDS(sc, file = paste0(outDir, 
+            '/RA_d2.beforeRA_no.day6_noNeurons_varID2_noise_v3.rds'))
+save(sc, noise, cl, res, 
+     file = paste0(outDir, '/out_varID2_noise_v3.Rdata'))
 
 ########################################################
 ########################################################
@@ -119,9 +121,9 @@ tfs = readRDS(file = paste0('../data/annotations/curated_human_TFs_Lambert.rds')
 tfs = unique(tfs$`HGNC symbol`)
 tfs = as.character(unlist(sapply(tfs, firstup)))
 
-load(file = paste0(outDir, '/out_varID2_noise_v2.Rdata'))
+load(file = paste0(outDir, '/out_varID2_noise_v3.Rdata'))
 
-pdfname = paste0(outDir, '/plot_umap_varID.clusters.pdf')
+pdfname = paste0(outDir, '/plot_umap_varID.clusters_v3.pdf')
 pdf(pdfname, width=8, height = 6)
 plotmap(sc, um=TRUE, tp = 1, cex = 0.3)
 
@@ -157,14 +159,18 @@ dev.off()
 #plotmarkergenes(sc,genes=genes[ph$tree_row$order],noise=TRUE,cluster_rows=FALSE)
 #fractDotPlot(sc, genes, zsc=TRUE)
 
-ngenes <- diffNoisyGenesTB(noise, cl,set=1, no_cores=32)
+ngenes <- diffNoisyGenesTB(noise, cl, set=c(1,2,3,4), no_cores=32)
 
 ngenes = ngenes[order(-abs(ngenes$log2FC)), ]
+ngenes = ngenes[order(ngenes$pvalue), ]
 
-save(sc, noise, cl, res, ngenes, file = paste0(outDir, '/out_varID2_noise_diffNoisyGenes_v2.Rdata'))
+save(sc, noise, cl, res, ngenes, 
+     file = paste0(outDir, '/out_varID2_noise_diffNoisyGenes_v3.Rdata'))
 
+load(file = paste0(outDir, '/out_varID2_noise_diffNoisyGenes_v3.Rdata'))
 head(ngenes, 50)
 
+plotexpmap(sc, 'Zfp42', logsc=TRUE, um=TRUE, noise=TRUE,cex=0.5)
 #ngenes = ngenes[order(ngenes$pvalue), ]
 #head(ngenes, 50)
 
@@ -181,15 +187,19 @@ cl_new = cl_new[order(cl_new)]
 #sc <- updateSC(sc,cl=cl_new)
 #plotmap(sc,um=TRUE)
 
-genes <- rownames(ngenes)[which(!is.na(match(rownames(ngenes), unique(c(tfs, sps)))))]
-genes = head(genes, 70)
+genes <- rownames(ngenes)[which(!is.na(match(rownames(ngenes), 
+                                             unique(c(tfs, sps, 
+                                                      'Dhrs3')))))]
 
-pdfname = paste0(outDir, '/plot_noise_markGenes_ntop.100_v3.pdf')
-pdf(pdfname, width=8, height = 12)
+genes = head(genes, 400)
+
+pdfname = paste0(outDir, '/plot_noise_markGenes_ntop.400_v3.pdf')
+pdf(pdfname, width=8, height = 40)
 
 ph <- plotmarkergenes(sc, genes=genes, noise=TRUE,
                       cluster_rows=TRUE, 
-                      cells = names(cl_new), order.cells = TRUE,
+                      #cells = names(cl_new), 
+                      order.cells = TRUE,
                       cluster_set = FALSE,
                       cluster_cols = FALSE,
                       cap = 5, #flo = -3,
