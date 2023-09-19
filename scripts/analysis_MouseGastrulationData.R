@@ -250,7 +250,7 @@ ggsave(filename = paste0(resDir, '/Featureplots_Pax6_Foxa2_blended_ordered_subse
 ##########################################
 # test Seurat data integration
 ##########################################
-data_version = "subsettingRef_mNT.noRA.RA.d2_d5_Harmony"
+data_version = "subsettingRef_mNT.noRA.RA.d2_d5_scVI"
 
 outDir = paste0(resDir, 'dataMapping_', data_version)
 system(paste0('mkdir -p ', outDir))
@@ -311,6 +311,7 @@ aa$stage = aa$condition
 aa$sequencing.batch = 'mNT'
 ref$dataset = 'ref'
 
-refs.merged = merge(aa, y = ref, add.cell.ids = c("mNT", "mouseGastrulation"), project = "RA_competence")
+aa$celltype = paste0('mNT_', aa$condition)
 
+refs.merged = merge(aa, y = ref, add.cell.ids = c("mNT", "mouseGastrulation"), project = "RA_competence")
 

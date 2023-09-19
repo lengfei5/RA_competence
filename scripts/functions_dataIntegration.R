@@ -234,19 +234,21 @@ IntegrateData_runHarmony = function(aa, ref)
   library(SeuratData)
   
   # ref = srat;
-  refs.merged = merge(aa, y = ref, add.cell.ids = c("mNT", "mouseGastrulation"), project = "RA_competence")
+  #refs.merged = merge(aa, y = ref, add.cell.ids = c("mNT", "mouseGastrulation"), project = "RA_competence")
   
   refs.merged <- NormalizeData(refs.merged) %>% FindVariableFeatures() %>% ScaleData() %>% 
     RunPCA(verbose = FALSE)
   
-  refs.merged <- RunHarmony(refs.merged, group.by.vars = "sequencing.batch")
+  refs.merged <- RunHarmony(refs.merged, group.by.vars = "dataset")
   
   refs.merged <- RunUMAP(refs.merged, reduction = "harmony", dims = 1:30)
   #refs.merged <- FindNeighbors(refs.merged, reduction = "harmony", dims = 1:30) %>% FindClusters()
   
   kk = which(refs.merged$dataset == 'mNT') 
   refs.merged$celltype[kk] = paste0('mNT_', refs.merged$condition[kk])
+  
   names(cols_sel) = paste0('mNT_', names(cols_sel))
+  
   
   DimPlot(refs.merged, group.by = c("celltype"), label = TRUE, repel = TRUE,
           raster=FALSE, cols = c(cols_mouse, cols_sel))
@@ -272,8 +274,7 @@ IntegrateData_runHarmony = function(aa, ref)
   
   dev.off()
   
-  
-  ##  test
+  ## a quick test
   Test_if_RunHarmony_works = FALSLE
   if(Test_if_RunHarmony_works){
     InstallData("pbmcsca")
@@ -403,12 +404,11 @@ IntegrateData_runSCVI = function()
 {
   library(SeuratDisk)
   
-  data_version = "subsettingRef_mNT.RA.d2_d6_scVI"
-  outDir = paste0(resDir, 'dataMapping_', data_version)
-  system(paste0('mkdir -p ', outDir))
-  
   mnt = refs.merged
-  mnt = subset(mnt, features = features.common)
+  mnt <- NormalizeData(mnt)
+  
+  mnt <- FindVariableFeatures(mnt, nfeatures = 5000)
+  mnt = subset(mnt, features = VariableFeatures(mnt))
   
   VariableFeatures(mnt) = NULL
   #mnt@assays$RNA@scale.data = NULL
@@ -418,22 +418,18 @@ IntegrateData_runSCVI = function()
   mnt = DietSeurat(mnt, counts = TRUE, data = TRUE,
                    scale.data = FALSE,
                    features = rownames(mnt), 
-                   assays = c('RNA', 'spliced', 'unspliced'), 
-                   dimreducs = c('pca'), graphs = NULL, 
+                   assays = c('RNA'), 
+                   dimreducs = NULL, graphs = NULL, 
                    misc = TRUE
   )
   
   DefaultAssay(mnt) = 'RNA'
   VariableFeatures(mnt)
   
-  Idents(mnt) = mnt$condition
+  #Idents(mnt) = mnt$condition
   #mnt = subset(mnt, downsample = 1500)
   
-  #saveRDS(mnt, file = paste0(outDir, '/mouseGastrulation_mNT.rds'))
-  #saveDir = paste0("/Volumes/groups/tanaka/People/current/jiwang/projects/RA_competence/",
-  #                "results/scRNAseq_R13547_10x_mNT_20220813/RA_symetryBreaking/")
-  
-  saveFile = 'RNAmatrix_mouseGastrulation_mNT.h5Seurat'
+  saveFile = '/RNAmatrix_mouseGastrulation_mNT_HVG5k.h5Seurat'
   
   SaveH5Seurat(mnt, filename = paste0(outDir, saveFile), 
                overwrite = TRUE)
