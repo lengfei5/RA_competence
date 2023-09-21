@@ -177,6 +177,7 @@ IntegrateData_Seurat_RPCA = function()
   
   kk = which(ref.combined$dataset == 'mNT') 
   ref.combined$celltype[kk] = paste0('mNT_', ref.combined$condition[kk])
+  names(cols_sel) = paste0('mNT_', names(cols_sel))
   
   
   #ref.combined <- FindNeighbors(ref.combined, reduction = "pca", dims = 1:20)
@@ -186,9 +187,12 @@ IntegrateData_Seurat_RPCA = function()
   
   #DimPlot(ref.combined, reduction = "umap")
   
-  # Visualization
-  names(cols_sel) = paste0('mNT_', names(cols_sel))
+  saveRDS(ref.combined, file = paste0(outDir, '/integrated_mNT_mouseGastrulation_SeuratRPCA.rds'))
   
+  cols_used = c(cols_mouse, cols_sel)
+  saveRDS(cols_used, file = paste0(outDir, '/integrated_mNT_mouseGastrulation_colorsUsed.rds'))
+  
+  # Visualization
   DimPlot(ref.combined, reduction = "umap", group.by = "celltype", label = TRUE,
           repel = TRUE, raster=FALSE, cols = c(cols_mouse, cols_sel))
   
@@ -372,6 +376,7 @@ IntegrateData_runFastMNN = function()
   #cat(cols_sel)
   #names(cols_sel) = paste0('mNT_', names(cols_sel))
   
+  
   DimPlot(refs.merged, group.by = c("celltype"), label = TRUE, repel = TRUE,
           raster=FALSE, cols = c(cols_mouse, cols_sel))
   ggsave(paste0(outDir, '/Integration_dataset_celltypes.pdf'), 
@@ -395,8 +400,6 @@ IntegrateData_runFastMNN = function()
   }
   
   dev.off()
-  
-  
   
 }
 

@@ -250,7 +250,7 @@ ggsave(filename = paste0(resDir, '/Featureplots_Pax6_Foxa2_blended_ordered_subse
 ##########################################
 # test Seurat data integration
 ##########################################
-data_version = "subsettingRef_mNT.noRA.RA.d2_d5_scVI"
+data_version = "subsettingRef_mNT.noRA.RA.d2_d5_Harmony"
 
 outDir = paste0(resDir, 'dataMapping_', data_version)
 system(paste0('mkdir -p ', outDir))
