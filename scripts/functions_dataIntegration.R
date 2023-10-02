@@ -238,24 +238,33 @@ IntegrateData_runHarmony = function(aa, ref)
   library(SeuratData)
   
   # ref = srat;
-  #refs.merged = merge(aa, y = ref, add.cell.ids = c("mNT", "mouseGastrulation"), project = "RA_competence")
+  # refs.merged = merge(aa, y = ref, add.cell.ids = c("mNT", "mouseGastrulation"), project = "RA_competence")
   
   refs.merged <- NormalizeData(refs.merged) %>% FindVariableFeatures() %>% ScaleData() %>% 
     RunPCA(verbose = FALSE)
   
-  refs.merged <- RunHarmony(refs.merged, group.by.vars = "dataset")
+  kk = which(refs.merged$dataset == 'mNT') 
+  refs.merged$celltype[kk] = paste0('mNT_', refs.merged$condition[kk])
+  names(cols_sel) = paste0('mNT_', names(cols_sel))
+  
+  refs.merged <- RunHarmony(refs.merged, 
+                            group.by.vars = "dataset",
+                            reduction = 'pca',
+                            dims.use = c(1:50), 
+                            nclust = 20,
+                            reference_values = 'ref',
+                            epsilon.harmony = -Inf,
+                            max.iter.harmony = 20, 
+                            verbose = TRUE,
+                            plot_convergence = TRUE
+                            )
   
   refs.merged <- RunUMAP(refs.merged, reduction = "harmony", dims = 1:30)
   #refs.merged <- FindNeighbors(refs.merged, reduction = "harmony", dims = 1:30) %>% FindClusters()
   
-  kk = which(refs.merged$dataset == 'mNT') 
-  refs.merged$celltype[kk] = paste0('mNT_', refs.merged$condition[kk])
-  
-  names(cols_sel) = paste0('mNT_', names(cols_sel))
-  
-  
   DimPlot(refs.merged, group.by = c("celltype"), label = TRUE, repel = TRUE,
           raster=FALSE, cols = c(cols_mouse, cols_sel))
+  
   ggsave(paste0(outDir, '/Integration_dataset_celltypes.pdf'), 
          width = 14, height = 8)
   

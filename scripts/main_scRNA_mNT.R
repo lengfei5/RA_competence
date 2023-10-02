@@ -497,9 +497,13 @@ Idents(aa) = aa$condition
 aa <- RunUMAP(aa, dims = 1:30, n.neighbors = 100, min.dist = 0.2)
 DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'condition', pt.size = 2, cols = cols_sel, raster=FALSE)
 
-
 ggsave(filename = paste0(resDir, '/RA_umap_rmDoublet_5000features_30pcs_100neighbor_dist0.2.pdf'), 
        width = 10, height = 8)
+
+saveRDS(aa, file = paste0(RdataDir, 
+                           'savedUMAP_seuratObject_merged_cellFiltered_doubletRm_geneFiltered.15kGene',
+                           '_regressed.nCounts_clusterd0.7_rmBloodCells_', 
+                           species, version.analysis, '.rds'))
 
 FeaturePlot(aa, features = 'Dhrs3') + scale_y_reverse()
 
@@ -523,19 +527,34 @@ if(Explore.umap.parameters){
 ##########################################
 # highlight mark genes in RA treated umap
 ##########################################
-features = unique(c('Sox2', 'Sox1', 'Tubb3', 'Elavl3', 
+outDir = paste0(resDir, '/geneExamples_in_savedUMAP_RAtreated/')
+system(paste0('mkdir -p ', outDir))
+
+
+features_1 = unique(c('Sox2', 'Sox1', 'Tubb3', 'Elavl3', 
                     'Irx3', 'Irx5', 'Pax3', 'Pax7',
                     'Pax6', 'Olig2', 'Nkx2-9', 'Nkx2-2', 
                     'Nkx6-1', 'Foxa2', 'Arx', 'Shh'
 )) # DV overview
 
-features = unique(c('Pax6', 'Foxa2', 'Sox1', 'Sox2', 'Tubb3', 'Shh', 'Arx',
+features_2 = c('Dhrs3', 'Rarg', 'Cyp26a1',
+               'Pou3f1', 'Hoxa1', 'Gas1', 'Spry4', 'Sox11', 
+               'Cdh1', 'Cdh2', 'Shh', 'Rfx4', 'Zfp42', 'Tcf15', 'Prrx2', 'Gdf3',
+               'Etv5', 'Fgf4', 'Otx2', 'Zscan10', 'Apoe', 'Peg10', 'Klf9', 'Tshz1', 'Skil', 'Zfp703')
+features = unique(c(c('Pax6', 'Foxa2', 'Sox1', 'Sox2', 'Tubb3', 'Shh', 'Arx',
                     'Zfp703', 'Lef1', 'Irx5', 'Pou5f1', 'Otx2', 'Adgra2', 'Hoxb4', 
-                    'Nkx2-2', 'Nkx2-9', 'Nkx6-1', 'Olig2', 'Pax3', 'Pax7'
-)) # marker wanted by Hannah
+                    'Nkx2-2', 'Nkx2-9', 'Nkx6-1', 'Olig2', 'Pax3', 'Pax7'), 
+                    features_1,
+                    features_2)) # marker wanted by Hannah
 
-FeaturePlot(aa, features = features, cols = c('gray', 'red'))  
 
-ggsave(filename = paste0(resDir, '/RAtreated_UMAP_markers.byHS.pdf'), 
-       width = 20, height = 16)
-
+for(n in 1:length(features))
+{
+  cat(n, '--', features[n], '\n')
+  if(length(which(rownames(aa) == features[n])) == 1){
+    p1 = FeaturePlot(aa, features = features[n], cols = c('gray', 'red'))  
+    plot(p1)
+    ggsave(filename = paste0(outDir, '/RAtreated_savedUMAP_', features[n], '.pdf'), 
+           width = 10, height = 8)
+  }
+}
