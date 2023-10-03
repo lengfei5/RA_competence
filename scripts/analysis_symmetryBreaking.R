@@ -39,7 +39,7 @@ data_version = "_d2_d2.5_d3_d3.5_d4_d5"
 names(cols) = levels
 cols_sel = cols[match(levels_sels, names(cols))]
 
-outDir = paste0(resDir, '/RA_symetryBreaking/sparse_featureSelection', data_version)
+outDir = paste0(resDir, '/RA_symetryBreaking/subclustering_earlyTimePoints_', data_version)
 system(paste0('mkdir -p ', outDir))
 
 ##########################################
@@ -52,33 +52,13 @@ tfs = readRDS(file = paste0('../data/annotations/curated_human_TFs_Lambert.rds')
 tfs = unique(tfs$`HGNC symbol`)
 tfs = as.character(unlist(sapply(tfs, firstup)))
 
-# all 16 samples
-# aa = readRDS(file = paste0(RdataDir, 
-#                            'seuratObject_merged_cellFiltered_doublet.rm_mt.ribo.geneFiltered_regressout.nCounts_',
-#                            'cellCycleScoring_annot.v1_savedUMAP.v1_', species, version.analysis, '.rds'))
 
-# only RA samples incl. dya2_beforeRA
+##########################################
+# import the all data for RA treatment
+##########################################
 aa = readRDS(file = paste0(RdataDir,
                            'seuratObject_merged_cellFiltered_doublet.rm_mt.ribo.geneFiltered_regressout.nCounts_',
                            'cellCycleScoring_annot.v1_savedUMAP.subs.v2_', species, version.analysis, '.rds'))
-
-Idents(aa) = aa$condition
-DimPlot(aa, cols = cols, group.by = 'condition', label = TRUE, repel = TRUE, raster = FALSE)
-
-FeaturePlot(aa, features = c('Zfp42', 'Tcf15', 'Skil', 'Lef1'))
-
-ggsave(filename = paste0(outDir, '/asymmetric_feature_expression.pdf'), 
-       width = 14, height = 10)
-
-
-
-##########################################
-# 
-##########################################
-aa = readRDS(file = paste0(RdataDir, 
-                           'seuratObject_RA.symmetry.breaking_doublet.rm_mt.ribo.filtered_regressout.nCounts_',
-                           'cellCycleScoring_annot.v2_newUMAP_clusters_sparseFeatures', data_version, '_',
-                           species, version.analysis, '.rds'))
 
 DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'condition', raster=FALSE)
 
@@ -88,17 +68,17 @@ ggsave(filename = paste0(outDir, '/asymmetric_feature_expression.pdf'),
        width = 14, height = 10)
 
 
-aa <- RunUMAP(aa, 
-              dims = NULL, features = c('Pax6', 'Foxa2', 'Sox2', 'Pou5f1', 'Sox1'),
-              metric = "euclidean",
-              a = 10, 
-              b = 2.5,
-              n.neighbors = 100, min.dist = 0.5, 
-              reduction.key = 'UMAP.feature', 
-              reduction.name = "umap_feature")
-
-DimPlot(aa, label = TRUE, repel = TRUE, reduction = 'umap_feature',
-        group.by = 'condition', raster=FALSE)
+# aa <- RunUMAP(aa, 
+#               dims = NULL, features = c('Pax6', 'Foxa2', 'Sox2', 'Pou5f1', 'Sox1'),
+#               metric = "euclidean",
+#               a = 10, 
+#               b = 2.5,
+#               n.neighbors = 100, min.dist = 0.5, 
+#               reduction.key = 'UMAP.feature', 
+#               reduction.name = "umap_feature")
+# 
+# DimPlot(aa, label = TRUE, repel = TRUE, reduction = 'umap_feature',
+#         group.by = 'condition', raster=FALSE)
 
 
 

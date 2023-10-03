@@ -547,7 +547,6 @@ features = unique(c(c('Pax6', 'Foxa2', 'Sox1', 'Sox2', 'Tubb3', 'Shh', 'Arx',
                     features_1,
                     features_2)) # marker wanted by Hannah
 
-
 for(n in 1:length(features))
 {
   cat(n, '--', features[n], '\n')
