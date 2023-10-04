@@ -13,7 +13,7 @@ levels_sels = c("day2_beforeRA",
                 "day2.5_RA", "day3_RA.rep1", "day3.5_RA", "day4_RA", "day5_RA", "day6_RA")
 cols_sel = cols[match(levels_sels, names(cols))]
 
-outDir = paste0(resDir, '/RA_symetryBreaking/gene_Noise/')
+outDir = paste0(resDir, '/RA_symetryBreaking/gene_Noise/day2_2.5_3_3.5')
 system(paste0('mkdir -p ', outDir))
 
 version.analysis = paste0('_R13547_10x_mNT_20220813', '_ES.beforeRA.and.RA')
@@ -38,10 +38,15 @@ require(tictoc)
 aa = readRDS(file = 
                paste0('../results/scRNAseq_R13547_10x_mNT_20220813/RA_symetryBreaking/branching_genes_BGP',
                            '/RA_d2.beforeRA_no.day6_noNeurons.rds'))
+
 Idents(aa) = aa$condition
 
 set.seed(2023)
-aa = subset(aa, downsample = 500)
+cc = c('day2_beforeRA', 'day2.5_RA', 'day3_RA.rep1', 'day3.5_RA')
+
+aa = subset(aa, cells = colnames(aa)[which(!is.na(match(aa$condition, cc)))])
+
+aa = subset(aa, downsample = 1000)
 
 x <- aa@assays$RNA@counts
 rownames(x) <- rownames(aa)
@@ -65,7 +70,7 @@ saveRDS(res, file = paste0(outDir,
           '/RA_d2.beforeRA_no.day6_noNeurons_varID2_pruneKnn_v3.rds'))
 
 tic()
-cl    <- graphCluster(res, pvalue= 0.01)
+cl    <- graphCluster(res, pvalue= 0.05)
 toc()
 
 probs <- transitionProbs(res,cl)
@@ -107,6 +112,7 @@ saveRDS(sc, file = paste0(outDir,
             '/RA_d2.beforeRA_no.day6_noNeurons_varID2_noise_v3.rds'))
 save(sc, noise, cl, res, 
      file = paste0(outDir, '/out_varID2_noise_v3.Rdata'))
+
 
 ########################################################
 ########################################################
