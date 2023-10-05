@@ -24,14 +24,15 @@ suppressPackageStartupMessages({
 
 names(cols) = levels
 
-levels_sels = c("day0_beforeRA", "day1_beforeRA", "day2_beforeRA", 
+levels_sels = c("day2_beforeRA", 
                 "day2.5_RA", "day3_RA.rep1", "day3.5_RA", "day4_RA", "day5_RA", "day6_RA")
 cols_sel = cols[match(levels_sels, names(cols))]
 
-outDir = paste0(resDir, '/RA_symetryBreaking/')
+#version.analysis = paste0(version.analysis, '_ES.beforeRA.and.RA')
+
+outDir = paste0(resDir, '/RA_symetryBreaking/cellRank_scvelo_d2.beforeRA.to.d6_rm.weired.clusters/')
 system(paste0('mkdir -p ', outDir))
 
-version.analysis = paste0(version.analysis, '_ES.beforeRA.and.RA')
 
 ##########################################
 # preapre the intron and transcript reference fasta files
@@ -126,6 +127,8 @@ aa =  readRDS(file = paste0(RdataDir,
 
 Idents(aa) = factor(aa$condition, levels = levels)
 
+table(aa$condition)
+
 DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'condition', cols = cols, raster=FALSE)
 
 ggsave(filename = paste0(outDir, 'UMAP_rmDoublet_rmRiboMT_regressed.nCounts_annot.v1_',
@@ -143,7 +146,6 @@ Idents(aa) = aa$condition
 
 aa <- RunUMAP(aa, dims = 1:30, n.neighbors = 30, min.dist = 0.1)
 DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'condition', cols = cols_sel, raster=FALSE)
-
 
 ggsave(filename = paste0(outDir, 'UMAP_rmDoublet_rmRiboMT_regressed.nCounts_annot.v1_',
                          'subsetting.RAsymmetryBreaking.onlyday3rep1',
@@ -177,6 +179,7 @@ design$condition = gsub('day0', 'day0_beforeRA', design$condition)
 design = design[match(levels_sels, design$condition), ]
 
 design$condition = gsub('day0_beforeRA', 'day0', design$condition)
+
 ##########################################
 # prepare gene annotation 
 ##########################################
@@ -271,6 +274,14 @@ aa = readRDS(file = paste0(RdataDir,
                            'cellCycleScoring_annot.v2_',
                            species, version.analysis, '.rds'))
 
+aa = readRDS(file = paste0(RdataDir, 
+                           'seuratObject_RA.symmetry.breaking_doublet.rm_mt.ribo.filtered_regressout.nCounts_',
+                           'cellCycleScoring_annot.v2_',
+                           species, version.analysis, '.rds'))
+
+
+table(aa$condition)
+
 # rerun the umap 
 aa <- FindVariableFeatures(aa, selection.method = "vst", nfeatures = 5000) # find subset-specific HVGs
 
@@ -283,45 +294,65 @@ Idents(aa) = aa$condition
 aa <- RunUMAP(aa, dims = 1:30, n.neighbors = 30, min.dist = 0.1)
 DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'condition', cols = cols_sel, raster=FALSE)
 
-ggsave(filename = paste0(outDir, 'UMAP_RAsymmetryBreaking.onlyday3rep1_3000HVGs_noweighted.byvarPCA_',
+ggsave(filename = paste0(outDir, '/UMAP_RAsymmetryBreaking.onlyday3rep1_5000HVGs_noweighted.byvarPCA_',
                          '30pcs_30neighbors_minDist0.1', version.analysis, '.pdf'), 
-       width = 10, height = 8)
-
+       width = 10, height = 6)
 
 # quickly run clustering
 ElbowPlot(aa, ndims = 50)
 aa <- FindNeighbors(aa, dims = 1:30)
-aa <- FindClusters(aa, verbose = FALSE, algorithm = 3, resolution = 1.0)
+aa <- FindClusters(aa, verbose = FALSE, algorithm = 3, resolution = 0.5)
 
 p1 = DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'condition', raster=FALSE)
 p2 = DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'seurat_clusters', raster=FALSE)
 p1 + p2
 
-ggsave(filename = paste0(outDir, 'UMAP_RAsymmetryBreaking.onlyday3rep1_timePoints_clustering.res0.7',
+ggsave(filename = paste0(outDir, 'UMAP_RAsymmetryBreaking.onlyday3rep1_timePoints_clustering.res0.5',
                         version.analysis, '.pdf'), 
        width = 18, height = 8)
 
+Discard_weired.clusters = FALSE
+if(Discard_weired.clusters){
+  
+  aa = subset(aa, cells = colnames(aa)[which(aa$seurat_clusters != 6 & aa$seurat_clusters != 9)])
+  
+  p1 = DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'condition', raster=FALSE)
+  p2 = DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'seurat_clusters', raster=FALSE)
+  p1 + p2
+ 
+  aa <- RunPCA(aa, features = VariableFeatures(object = aa), verbose = FALSE, weight.by.var = FALSE)
+  ElbowPlot(aa, ndims = 50)
+  
+  Idents(aa) = aa$condition
+  
+  aa <- RunUMAP(aa, dims = 1:30, n.neighbors = 30, min.dist = 0.1)
+  DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'condition', cols = cols_sel, raster=FALSE)
+  
+  ElbowPlot(aa, ndims = 50)
+  aa <- FindNeighbors(aa, dims = 1:30)
+  aa <- FindClusters(aa, verbose = FALSE, algorithm = 3, resolution = 0.7)
+  
+  p1 = DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'condition', raster=FALSE)
+  p2 = DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'seurat_clusters', raster=FALSE)
+  p1 + p2
+  
+  ggsave(filename = paste0(outDir, 'UMAP_RAsymmetryBreaking.onlyday3rep1_timePoints_clustering.res0.7',
+                           version.analysis, '.pdf'), 
+         width = 18, height = 8)
+  
+  
+}
 
 aa$clusters = aa$seurat_clusters
 
-# saveRDS(aa, file = paste0(RdataDir, 
-#                       'seuratObject_RA.symmetry.breaking_doublet.rm_mt.ribo.filtered_regressout.nCounts_',
-#                       'cellCycleScoring_annot.v2_newUMAP_clusters_',
-#                       species, version.analysis, '.rds'))
-# 
-# ## add time for the data and refine clusters
-# aa = readRDS(file = paste0(RdataDir, 
-#                            'seuratObject_RA.symmetry.breaking_doublet.rm_mt.ribo.filtered_regressout.nCounts_',
-#                            'cellCycleScoring_annot.v2_newUMAP_clusters_',
-#                            species, version.analysis, '.rds'))
-
 #jj = which(aa$celltypes == 'FP'|aa$celltypes == 'Neurons'|aa$celltypes == 'NP_RA')
 DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'clusters', raster=FALSE)
+
 aa$celltypes = as.character(aa$clusters)
 
-aa$celltypes[which(aa$clusters == '6')] = 'FP'
-aa$celltypes[which(aa$clusters == '10')] = 'Neurons'
-aa$celltypes[which(aa$clusters == '8')] = 'NP'
+#aa$celltypes[which(aa$clusters == '6')] = 'FP'
+#aa$celltypes[which(aa$clusters == '10')] = 'Neurons'
+#aa$celltypes[which(aa$clusters == '8')] = 'NP'
 
 DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'celltypes', raster=FALSE)
 
@@ -333,7 +364,7 @@ aa$time = gsub('_beforeRA', '', aa$time)
 
 saveRDS(aa, file = paste0(RdataDir, 
                           'seuratObject_RA.symmetry.breaking_doublet.rm_mt.ribo.filtered_regressout.nCounts_',
-                          'cellCycleScoring_annot.v2_newUMAP_clusters_time_',
+                          'cellCycleScoring_annot.v2_newUMAP_clusters_time_updated20231005_',
                           species, version.analysis, '.rds'))
 
 ##########################################
@@ -539,24 +570,28 @@ if(NotConsider.RA_day6){
   
 }
 
-
 ########################################################
 ########################################################
 # Section : prepare the files for scVelo and cellRank
 # 
 ########################################################
 ########################################################
+# aa = readRDS(file = paste0(RdataDir, 
+#                            'seuratObject_RA.symmetry.breaking_doublet.rm_mt.ribo.filtered_regressout.nCounts_',
+#                            'cellCycleScoring_annot.v2_newUMAP_clusters_time_noNeurons_d2.beforeRA_',
+#                            'rmSuspeciousClusters_',
+#                            species, version.analysis, '.rds'))
+#aa = readRDS(file = paste0(RdataDir, 'seuratObject_RA.symmetry.breaking_doublet.rm_mt.ribo.filtered_',
+#                           'regressout.nCounts_cellCycleScoring_annot.v2_mNT_scRNAseq_R13547_10x_mNT_20220813.rds'))
 aa = readRDS(file = paste0(RdataDir, 
                            'seuratObject_RA.symmetry.breaking_doublet.rm_mt.ribo.filtered_regressout.nCounts_',
-                           'cellCycleScoring_annot.v2_newUMAP_clusters_time_noNeurons_d2.beforeRA_',
-                           'rmSuspeciousClusters_',
+                           'cellCycleScoring_annot.v2_newUMAP_clusters_time_updated20231005_',
                            species, version.analysis, '.rds'))
-FeaturePlot(aa, features = c('Pax6', 'Foxa2', 'Sox2'))
 
-#p1 = DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'clusters', raster=FALSE)
-#p0 = DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'condition', raster=FALSE)
-#p2 = VlnPlot(aa, features = c('Sox2'), group.by = 'clusters')
-#p0 + p1 + p2
+load(file = paste0(RdataDir, 'seuratObject_RNAvelocity_alevin_spliced_unspliced_', 
+                   'mNT_scRNAseq_R13547_10x_mNT_20220813.Rdata'))
+
+FeaturePlot(aa, features = c('Pax6', 'Foxa2', 'Sox2'))
 
 
 p1 = DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'condition', raster=FALSE)
@@ -567,15 +602,37 @@ p0 = DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'celltypes', raster=FALS
 
 p2 + p0
 
-aa$celltypes = aa$clusters
+
 aa$clusters = aa$seurat_clusters
+aa$celltypes = aa$clusters
 DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'celltypes', raster=FALSE)
 
-load(file = paste0(RdataDir, 'seuratObject_RNAvelocity_alevin_spliced_unspliced_', 
-                   species, version.analysis, '.Rdata'))
+Discard_cellCycle.corrrelatedGenes = FALSE
+if(Discard_cellCycle.corrrelatedGenes){
+  library(scater)
+  Idents(aa) = aa$condition
+  
+  # Identifying the likely cell cycle genes between phases,
+  # using an arbitrary threshold of 5%.
+  scaledMatrix = GetAssayData(aa, slot = c("scale.data"))
+  
+  diff <- getVarianceExplained(scaledMatrix, data.frame(phase = aa$Phase))
+  diff = data.frame(diff, gene = rownames(diff))
+  diff = diff[order(-diff$phase), ]
+  
+  hist(diff$phase, breaks = 100); abline(v = c(1:5), col = 'red')
+  
+  genes_discard = diff$gene[which(diff$phase>5)]
+  cat(length(genes_discard), 'genes to discard \n')
+  
+  print(intersect(genes_discard, gene_examples))
+  
+  aa = subset(aa, features = setdiff(rownames(aa), genes_discard))
+     
+}
 
 ## select features shares by spliced and unspliced
-features = intersect(rownames(spliced), rownames(unspliced))
+features = intersect(rownames(aa), intersect(rownames(spliced), rownames(unspliced)))
 spliced = subset(spliced, features = features)
 unspliced = subset(unspliced, features = features)
 
@@ -626,49 +683,17 @@ DefaultAssay(mnt) = 'RNA'
 VariableFeatures(mnt)
 
 Idents(mnt) = mnt$condition
-mnt = subset(mnt, downsample = 1500)
+mnt = subset(mnt, downsample = 1000)
 
-saveRDS(mnt, file = paste0(outDir, 'branching_genes_BGP/d2.beforeRA_RA_noNeurons_downsample_10.5k.rds'))
+saveRDS(mnt, file = paste0(outDir, '/RA_day2.5_to_day6_downsample_6k.rds'))
 
 #saveDir = paste0("/Volumes/groups/tanaka/People/current/jiwang/projects/RA_competence/",
 #                "results/scRNAseq_R13547_10x_mNT_20220813/RA_symetryBreaking/")
 
-saveFile = 'RNAmatrix_umap_alevin.spliced_unspliced_RA_noNeurons_d2.beforeRA_downsample_10.5k.h5Seurat'
+saveFile = '/RNAmatrix_umap_alevin.spliced_unspliced_RA_downsample_6k_v4.2_rmCellCycle.correlatedGenes.h5Seurat'
 
 SaveH5Seurat(mnt, filename = paste0(outDir, saveFile), 
              overwrite = TRUE)
 Convert(paste0(outDir, saveFile), 
         dest = "h5ad", overwrite = TRUE)
 
-
-##########################################
-## test umap with spliced 
-##########################################
-Test_umap_use.only.splicedMatrix = FALSE
-if(Test_umap_use.only.splicedMatrix){
-  DefaultAssay(mnt) = 'spliced'
-  DimPlot(mnt, label = TRUE, repel = TRUE, reduction = 'UMAP',
-          group.by = 'condition', cols = cols_sel, raster=FALSE)
-  
-  
-  mnt <- FindVariableFeatures(mnt, selection.method = "vst", nfeatures = 3000) # find subset-specific HVGs
-  
-  ## because the data was regressed and scaled already, only the HVGs were used to calculate PCA
-  mnt = ScaleData(mnt)
-  
-  mnt <- RunPCA(mnt, features = VariableFeatures(object = mnt), verbose = FALSE, weight.by.var = TRUE)
-  ElbowPlot(mnt, ndims = 50)
-  
-  Idents(mnt) = mnt$condition
-  
-  mnt <- RunUMAP(mnt, dims = 1:20, n.neighbors = 100, min.dist = 0.2)
-  DimPlot(mnt, label = TRUE, repel = TRUE, group.by = 'condition',
-          reduction = 'umap', cols = cols_sel, raster=FALSE)
-  
-  ggsave(filename = paste0(outDir, 'UMAP_splicedMatrix_',
-                           'subsetting.RAsymmetryBreaking.onlyday3rep1.pdf'), width = 10, height = 8)
-  
-  DimPlot(mnt, label = TRUE, repel = TRUE, reduction = 'UMAP',
-          group.by = 'condition', cols = cols_sel, raster=FALSE)
-  
-}

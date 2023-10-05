@@ -140,27 +140,47 @@ dev.off()
 save(sc, cl, res, 
      file = paste0(outDir, '/out_varID2_scSeq_pruneKnn.Rdata'))
 
-
 ##########################################
 # ## compute noise from corrected variance
+# https://cran.r-project.org/web/packages/RaceID/vignettes/RaceID.html#varid2
+# The most important argument of the compTBNoise is the gamma parameter 
+# which determines the strength of the prior for the suppression of spurious inflation of noise levels
+# at low expression
+# If a positive correlation is observed, gamma should be increased in order to weaken the prior. 
+# If the correlation is negative, gamma should be decreased in order to increase the strength of the prior.
 ##########################################
-#nn <- inspectKNN(20,expData,res,cl,object=sc,pvalue=0.01,plotSymbol=TRUE,um=TRUE,cex=1)
-#head(nn$pv.neighbours)
-#head(nn$expr.neighbours)
-x <- getFilteredCounts(sc, minexpr=1, minnumber=10)
-
-tic()
-noise <- compTBNoise(res,x,pvalue=0.01, no_cores=64) # take 40 minutes  
-toc()
-
-#noise <- compTBNoise(res,expData,pvalue=0.01,no_cores=5) 
-sc <- updateSC(sc,res=res,cl=cl,noise=noise)
-
-saveRDS(sc, file = paste0(outDir, 
-            '/RA_d2.beforeRA_no.day6_noNeurons_varID2_noise_v3.rds'))
-save(sc, noise, cl, res, 
-     file = paste0(outDir, '/out_varID2_noise_v3.Rdata'))
-
+for(gamma in c(2.0, 2.5, 3, 3.5, 4)) # search for the optimal value of gamma
+{
+  cat('gamma -- ', gamma, '\n')
+  
+  load(file = paste0(outDir, '/out_varID2_scSeq_pruneKnn.Rdata'))
+  
+  #nn <- inspectKNN(20,expData,res,cl,object=sc,pvalue=0.01,plotSymbol=TRUE,um=TRUE,cex=1)
+  #head(nn$pv.neighbours)
+  #head(nn$expr.neighbours)
+  x <- getFilteredCounts(sc, minexpr=1, minnumber=10)
+  
+  tic()
+  noise <- compTBNoise(res, x, gamma = gamma, 
+                       pvalue=0.01, no_cores=64) # take 40 minutes  
+  toc()
+  
+  
+  pdfname = paste0(outDir, '/plot_varID2_variance_mean_gamma_', gamma, '.pdf')
+  pdf(pdfname, width=8, height = 6)
+  
+  plotUMINoise(sc, noise,log.scale=TRUE)
+  
+  dev.off()
+  
+  #noise <- compTBNoise(res,expData,pvalue=0.01,no_cores=5) 
+  sc <- updateSC(sc,res=res,cl=cl, noise=noise)
+  
+  #saveRDS(sc, file = paste0(outDir, '/RA_d2.beforeRA_no.day6_noNeurons_varID2_noise_gamma.', gamma,'.rds'))
+  save(sc, noise, cl, res, 
+       file = paste0(outDir, '/out_varID2_noise_gamma_', gamma, '.Rdata'))
+  
+}
 
 ########################################################
 ########################################################
@@ -168,22 +188,17 @@ save(sc, noise, cl, res,
 # ## reload the results and make analysis
 ########################################################
 ########################################################
-sps = readRDS(file = paste0('../data/annotations/curated_signaling.pathways_gene.list_v3.rds'))
-sps = unique(sps$gene)
-
-tfs = readRDS(file = paste0('../data/annotations/curated_human_TFs_Lambert.rds'))
-tfs = unique(tfs$`HGNC symbol`)
-tfs = as.character(unlist(sapply(tfs, firstup)))
-
 load(file = paste0(outDir, '/out_varID2_noise_v3.Rdata'))
 
-pdfname = paste0(outDir, '/plot_umap_varID.clusters_v3.pdf')
+pdfname = paste0(outDir, '/plot_umap_varID.clusters.pdf')
 pdf(pdfname, width=8, height = 6)
+
 plotmap(sc, um=TRUE, tp = 1, cex = 0.3)
 
 dev.off()
 
-plotUMINoise(sc, noise,log.scale=TRUE)
+
+
 #sc <- updateSC(sc,res=res,cl=cl,noise=noise)
 
 # Gene expression (on logarithmic scale):
@@ -193,14 +208,16 @@ plotexpmap(sc, gg, logsc=TRUE,um=TRUE,cex=1)
 # Biological noise (on logarithmic scale):
 plotexpmap(sc, 'Zfp42', logsc=TRUE, um=TRUE, noise=TRUE,cex=0.5)
 
-plotexpmap(sc, 'Foxa2', logsc=TRUE, um=TRUE, noise=TRUE,cex=0.5)
-plotexpmap(sc, 'Foxa2', logsc=TRUE, um=TRUE, noise=FALSE,cex=0.5)
+p1 = plotexpmap(sc, 'Foxa2', logsc=TRUE, um=TRUE, noise=TRUE,cex=0.5)
+p2 = plotexpmap(sc, 'Foxa2', logsc=TRUE, um=TRUE, noise=FALSE,cex=0.5)
 
 p1 + p2
 
 pdfname = paste0(outDir, '/plot_noise_example_Pax6_expression.pdf')
 pdf(pdfname, width=8, height = 6)
+
 plotexpmap(sc, 'Pax6', logsc=TRUE, um=TRUE, noise=FALSE,cex=0.5)
+
 dev.off()
 
 pdfname = paste0(outDir, '/plot_noise_example_Pax6.pdf')
