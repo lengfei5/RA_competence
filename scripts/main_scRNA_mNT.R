@@ -54,6 +54,48 @@ cols[grep('_beforeRA', names(cols))] = colorRampPalette((brewer.pal(n = 3, name 
 cols[grep('_noRA', names(cols))] = colorRampPalette((brewer.pal(n = 6, name ="Blues")))(6)
 cols[grep('_RA', names(cols))] = colorRampPalette((brewer.pal(n = 7, name ="OrRd")))(7)
 
+##########################################
+# features  
+##########################################
+sps = readRDS(file = paste0('../data/annotations/curated_signaling.pathways_gene.list_v3.rds'))
+sps = unique(sps$gene)
+
+tfs = readRDS(file = paste0('../data/annotations/curated_human_TFs_Lambert.rds'))
+tfs = unique(tfs$`HGNC symbol`)
+tfs = as.character(unlist(sapply(tfs, firstup)))
+
+features_1 = unique(c('Sox2', 'Sox1', 'Tubb3', 'Elavl3', 
+                      'Irx3', 'Irx5', 'Pax3', 'Pax7',
+                      'Pax6', 'Olig2', 'Nkx2-9', 'Nkx2-2', 
+                      'Nkx6-1', 'Foxa2', 'Arx', 'Shh'
+)) # DV overview
+
+features_2 = c('Dhrs3', 'Rarg', 'Cyp26a1',
+               'Pou3f1', 'Hoxa1', 'Gas1', 'Spry4', 'Sox11', 
+               'Cdh1', 'Cdh2', 'Shh', 'Rfx4', 'Zfp42', 'Tcf15', 'Prrx2', 'Gdf3',
+               'Etv5', 'Fgf4', 'Otx2', 'Zscan10', 'Apoe', 'Peg10', 'Klf9', 'Tshz1', 'Skil', 'Zfp703')
+features = unique(c(c('Pax6', 'Foxa2', 'Sox1', 'Sox2', 'Tubb3', 'Shh', 'Arx',
+                      'Zfp703', 'Lef1', 'Irx5', 'Pou5f1', 'Otx2', 'Adgra2', 'Hoxb4', 
+                      'Nkx2-2', 'Nkx2-9', 'Nkx6-1', 'Olig2', 'Pax3', 'Pax7', 'Cyp26a1', 'Dhrs3'), 
+                    features_1,
+                    features_2)) # marker wanted by Hannah
+gene_examples = unique(c('Foxa2', 'Pax6', c('Zfp42', 'Tcf15', 'Skil', 'Lef1',
+                                            'Sox2', 'Pou5f1', 'Sall4', 'Tdgf1', # pluripotency markers
+                                            'Nanog', 'Nr5a2', #'Prdm14', 
+                                            'Klf4', 'Fgf4', 'Esrrb', 'Tcf3', 'Tbx3'), # naive pluripotency
+                         c('Zfp42', 'Tcf15', 'Skil',
+                           'Fgf5', 'Otx2', 'Pou3f1', 'Lef1', 'Dnmt3b', 'Dnmt3a',	
+                           'Foxd3', 'Utf1', 'Tcf15', 'Zic3', 'Rhox5', 'Etv5', 'Etv4',	
+                           'Lin28b', 'Sox4', 'Sox3', 'Sox11'
+                         ),
+                         c('Lhx1','Eomes', 'Sox2', 'Hoxb4', 'Hoxb5', 'Hoxb6','Zfp703'),
+                         c('Zfp42', 'Tcf15', 'Skil', 'Lef1', 'Dhrs3', 'Rarg', 'Cyp26a1'),
+                         features,
+                         features_1,
+                         features_2
+                         
+))
+
 
 ########################################################
 ########################################################

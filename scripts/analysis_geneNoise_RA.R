@@ -13,10 +13,6 @@ levels_sels = c("day2_beforeRA",
                 "day2.5_RA", "day3_RA.rep1", "day3.5_RA", "day4_RA", "day5_RA", "day6_RA")
 cols_sel = cols[match(levels_sels, names(cols))]
 
-outDir = paste0(resDir, '/RA_symetryBreaking/gene_Noise/day2_2.5_3_3.5')
-system(paste0('mkdir -p ', outDir))
-
-version.analysis = paste0('_R13547_10x_mNT_20220813', '_ES.beforeRA.and.RA')
 
 #library(slingshot, quietly = FALSE)
 #library(destiny, quietly = TRUE)
@@ -29,24 +25,61 @@ require(Matrix)
 library(RaceID)
 require(tictoc)
 
+cc = c('day2_beforeRA', 'day2.5_RA', 'day3_RA.rep1')
+
+outDir = paste0(resDir, '/RA_symetryBreaking/gene_Noise/day2_2.5_3_v2')
+system(paste0('mkdir -p ', outDir))
+
+
 ########################################################
 ########################################################
 # Section I:
 # 
 ########################################################
 ########################################################
-aa = readRDS(file = 
-               paste0('../results/scRNAseq_R13547_10x_mNT_20220813/RA_symetryBreaking/branching_genes_BGP',
-                           '/RA_d2.beforeRA_no.day6_noNeurons.rds'))
+#aa = readRDS(file = 
+#               paste0('../results/scRNAseq_R13547_10x_mNT_20220813/RA_symetryBreaking/branching_genes_BGP',
+#                           '/RA_d2.beforeRA_no.day6_noNeurons.rds'))
+aa = readRDS(file = paste0(RdataDir, 
+                           'seuratObject_RA.symmetry.breaking_doublet.rm_mt.ribo.filtered_regressout.nCounts_',
+                           'cellCycleScoring_annot.v2_newUMAP_clusters_sparseFeatures', '_timePoint_',
+                           species, version.analysis, '.rds'))
+
+# bb  = aa
+p1 = DimPlot(aa, group.by = 'condition', label = TRUE, repel = TRUE)
+p2 = DimPlot(aa, group.by = 'clusters', label = TRUE, repel = TRUE)
+
+p1 + p2
+
+ggsave(filename = paste0(outDir, '/UMAP_conditions_clusters.pdf'), 
+       width = 16, height = 6)
 
 Idents(aa) = aa$condition
 
 set.seed(2023)
-cc = c('day2_beforeRA', 'day2.5_RA', 'day3_RA.rep1', 'day3.5_RA')
 
-aa = subset(aa, cells = colnames(aa)[which(!is.na(match(aa$condition, cc)))])
+# remove the cluster 9 and 10
+aa = subset(aa, cells = colnames(aa)[which(!is.na(match(aa$condition, cc))
+                                           & as.character(aa$clusters) != '9' 
+                                           & as.character(aa$clusters) != '10')])
+#aa = subset(aa, cells = colnames(aa)[which(!is.na(match(aa$condition, cc)))])
 
-aa = subset(aa, downsample = 1000)
+## remove cell cycle related genes
+scaledMatrix = GetAssayData(aa, slot = c("scale.data"))
+
+diff <- scater::getVarianceExplained(scaledMatrix, data.frame(phase = aa$Phase))
+diff = data.frame(diff, gene = rownames(diff))
+diff = diff[order(-diff$phase), ]
+
+hist(diff$phase, breaks = 100); abline(v = c(1:5), col = 'red')
+
+genes_discard = diff$gene[which(diff$phase>5)]
+cat(length(genes_discard), 'genes to discard \n')
+
+aa = subset(aa, features = setdiff(rownames(aa), genes_discard))
+
+Idents(aa) = aa$condition
+aa = subset(aa, downsample = 500)
 
 x <- aa@assays$RNA@counts
 rownames(x) <- rownames(aa)
@@ -66,12 +99,21 @@ tic()
 res   <- pruneKnn(expData, no_cores = 32)
 toc()
 
-saveRDS(res, file = paste0(outDir, 
-          '/RA_d2.beforeRA_no.day6_noNeurons_varID2_pruneKnn_v3.rds'))
+saveRDS(res, file = paste0(outDir, '/RA_d2.beforeRA_no.day6_noNeurons_varID2_pruneKnn.rds'))
+
+res = readRDS(file = paste0(outDir, '/RA_d2.beforeRA_no.day6_noNeurons_varID2_pruneKnn.rds'))
 
 tic()
-cl    <- graphCluster(res, pvalue= 0.05)
+cl    <- graphCluster(res, pvalue= 0.01, leiden.resolution = 0.3)
 toc()
+
+test = cl$partition
+mm = match(names(test), colnames(aa))
+newtest = test
+newtest[which(aa$condition[mm] == 'day2_beforeRA')] = 1
+newtest[which(aa$condition[mm] == 'day2.5_RA')] = 2
+newtest[which(aa$condition[mm] == 'day3_RA.rep1')] = 3
+cl$partition = newtest
 
 probs <- transitionProbs(res,cl)
 
@@ -85,22 +127,28 @@ toc()
 
 #plotmap(sc,fr=TRUE)
 # Alternatively, a umap representation can be computed for visualization:
-sc <- compumap(sc, min_dist=0.1, n_neighbors =20)
+sc <- compumap(sc, min_dist=0.2, n_neighbors =20)
 plotmap(sc,um=TRUE)
 
-pdfname = paste0(outDir, '/plot_transition_probability_v2.pdf')
+pdfname = paste0(outDir, '/plot_transition_probability.pdf')
 pdf(pdfname, width=10, height = 8)
 
 plotTrProbs(sc,probs,um=TRUE)
-#ggsave(filename = paste0(outDir, '/plot_transition_probability.pdf'), width = 10, height = 8)
+
 dev.off()
 
-## compute noise from corrected variance
+save(sc, cl, res, 
+     file = paste0(outDir, '/out_varID2_scSeq_pruneKnn.Rdata'))
+
+
+##########################################
+# ## compute noise from corrected variance
+##########################################
 #nn <- inspectKNN(20,expData,res,cl,object=sc,pvalue=0.01,plotSymbol=TRUE,um=TRUE,cex=1)
 #head(nn$pv.neighbours)
 #head(nn$expr.neighbours)
-
 x <- getFilteredCounts(sc, minexpr=1, minnumber=10)
+
 tic()
 noise <- compTBNoise(res,x,pvalue=0.01, no_cores=64) # take 40 minutes  
 toc()
