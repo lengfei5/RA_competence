@@ -157,6 +157,12 @@ saveRDS(aa, file = paste0(RdataDir,
                           'cellCycleScoring_annot.v2_',
                           species, version.analysis, '.rds'))
 
+# saveRDS(aa, file = paste0(RdataDir, 
+#                           'seuratObject_doublet.rm_mt.ribo.filtered_regressout.nCounts_',
+#                           'cellCycleScoring_annot.v2_', 'RA.symmetry.breaking_d2.to.d6_',
+#                           species, version.analysis, '.rds'))
+
+
 ##########################################
 # Import abundances into R with tximeta
 # https://combine-lab.github.io/alevin-tutorial/2020/alevin-velocity/
@@ -314,7 +320,7 @@ ggsave(filename = paste0(outDir, 'UMAP_RAsymmetryBreaking.onlyday3rep1_timePoint
 Discard_weired.clusters = FALSE
 if(Discard_weired.clusters){
   
-  aa = subset(aa, cells = colnames(aa)[which(aa$seurat_clusters != 6 & aa$seurat_clusters != 9)])
+  aa = subset(aa, cells = colnames(aa)[which(aa$seurat_clusters != 11 & aa$seurat_clusters != 7)])
   
   p1 = DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'condition', raster=FALSE)
   p2 = DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'seurat_clusters', raster=FALSE)
@@ -325,7 +331,7 @@ if(Discard_weired.clusters){
   
   Idents(aa) = aa$condition
   
-  aa <- RunUMAP(aa, dims = 1:30, n.neighbors = 30, min.dist = 0.1)
+  aa <- RunUMAP(aa, dims = 1:20, n.neighbors = 50, min.dist = 0.1)
   DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'condition', cols = cols_sel, raster=FALSE)
   
   ElbowPlot(aa, ndims = 50)
@@ -339,7 +345,6 @@ if(Discard_weired.clusters){
   ggsave(filename = paste0(outDir, 'UMAP_RAsymmetryBreaking.onlyday3rep1_timePoints_clustering.res0.7',
                            version.analysis, '.pdf'), 
          width = 18, height = 8)
-  
   
 }
 
@@ -364,7 +369,7 @@ aa$time = gsub('_beforeRA', '', aa$time)
 
 saveRDS(aa, file = paste0(RdataDir, 
                           'seuratObject_RA.symmetry.breaking_doublet.rm_mt.ribo.filtered_regressout.nCounts_',
-                          'cellCycleScoring_annot.v2_newUMAP_clusters_time_updated20231005_',
+                          'cellCycleScoring_annot.v2_newUMAP_clusters_time_d2.to.d6_',
                           species, version.analysis, '.rds'))
 
 ##########################################
@@ -583,13 +588,21 @@ if(NotConsider.RA_day6){
 #                            species, version.analysis, '.rds'))
 #aa = readRDS(file = paste0(RdataDir, 'seuratObject_RA.symmetry.breaking_doublet.rm_mt.ribo.filtered_',
 #                           'regressout.nCounts_cellCycleScoring_annot.v2_mNT_scRNAseq_R13547_10x_mNT_20220813.rds'))
-aa = readRDS(file = paste0(RdataDir, 
-                           'seuratObject_RA.symmetry.breaking_doublet.rm_mt.ribo.filtered_regressout.nCounts_',
-                           'cellCycleScoring_annot.v2_newUMAP_clusters_time_updated20231005_',
-                           species, version.analysis, '.rds'))
-
+#aa = readRDS(file = paste0(RdataDir, 
+#                           'seuratObject_RA.symmetry.breaking_doublet.rm_mt.ribo.filtered_regressout.nCounts_',
+#                           'cellCycleScoring_annot.v2_newUMAP_clusters_time_updated20231005_',
+#                           species, version.analysis, '.rds'))
 load(file = paste0(RdataDir, 'seuratObject_RNAvelocity_alevin_spliced_unspliced_', 
                    'mNT_scRNAseq_R13547_10x_mNT_20220813.Rdata'))
+
+aa = readRDS(file = paste0(RdataDir, 
+                           'seuratObject_RA.symmetry.breaking_doublet.rm_mt.ribo.filtered_regressout.nCounts_',
+                           'cellCycleScoring_annot.v2_newUMAP_clusters_time_d2.to.d6_',
+                           species, version.analysis, '.rds'))
+
+load(file = paste0(RdataDir, 
+                   'seuratObject_RNAvelocity_alevin_spliced_unspliced_',
+                   'mNT_scRNAseq_R13547_10x_mNT_20220813_ES.beforeRA.and.RA.Rdata'))
 
 FeaturePlot(aa, features = c('Pax6', 'Foxa2', 'Sox2'))
 
@@ -628,6 +641,16 @@ if(Discard_cellCycle.corrrelatedGenes){
   print(intersect(genes_discard, gene_examples))
   
   aa = subset(aa, features = setdiff(rownames(aa), genes_discard))
+  
+  aa <- FindVariableFeatures(aa, selection.method = "vst", nfeatures = 5000) # find subset-specific HVGs
+  
+  ## because the data was regressed and scaled already, only the HVGs were used to calculate PCA
+  aa <- RunPCA(aa, features = VariableFeatures(object = aa), verbose = FALSE, weight.by.var = FALSE)
+  ElbowPlot(aa, ndims = 50)
+  
+  aa <- RunUMAP(aa, dims = 1:30, n.neighbors = 100, min.dist = 0.3)
+  DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'condition', raster=FALSE)
+  
      
 }
 
@@ -682,15 +705,15 @@ mnt = DietSeurat(mnt, counts = TRUE, data = TRUE,
 DefaultAssay(mnt) = 'RNA'
 VariableFeatures(mnt)
 
+
+saveRDS(mnt, file = paste0(outDir, '/SeuratObj_splice.unspliced_RA_day2_to_day6_all.rds'))
+
 Idents(mnt) = mnt$condition
-mnt = subset(mnt, downsample = 1000)
-
-saveRDS(mnt, file = paste0(outDir, '/RA_day2.5_to_day6_downsample_6k.rds'))
-
+mnt = subset(mnt, downsample = 4000)
 #saveDir = paste0("/Volumes/groups/tanaka/People/current/jiwang/projects/RA_competence/",
 #                "results/scRNAseq_R13547_10x_mNT_20220813/RA_symetryBreaking/")
 
-saveFile = '/RNAmatrix_umap_alevin.spliced_unspliced_RA_downsample_6k_v4.2_rmCellCycle.correlatedGenes.h5Seurat'
+saveFile = '/RNAmatrix_umap_alevin.spliced_unspliced_RA_downsample_28k_rmCellCycle.correlatedGenes.h5Seurat'
 
 SaveH5Seurat(mnt, filename = paste0(outDir, saveFile), 
              overwrite = TRUE)

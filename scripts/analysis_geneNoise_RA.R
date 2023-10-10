@@ -56,6 +56,8 @@ ggsave(filename = paste0(outDir, '/UMAP_conditions_clusters.pdf'),
 
 Idents(aa) = aa$condition
 
+cat(which(rownames(aa) == 'Dhrs3'), '\n')
+
 set.seed(2023)
 
 # remove the cluster 9 and 10
@@ -81,18 +83,24 @@ aa = subset(aa, features = setdiff(rownames(aa), genes_discard))
 Idents(aa) = aa$condition
 aa = subset(aa, downsample = 500)
 
+cat(which(rownames(aa) == 'Dhrs3'), '\n')
+
 x <- aa@assays$RNA@counts
 rownames(x) <- rownames(aa)
 colnames(x) <- colnames(aa)
-
 sc <- SCseq(x)
-
 ## filter the genes 
-sc <- filterdata(sc, mintotal=200, 
+sc <- filterdata(sc, 
+                 mintotal = 1000,
+                 minexpr = 1, # 
+                 minnumber = 5,
                  FGenes=NULL,
-                 CGenes=NULL)
-
+                 CGenes=NULL,
+                 verbose = FALSE
+                 )
 expData <- getExpData(sc)
+which(rownames(expData) == 'Dhrs3')
+
 
 parallel::detectCores()
 tic()
@@ -102,6 +110,15 @@ toc()
 saveRDS(res, file = paste0(outDir, '/RA_d2.beforeRA_no.day6_noNeurons_varID2_pruneKnn.rds'))
 
 res = readRDS(file = paste0(outDir, '/RA_d2.beforeRA_no.day6_noNeurons_varID2_pruneKnn.rds'))
+
+plotRegNB(expData, res,"(Intercept)")
+
+plotRegNB(expData,res,"beta")
+
+plotRegNB(expData,res,"theta")
+
+plotPearsonRes(res,log=TRUE,xlim=c(-.1,.2))
+
 
 tic()
 cl    <- graphCluster(res, pvalue= 0.01, leiden.resolution = 0.3)
@@ -188,22 +205,28 @@ for(gamma in c(2.0, 2.5, 3, 3.5, 4)) # search for the optimal value of gamma
 # ## reload the results and make analysis
 ########################################################
 ########################################################
-load(file = paste0(outDir, '/out_varID2_noise_v3.Rdata'))
+gamma = 4
+load( file = paste0(outDir, '/out_varID2_noise_gamma_', gamma, '.Rdata'))
 
-pdfname = paste0(outDir, '/plot_umap_varID.clusters.pdf')
+
+pdfname = paste0(outDir, '/plot_umap_varID_conditions.pdf')
 pdf(pdfname, width=8, height = 6)
 
 plotmap(sc, um=TRUE, tp = 1, cex = 0.3)
 
 dev.off()
 
+#tic()
+#cl    <- graphCluster(res, pvalue= 0.01, leiden.resolution = 1.5)
+#toc()
 
-
+#sc <- updateSC(sc,res=res,cl=cl)
+#plotmap(sc, um=TRUE, tp = 1, cex = 0.3)
 #sc <- updateSC(sc,res=res,cl=cl,noise=noise)
 
 # Gene expression (on logarithmic scale):
 gg = 'Pax6'
-plotexpmap(sc, gg, logsc=TRUE,um=TRUE,cex=1)
+plotexpmap(sc, gg, logsc=TRUE, um=TRUE, cex=1)
 
 # Biological noise (on logarithmic scale):
 plotexpmap(sc, 'Zfp42', logsc=TRUE, um=TRUE, noise=TRUE,cex=0.5)
@@ -213,59 +236,91 @@ p2 = plotexpmap(sc, 'Foxa2', logsc=TRUE, um=TRUE, noise=FALSE,cex=0.5)
 
 p1 + p2
 
-pdfname = paste0(outDir, '/plot_noise_example_Pax6_expression.pdf')
+pdfname = paste0(outDir, '/plot_noise_geneExamples.pdf')
 pdf(pdfname, width=8, height = 6)
 
-plotexpmap(sc, 'Pax6', logsc=TRUE, um=TRUE, noise=FALSE,cex=0.5)
+for(n in 1:length(gene_examples))
+{
+  if(!is.na(match(gene_examples[n], sc@genes))){
+    cat(n, '--', gene_examples[n], '\n')
+    plotexpmap(sc, gene_examples[n], logsc=TRUE, um=TRUE, noise=TRUE, cex=0.5)
+  }else{
+    cat(n, '--', gene_examples[n], ' missing \n')
+  }
+  
+}
 
 dev.off()
 
-pdfname = paste0(outDir, '/plot_noise_example_Pax6.pdf')
-pdf(pdfname, width=8, height = 6)
-plotexpmap(sc, 'Pax6', logsc=TRUE, um=TRUE, noise=TRUE,cex=0.5)
-dev.off()
+##########################################
+# how to select noisy genes
+##########################################
+# test = noise$epsilon
+# ss = apply(test, 1, function(x) sum(x>1, na.rm = TRUE))
+# genes = rownames(test)[which(ss>50)]
+# mm = match(genes, c(tfs, sps, gene_examples))
+# genes = genes[which(!is.na(mm))]
+
+#genes <- c("Lyz1","Agr2","Clca3","Apoa1","Aldob","Clca4","Mki67","Pcna")
+#ph <- plotmarkergenes(sc,genes=genes,noise=FALSE)
 
 #genes <- c("Lyz1","Agr2","Clca3","Apoa1","Aldob","Clca4","Mki67","Pcna")
 #ph <- plotmarkergenes(sc,genes=genes,noise=FALSE)
 #plotmarkergenes(sc,genes=genes[ph$tree_row$order],noise=TRUE,cluster_rows=FALSE)
 #fractDotPlot(sc, genes, zsc=TRUE)
 
-ngenes <- diffNoisyGenesTB(noise, cl, set=c(1,2,3,4), no_cores=32)
+ngenes_1 <- diffNoisyGenesTB(noise, cl, set=c(2), bgr = c(1), no_cores=32)
+ngenes_2 <- diffNoisyGenesTB(noise, cl, set=c(3), bgr = c(1), no_cores=32)
+ngenes_3 <- diffNoisyGenesTB(noise, cl, set=c(3), bgr = c(2), no_cores=32)
 
-ngenes = ngenes[order(-abs(ngenes$log2FC)), ]
-ngenes = ngenes[order(ngenes$pvalue), ]
+save(ngenes_1, ngenes_2, ngenes_3, file = paste0(outDir, '/out_varID2_noise_diffNoisyGenes_bgs_v2.Rdata'))
 
-save(sc, noise, cl, res, ngenes, 
-     file = paste0(outDir, '/out_varID2_noise_diffNoisyGenes_v3.Rdata'))
+#xx = ngenes_1[order(ngenes_1$pvalue), ] 
+#maxNoisyGenesTB(noise,cl=cl,set=3)
 
-load(file = paste0(outDir, '/out_varID2_noise_diffNoisyGenes_v3.Rdata'))
-head(ngenes, 50)
+plotDiffNoise(ngenes_1, pthr = 10^-40, lthr = 0.5)
+
+# ngenes = ngenes[order(-abs(ngenes$log2FC)), ]
+# ngenes = ngenes[order(ngenes$pvalue), ]
+# 
+# save(sc, noise, cl, res, ngenes, 
+#      file = paste0(outDir, '/out_varID2_noise_diffNoisyGenes_v3.Rdata'))
+# 
+# load(file = paste0(outDir, '/out_varID2_noise_diffNoisyGenes_v3.Rdata'))
+# head(ngenes, 50)
 
 plotexpmap(sc, 'Zfp42', logsc=TRUE, um=TRUE, noise=TRUE,cex=0.5)
 #ngenes = ngenes[order(ngenes$pvalue), ]
 #head(ngenes, 50)
 
-cells = colnames(sc@ndata)
-cl_new = cl$partition
-#newOrder = c(1, 2, 4, 5, 6, 3, 7, 8,9, 10, 11)
-cl_new[which(cl$partition == 4)] = 3
-cl_new[which(cl$partition == 5)] = 4
-cl_new[which(cl$partition == 6)] = 5
-cl_new[which(cl$partition == 3)] = 6
+# cells = colnames(sc@ndata)
+# cl_new = cl$partition
+# #newOrder = c(1, 2, 4, 5, 6, 3, 7, 8,9, 10, 11)
+# cl_new[which(cl$partition == 4)] = 3
+# cl_new[which(cl$partition == 5)] = 4
+# cl_new[which(cl$partition == 6)] = 5
+# cl_new[which(cl$partition == 3)] = 6
+# 
+# cl_new = cl_new[order(cl_new)]
+load(file = paste0(outDir, '/out_varID2_noise_diffNoisyGenes_bgs_v2.Rdata'))
+select_highNoisey_genes = function(ngenes, logfc_cutoff = 1, pval_cutoff = 10^-50)
+{
+  ngenes = ngenes[which(abs(ngenes$log2FC) > logfc_cutoff & ngenes$pvalue < pval_cutoff), ]
+  mm = match(rownames(ngenes), c(tfs, sps, gene_examples))
+  ngenes = ngenes[which(!is.na(mm)), ]
+  return(ngenes)
+}
 
-cl_new = cl_new[order(cl_new)]
+ngenes_1 = select_highNoisey_genes(ngenes_1)
+ngenes_2 = select_highNoisey_genes(ngenes_2)
+ngenes_3 = select_highNoisey_genes(ngenes_3)
 
-#sc <- updateSC(sc,cl=cl_new)
-#plotmap(sc,um=TRUE)
+genes = unique(c(rownames(ngenes_1), rownames(ngenes_2), rownames(ngenes_3), 'Pax6', 'Dhrs3'))
 
-genes <- rownames(ngenes)[which(!is.na(match(rownames(ngenes), 
-                                             unique(c(tfs, sps, 
-                                                      'Dhrs3')))))]
+#genes = head(genes, 400)
 
-genes = head(genes, 400)
-
-pdfname = paste0(outDir, '/plot_noise_markGenes_ntop.400_v3.pdf')
-pdf(pdfname, width=8, height = 40)
+pdfname = paste0(outDir, '/plot_highNoise_genes_conditionsComparisions_top40.pdf')
+pdf(pdfname, width=8, height = 14)
 
 ph <- plotmarkergenes(sc, genes=genes, noise=TRUE,
                       cluster_rows=TRUE, 

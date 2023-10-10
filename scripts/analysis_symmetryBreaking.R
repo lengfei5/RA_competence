@@ -45,48 +45,6 @@ cols_sel = cols[match(levels_sels, names(cols))]
 outDir = paste0(resDir, '/RA_symetryBreaking/subclustering_earlyTimePoints_', data_version)
 system(paste0('mkdir -p ', outDir))
 
-##########################################
-# tfs and sps annotations 
-##########################################
-sps = readRDS(file = paste0('../data/annotations/curated_signaling.pathways_gene.list_v3.rds'))
-sps = unique(sps$gene)
-
-tfs = readRDS(file = paste0('../data/annotations/curated_human_TFs_Lambert.rds'))
-tfs = unique(tfs$`HGNC symbol`)
-tfs = as.character(unlist(sapply(tfs, firstup)))
-
-features_1 = unique(c('Sox2', 'Sox1', 'Tubb3', 'Elavl3', 
-                      'Irx3', 'Irx5', 'Pax3', 'Pax7',
-                      'Pax6', 'Olig2', 'Nkx2-9', 'Nkx2-2', 
-                      'Nkx6-1', 'Foxa2', 'Arx', 'Shh'
-)) # DV overview
-
-features_2 = c('Dhrs3', 'Rarg', 'Cyp26a1',
-               'Pou3f1', 'Hoxa1', 'Gas1', 'Spry4', 'Sox11', 
-               'Cdh1', 'Cdh2', 'Shh', 'Rfx4', 'Zfp42', 'Tcf15', 'Prrx2', 'Gdf3',
-               'Etv5', 'Fgf4', 'Otx2', 'Zscan10', 'Apoe', 'Peg10', 'Klf9', 'Tshz1', 'Skil', 'Zfp703')
-features = unique(c(c('Pax6', 'Foxa2', 'Sox1', 'Sox2', 'Tubb3', 'Shh', 'Arx',
-                      'Zfp703', 'Lef1', 'Irx5', 'Pou5f1', 'Otx2', 'Adgra2', 'Hoxb4', 
-                      'Nkx2-2', 'Nkx2-9', 'Nkx6-1', 'Olig2', 'Pax3', 'Pax7', 'Cyp26a1', 'Dhrs3'), 
-                    features_1,
-                    features_2)) # marker wanted by Hannah
-gene_examples = unique(c('Foxa2', 'Pax6', c('Zfp42', 'Tcf15', 'Skil', 'Lef1',
-                                            'Sox2', 'Pou5f1', 'Sall4', 'Tdgf1', # pluripotency markers
-                                            'Nanog', 'Nr5a2', #'Prdm14', 
-                                            'Klf4', 'Fgf4', 'Esrrb', 'Tcf3', 'Tbx3'), # naive pluripotency
-                         c('Zfp42', 'Tcf15', 'Skil',
-                           'Fgf5', 'Otx2', 'Pou3f1', 'Lef1', 'Dnmt3b', 'Dnmt3a',	
-                           'Foxd3', 'Utf1', 'Tcf15', 'Zic3', 'Rhox5', 'Etv5', 'Etv4',	
-                           'Lin28b', 'Sox4', 'Sox3', 'Sox11'
-                         ),
-                         c('Lhx1','Eomes', 'Sox2', 'Hoxb4', 'Hoxb5', 'Hoxb6','Zfp703'),
-                         c('Zfp42', 'Tcf15', 'Skil', 'Lef1', 'Dhrs3', 'Rarg', 'Cyp26a1'),
-                         features,
-                         features_1,
-                         features_2
-                         
-))
-
 
 ##########################################
 # import the all data for RA treatment
@@ -131,15 +89,18 @@ print(conditions)
 bb = aa;
 rm(aa)
 
-for(cc in conditions){
-  cc = c('day2_beforeRA')
+conditions = c('day2_beforeRA', 'day2.5_RA', 'day3_RA.rep1')
+gene_examples = unique(c(gene_examples, tfs, sps))
+
+for(cc in conditions)
+{
+  #cc = c('day2_beforeRA')
   # cc = c('day2.5_RA')
   # cc = c('day3_RA.rep1')
   # cc = c('day3.5_RA')
   # cc = c('day4_RA')
   # cc = c('day5_RA')
-  
-  cc = c('day3_RA.rep1', 'day3.5_RA')
+  #cc = c('day3_RA.rep1', 'day3.5_RA')
   
   outDir_cc = paste0(outDir, '/', paste0(cc, collapse = "_"), '/')
   system(paste0('mkdir -p ', outDir_cc))
@@ -188,7 +149,8 @@ for(cc in conditions){
   if(!is.null(dev.list())) dev.off()
   pdf(paste0(outDir_cc, '/featureExamples_originalUMAP.pdf'),
       width =16, height = 10, useDingbats = FALSE)
-  plot_manyFeatures_seurat(seurat_obj = aa, features = gene_examples)
+  plot_manyFeatures_seurat(seurat_obj = aa, 
+                           features = gene_examples[!is.na(match(gene_examples, rownames(aa)))])
   
   dev.off()
   
@@ -225,7 +187,8 @@ for(cc in conditions){
   if(!is.null(dev.list())) dev.off()
   pdf(paste0(outDir_cc, '/featureExamples_UMAP_cellcycleRegression.pdf'),
       width =16, height = 10, useDingbats = FALSE)
-  plot_manyFeatures_seurat(seurat_obj = xx, features = gene_examples)
+  plot_manyFeatures_seurat(seurat_obj = xx, 
+                           features = gene_examples[!is.na(match(gene_examples, rownames(aa)))])
   
   dev.off()
   
@@ -285,7 +248,8 @@ for(cc in conditions){
   if(!is.null(dev.list())) dev.off()
   pdf(paste0(outDir_cc, '/featureExamples_UMAP_cellcycle.rmCellCycleGenes.pdf'),
       width =16, height = 10, useDingbats = FALSE)
-  plot_manyFeatures_seurat(seurat_obj = aa, features = gene_examples)
+  plot_manyFeatures_seurat(seurat_obj = aa, 
+                           features = gene_examples[!is.na(match(gene_examples, rownames(aa)))])
   
   dev.off()
   
@@ -301,4 +265,3 @@ for(cc in conditions){
   
   
 }
-
