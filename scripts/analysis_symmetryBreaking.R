@@ -18,7 +18,7 @@ library(ggplot2)
 library(pheatmap)
 library(future)
 
-options(future.globals.maxSize = 80000 * 1024^2)
+options(future.globals.maxSize = 120000 * 1024^2)
 
 source('functions_utility.R')
 # levels_sels = c("day3_RA.rep1", "day3.5_RA", "day4_RA")
@@ -90,7 +90,8 @@ bb = aa;
 rm(aa)
 
 conditions = c('day2_beforeRA', 'day2.5_RA', 'day3_RA.rep1')
-gene_examples = unique(c(gene_examples, tfs, sps))
+noisyGenes = readRDS(file = paste0(RdataDir, 'topGenes_localVaribility.gene.expression_VarID2.rds'))
+gene_examples = unique(c(gene_examples, noisyGenes))
 
 for(cc in conditions)
 {
@@ -101,6 +102,7 @@ for(cc in conditions)
   # cc = c('day4_RA')
   # cc = c('day5_RA')
   #cc = c('day3_RA.rep1', 'day3.5_RA')
+  cc = c('day2_beforeRA', 'day2.5_RA', 'day3_RA.rep1')
   
   outDir_cc = paste0(outDir, '/', paste0(cc, collapse = "_"), '/')
   system(paste0('mkdir -p ', outDir_cc))
@@ -244,6 +246,7 @@ for(cc in conditions)
   
   ggsave(filename = paste0(outDir_cc, '/UMAP_RA_condition_clustering_cellcycle.rmCellCycleGenes_', 
                            select.method, '.pdf'),  width = 12, height = 6)
+  
   
   if(!is.null(dev.list())) dev.off()
   pdf(paste0(outDir_cc, '/featureExamples_UMAP_cellcycle.rmCellCycleGenes.pdf'),

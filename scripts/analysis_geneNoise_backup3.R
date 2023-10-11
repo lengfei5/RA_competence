@@ -376,9 +376,21 @@ ph <- plotmarkergenes(sc, genes=genes, noise=TRUE,
                       order.cells = FALSE,
                       cluster_set = TRUE,
                       cluster_cols = FALSE,
-                      cap = 5, #flo = -3,
+                      cap = 5, 
                       zsc=TRUE, 
                       logscale = TRUE
                       )
+
+dev.off()
+
+
+pdfname = paste0(outDir, '/plot_noise_topGenes.pdf')
+pdf(pdfname, width=8, height = 6)
+
+for(n in 1:length(genes))
+{
+  plotexpmap(sc, genes[n], logsc=TRUE, um=TRUE, noise=TRUE, cex=0.5)
+  
+}
 
 dev.off()
