@@ -224,11 +224,15 @@ if(Test_geneBasis){
   ##########################################
   # reload the output of geneBasis 
   ##########################################
+  load(file = paste0(RdataDir, 'sparse_features_test_geneBasis_100TFs.SPs_v2.Rdata')) 
+  write.csv2(genes, file = paste0(outDir, '/geneBasis_top100_tfs_sps_final.csv'), quote = FALSE, row.names = FALSE)
+  
   load(file = paste0(RdataDir, 'sparse_features_test_geneBasis_50TFs.SPs_v2.Rdata')) 
   stat = readRDS(file = paste0(outDir, 'sparse_features_test_geneBasis_50TFs.SPs_evaluationScores_v2.rds')) 
   n_genes_total = 50
   
-  write.csv(genes, file = paste0(outDir, '/geneBasis_top50_tfs_sps.csv'), quote = FALSE, row.names = FALSE)
+  write.csv2(genes, file = paste0(outDir, '/geneBasis_top50_tfs_sps_final.csv'), quote = FALSE, row.names = FALSE)
+  
   
   cell_score_stat = stat$cell_score_stat[stat$cell_score_stat$n_genes == n_genes_total , ] 
   metadata = aa@meta.data
@@ -408,8 +412,8 @@ if(test_DUBStepR){
   write.csv(genes.dub, file = paste0(outDir, '/dubstep_sparse_448genes.csv'), row.names = FALSE,
              quote = FALSE)
   
-  write.csv(intersect(genes.dub, unique(c(tfs, sps))), 
-            file = paste0(outDir, '/dubstep_sparse_74.tfs.sps.csv'), row.names = FALSE,
+  write.csv2(intersect(genes.dub, unique(c(tfs, sps))), 
+            file = paste0(outDir, '/dubstep_sparse_74.tfs.sps_final.csv'), row.names = FALSE, col.names = FALSE,
             quote = FALSE)
   
   ggs = intersect(genes.dub, unique(c(tfs, sps)))
@@ -507,6 +511,26 @@ if(Test_SMD){
   saveRDS(smd, file = paste0(outDir, '/output_SMD_12k.cells_tfs_v3.rds'))
   saveRDS(smd, file = paste0(outDir, '/output_SMD_12k.cells_tfs.sps_v4.rds'))
   
+  ## save the final list of smd
+  Save_final.list_SMD = FALSE
+  if(Save_final.list_SMD){
+    smd = readRDS(file = paste0(outDir, '/output_SMD_12k.cells_tfs_v3.rds'))
+    genes.smd = smd$gene[which(smd$SMD_z>0.5)]
+    
+    write.csv(genes.dub, file = paste0(outDir, '/SMD_sparse_21tfs_final.csv'), row.names = FALSE,
+              quote = FALSE)
+    
+    smd = readRDS(file = paste0(outDir, '/output_SMD_12k.cells_tfs.sps_v4.rds'))
+    genes.smd = smd$gene[which(smd$SMD_z>0.5)]
+    
+    write.csv(genes.dub, file = paste0(outDir, '/SMD_sparse_31tfs.sps_final.csv'), row.names = FALSE,
+              quote = FALSE)
+    
+  }
+  
+  
+  
+  
   smd = readRDS(file = paste0(outDir, '/output_SMD_12k.cells_tfs.sps_v4.rds'))
   smd = smd[order(-smd$SMD_z), ]
   FeaturePlot(aa, features = smd$gene[which(smd$SMD_z>0.5)])
@@ -517,6 +541,7 @@ if(Test_SMD){
   ## test umap with SMD features
   genes.smd = smd$gene[which(smd$SMD_z>0.5)]
   cat(length(genes.smd), 'feature selected by smd \n')
+  
   
   sub_obj = subset(aa, features = genes.smd)
   sub_obj <- RunPCA(sub_obj, features = rownames(sub_obj), verbose = FALSE, weight.by.var = FALSE, 

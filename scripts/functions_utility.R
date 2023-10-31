@@ -567,3 +567,74 @@ do_scatter <- function(umap_use, meta_data, label_name, no_guides = TRUE,
   return(plt)
 }
 
+
+########################################################
+########################################################
+# Section IV : Genie3 random-forest-based method to predict TF regulators for FoxA2
+# 
+########################################################
+########################################################
+Test_GENIE3 = FALSE
+if(Test_GENIE3){
+  motif.oc = readRDS(file = paste0(outDir, '/motif_oc_fimo_jaspar2022_pval.0.0001_Foxa2.enhancers.promoters.rds'))
+  motif.oc = t(motif.oc)
+  mapping = readRDS(paste0('../results/scRNAseq_R13547_10x_mNT_20220813/motif_analysis/', 
+                           'JASPAR2022_CORE_UNVALIDED_vertebrates_nonRedundant_metadata_manual_rmRedundantUNVALIDED.rds'))
+  
+  mapping = mapping[which(!is.na(match(mapping$name, rownames(motif.oc)))), ]
+  mapping$gene = firstup(mapping$gene)
+  
+  Idents(aa) = factor(aa$condition)
+  
+  levels_sels = c(
+    "day2.5_RA", "day3_RA.rep1", "day3.5_RA", "day4_RA")
+  
+  data_version = "d2.5.d3,d3.5,d4"
+  
+  outDir_cc = paste0(outDir, '/Genie3_FoxA2', data_version)
+  system(paste0('mkdir -p ', outDir_cc))
+  
+  sce = subset(aa, idents = levels_sels)
+  sce$condition = droplevels(sce$condition)
+  #sce = as.SingleCellExperiment(sce)
+  
+  E = sce@assays$RNA@data
+  gg_sels = intersect(c(mapping$gene, 'Foxa2', 'Lhx1'), rownames(E))
+  
+  E = E[match(gg_sels, rownames(E)), ]
+  ss = rowSums(E)
+  E = E[ss>0, ]
+  
+  E = as.matrix(E)
+  
+  saveRDS(E, file = paste0('analysis_examples/Genie3/ExprMatrix_4FoxA2.rds'))
+  
+  ##########################################
+  # run the GENIE3 on the laptop due to dynamical.loading issue
+  ##########################################
+  # tic()
+  # source('myGENIE3.R')
+  # wtm = GENIE3_withSpecificTargets(expr.matrix = E, priorTargets = c('Foxa2'), ncore = 1)
+  # 
+  # saveRDS(wtm, file = paste0(RdataDir, '/first_test_Genie3_v3.rds'))
+  # 
+  # toc()
+  
+  
+  wtm = readRDS(file = paste0('analysis_examples/Genie3/ranked_predictedRegulators_FoxA2.rds'))
+  
+  
+  pdf(paste0(outDir_cc, '/GENIE3_regulators_expressionPattern.pdf'),
+      width =16, height = 10, useDingbats = FALSE)
+  
+  features = c('Foxa2', 'Pax6', wtm$regulator[which(wtm$Foxa2>10^-3)])
+  
+  plot_manyFeatures_seurat(seurat_obj = aa, features = unique(features))
+  
+  dev.off()
+  
+  FeaturePlot(aa, features = c('Pax6', 'Foxa2', 'Rarg', 'Pou5f1', 'Zfp42', 'Lhx1', 'Jun', 'Lef1', 'Gata3'))
+  
+}
+
+

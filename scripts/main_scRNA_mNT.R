@@ -32,7 +32,7 @@ library(Seurat)
 library(DropletUtils)
 library(edgeR)
 library(future)
-options(future.globals.maxSize = 80000 * 1024^2)
+options(future.globals.maxSize = 160000 * 1024^2)
 mem_used()
 
 species = 'mNT_scRNAseq'
@@ -569,9 +569,13 @@ if(Explore.umap.parameters){
 ##########################################
 # highlight mark genes in RA treated umap
 ##########################################
+aa = readRDS(file = paste0(RdataDir, 
+              'savedUMAP_seuratObject_merged_cellFiltered_doubletRm_geneFiltered.15kGene',
+              '_regressed.nCounts_clusterd0.7_rmBloodCells_', 
+              species, version.analysis, '.rds'))
+
 outDir = paste0(resDir, '/geneExamples_in_savedUMAP_RAtreated/')
 system(paste0('mkdir -p ', outDir))
-
 
 features_1 = unique(c('Sox2', 'Sox1', 'Tubb3', 'Elavl3', 
                     'Irx3', 'Irx5', 'Pax3', 'Pax7',
@@ -587,15 +591,22 @@ features = unique(c(c('Pax6', 'Foxa2', 'Sox1', 'Sox2', 'Tubb3', 'Shh', 'Arx',
                     'Zfp703', 'Lef1', 'Irx5', 'Pou5f1', 'Otx2', 'Adgra2', 'Hoxb4', 
                     'Nkx2-2', 'Nkx2-9', 'Nkx6-1', 'Olig2', 'Pax3', 'Pax7'), 
                     features_1,
-                    features_2)) # marker wanted by Hannah
+                    features_2, tfs)) # marker wanted by Hannah
+
+features = features[!is.na(match(features, rownames(aa)))]
+
+DimPlot(aa, group.by = 'condition')
 
 for(n in 1:length(features))
 {
+  # n = 1
   cat(n, '--', features[n], '\n')
+  
   if(length(which(rownames(aa) == features[n])) == 1){
     p1 = FeaturePlot(aa, features = features[n], cols = c('gray', 'red'))  
     plot(p1)
     ggsave(filename = paste0(outDir, '/RAtreated_savedUMAP_', features[n], '.pdf'), 
-           width = 10, height = 8)
+           width = 6, height = 5)
   }
+  
 }

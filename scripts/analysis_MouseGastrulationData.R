@@ -140,18 +140,6 @@ srat[['umap']] = Seurat::CreateDimReducObject(embeddings=umap.embedding,
 rm(xx)
 rm(umap.embedding)
 
-srat = readRDS(file = paste0(RdataDir,  'seuratObject_EmbryoAtlasData_all36sample_RNAassay.rds'))
-xx = readRDS(file = paste0('../results/dataset_scRNAseq_MouseGastrulationData/Rdata/',
-                           'seuratObject_EmbryoAtlasData_all36sample.rds'))
-
-umap.embedding = xx@reductions$umap@cell.embeddings
-umap.embedding = umap.embedding[match(colnames(srat), rownames(umap.embedding)), ]
-srat[['umap']] = Seurat::CreateDimReducObject(embeddings=umap.embedding,
-                                              key='UMAP_',
-                                              assay='RNA')
-rm(xx)
-rm(umap.embedding)
-
 ## filter unlikely celltypes in the reference
 sels = grep('Erythroid|Blood|Allantois|mesoderm|Haemato|Cardiomy|Endothelium|Mesenchyme|ExE', srat$celltype, 
             invert = TRUE)

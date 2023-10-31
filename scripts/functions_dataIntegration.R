@@ -145,7 +145,7 @@ IntegrateData_Seurat_RPCA = function()
                                         #reference = c(2),
                                         #reduction = "cca", 
                                         reduction = 'rpca',
-                                        #k.anchor = 5,
+                                        k.anchor = 5,
                                         dims = 1:50)
   
   rm(ref.list)

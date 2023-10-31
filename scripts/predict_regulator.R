@@ -51,7 +51,6 @@ p2 = DimPlot(aa, group.by = 'clusters', label = TRUE, repel = TRUE)
 
 p1 + p2
 
-
 ########################################################
 ########################################################
 # Section I : make some guess
@@ -170,53 +169,189 @@ plot_manyFeatures_seurat(seurat_obj = bb, features = rownames(xx))
 
 dev.off()
 
-
 ########################################################
 ########################################################
-# Section II : scan Foxa2 enhancer and promoter
+# Section II : simply correlation analysis with scran for Pax6
 # 
 ########################################################
 ########################################################
-Dir_mouse_annot = "/groups/tanaka/People/current/jiwang/Genomes/mouse/mm10_ens/"
+library(R.utils)
+library(SingleCellExperiment)
+library(scater)
+library(scran)
+library(dplyr)
+library(tibble)
+library(tidyr)
+library(patchwork)
+library(ggplot2)
+library(ggrepel)
 
-promoters = read.delim(paste0(Dir_mouse_annot, 'ens_BioMart_GRCm38.p6.txt'))
-promoters = promoters[which(promoters$Gene.type == 'protein_coding'), ]
-promoters = promoters[which(promoters$GENCODE.basic.annotation == 'GENCODE basic'), ]
+gene = 'Pax6'
 
-promoters = promoters[which(!is.na(match(promoters$Chromosome.scaffold.name, c(1:19)))), ]
+Idents(aa) = factor(aa$condition)
 
-# select only one promoter for each gene symbols
-Make_background = FALSE
+levels_sels = c('day2_beforeRA', "day2.5_RA",  "day3_RA.rep1", "day3.5_RA")
 
-if(Make_background){
-  ggs = unique(promoters$Gene.name)
-  promoters = promoters[match(ggs, promoters$Gene.name), ]
+data_version = "_d2.d2.5.d3.d3.5"
+
+outDir_cc = paste0(outDir, '/scran_pairCorrelation_scran_Pax6', data_version)
+system(paste0('mkdir -p ', outDir_cc))
+
+sce = subset(aa, idents = levels_sels)
+sce = as.SingleCellExperiment(sce)
+
+ave.counts <- calculateAverage(sce)
+
+set.seed(100)
+mm = match(rownames(sce), c(tfs, sps))
+subset = which(!is.na(mm))
+
+
+var.cor <- correlatePairs(sce, pairings = list(rep(which(rownames(sce) == gene), length(subset)), 
+                                               subset))
+
+head(var.cor)
+
+saveRDS(var.cor, file = paste0(outDir_cc, '/correlatePairs_', gene,  '_vs_tfs.sps.rds'))
+
+var.cor = readRDS(file = paste0(outDir_cc, '/correlatePairs_', gene, '_vs_tfs.sps.rds'))
+
+sig.cor <- var.cor$FDR <= 0.01
+summary(sig.cor)
+
+var.cor = var.cor[which(sig.cor == TRUE), ]
+
+
+var.cor$fdr = -log10(var.cor$FDR+10^-10)
+var.cor$ave.counts = log10(ave.counts[match(var.cor$gene2, names(ave.counts))])
+#var.cor$enhancers = mapping$enhancer[match(var.cor$gene2, mapping$gene)]
+
+var.cor = as.data.frame(var.cor)
+
+ggplot(data = var.cor, aes(x=rho, y=ave.counts, label = gene2)) +
+  geom_point(size = 0.2) + 
+  geom_point(data= var.cor[which(var.cor$rho > 0.1), ], 
+             aes(x=rho, y=ave.counts),
+             size=2, color = 'darkblue') + 
+  geom_point(data= var.cor[which(var.cor$rho < -0.1), ], 
+             aes(x=rho, y=ave.counts),
+             size=2, color = 'darkred') +
+  theme_classic() + 
+  labs(x = paste0("correlation with ", gene), y = "log10(ave.counts)") +
+  geom_text_repel(data= var.cor[which(abs(var.cor$rho) >0.1), ], 
+                  aes(x=rho, y=ave.counts),
+                  size = 4,
+                  #color = "darkgreen",
+                  #family = 'Times',
+                  #fontface = 'bold',
+                  # Add extra padding around each text label.
+                  #box.padding = unit(0.3, 'lines'),
+                  # Add extra padding around each data point.
+                  #point.padding = unit(1.6, 'lines')
+  )+ 
+  theme(legend.position = "none",
+        axis.text.x = element_text(angle = 0, size = 12), 
+        axis.text.y = element_text(angle = 0, size = 12), 
+        axis.title =  element_text(size = 14),
+        legend.text = element_text(size=12),
+        legend.title = element_text(size = 12)
+  ) 
+
+ggsave(filename = paste0(outDir_cc, '/scran_correlation.with.', gene, '.pdf'), width = 10, height = 6)
+
+##########################################
+# add motif scanning information 
+##########################################
+motif.oc = readRDS(file = paste0(outDir, '/motif_oc_fimo_jaspar2022_pval.0.0001_', gene, '.rds'))
+motif.oc = t(as.matrix(motif.oc))
+#motif.oc = as.data.frame(motif.oc)
+
+mapping = readRDS(paste0('../results/scRNAseq_R13547_10x_mNT_20220813/motif_analysis/', 
+                         'JASPAR2022_CORE_UNVALIDED_vertebrates_nonRedundant_metadata_manual',
+                         '_rmRedundantUNVALIDED.rds'))
+
+mapping = mapping[which(!is.na(match(mapping$name, rownames(motif.oc)))), ]
+mapping$gene = firstup(mapping$gene)
+
+#mapping = data.frame(rbind(mapping, xx))
+
+var.cor$enhancers = NA
+var.cor$enhancers[which(!is.na(match(var.cor$gene2, mapping$gene)))] = 1
+
+ggplot(data = var.cor, aes(x=rho, y=ave.counts, label = gene2)) +
+  geom_point(size = 0.2) + 
+  geom_point(data= var.cor[which(!is.na(var.cor$enhancers) & var.cor$rho > 0.1), ], 
+             aes(x=rho, y=ave.counts),
+             size=2, color = 'darkblue') + 
+  geom_point(data= var.cor[which(!is.na(var.cor$enhancers) & var.cor$rho < -0.1), ], 
+             aes(x=rho, y=ave.counts),
+             size=2, color = 'darkred') +
+  theme_classic() + 
+  labs(x = "correlation with FoxA2", y = "log10(ave.counts)") +
+  geom_text_repel(data= var.cor[which(!is.na(var.cor$enhancers) & abs(var.cor$rho) >0.1), ], 
+                  aes(x=rho, y=ave.counts),
+                  size = 4,
+                  #color = "darkgreen",
+                  #family = 'Times',
+                  #fontface = 'bold',
+                  # Add extra padding around each text label.
+                  #box.padding = unit(0.3, 'lines'),
+                  # Add extra padding around each data point.
+                  #point.padding = unit(1.6, 'lines')
+  )
+
+ggsave(filename = paste0(outDir_cc, '/scran_correlation.with.Pax6_motifScanning.pdf'), width = 10, height = 6)
+
+
+########################################################
+########################################################
+# Section III : scan Foxa2 and Pax6 enhancer and promoter
+# 
+########################################################
+########################################################
+Prepare_backgroundSequence_forMotifScanning = FALSE
+if(Prepare_backgroundSequence_forMotifScanning){
+  Dir_mouse_annot = "/groups/tanaka/People/current/jiwang/Genomes/mouse/mm10_ens/"
   
-  # randomly select 2000 promoters as background
-  set.seed(2023)
-  sels = sample(c(1:nrow(promoters)), size = 2000)
-}else{
-  sels = which(promoters$Gene.name == 'Foxa2'| promoters$Gene.name == 'Pax6')
+  promoters = read.delim(paste0(Dir_mouse_annot, 'ens_BioMart_GRCm38.p6.txt'))
+  promoters = promoters[which(promoters$Gene.type == 'protein_coding'), ]
+  promoters = promoters[which(promoters$GENCODE.basic.annotation == 'GENCODE basic'), ]
+  
+  promoters = promoters[which(!is.na(match(promoters$Chromosome.scaffold.name, c(1:19)))), ]
+  
+  # select only one promoter for each gene symbols
+  Make_background = FALSE
+  
+  if(Make_background){
+    ggs = unique(promoters$Gene.name)
+    promoters = promoters[match(ggs, promoters$Gene.name), ]
+    
+    # randomly select 2000 promoters as background
+    set.seed(2023)
+    sels = sample(c(1:nrow(promoters)), size = 2000)
+  }else{
+    sels = which(promoters$Gene.name == 'Foxa2'| promoters$Gene.name == 'Pax6')
+  }
+  
+  promoters = promoters[sels, ]
+  
+  bgs = data.frame(promoters$Chromosome.scaffold.name, promoters$Transcription.start.site..TSS.,
+                   promoters$Transcription.start.site..TSS., promoters$Transcript.name, rep(0, nrow(promoters)), 
+                   promoters$Strand, stringsAsFactors = FALSE)
+  colnames(bgs) = c('chr', 'start', 'end', 'gene', 'score', 'strand')
+  bgs$strand[which(bgs$strand == '1')] = '+'
+  bgs$strand[which(bgs$strand == '-1')] = '-'
+  
+  jj = which(bgs$strand == '+')
+  bgs$start[jj] = bgs$end[jj] - 2000
+  
+  jj = which(bgs$strand == '-')
+  bgs$end[jj] = bgs$start[jj] + 2000
+  
+  write.table(bgs, file = paste0(Dir_mouse_annot, 'mm10_Foxa2_Pax6_promoters.bed'), 
+              quote = FALSE, row.names = FALSE, col.names = FALSE, sep = '\t')
+  
 }
-
-promoters = promoters[sels, ]
-
-bgs = data.frame(promoters$Chromosome.scaffold.name, promoters$Transcription.start.site..TSS.,
-                 promoters$Transcription.start.site..TSS., promoters$Transcript.name, rep(0, nrow(promoters)), 
-                 promoters$Strand, stringsAsFactors = FALSE)
-colnames(bgs) = c('chr', 'start', 'end', 'gene', 'score', 'strand')
-bgs$strand[which(bgs$strand == '1')] = '+'
-bgs$strand[which(bgs$strand == '-1')] = '-'
-
-jj = which(bgs$strand == '+')
-bgs$start[jj] = bgs$end[jj] - 2000
-
-jj = which(bgs$strand == '-')
-bgs$end[jj] = bgs$start[jj] + 2000
-
-write.table(bgs, file = paste0(Dir_mouse_annot, 'mm10_Foxa2_Pax6_promoters.bed'), 
-            quote = FALSE, row.names = FALSE, col.names = FALSE, sep = '\t')
-
 
 ##########################################
 # double check the potential TFs after FoxA2 promoter and enhancer scanning
@@ -276,21 +411,22 @@ FeaturePlot(aa, features = c('Foxa2', 'Pax6',
 ##########################################
 library(data.table)
 
-fimo.out = paste0('../results/scRNAseq_R13547_10x_mNT_20220813/motif_analysis/fimo/',
-                  'FoxA2_promoters_enhancers/', 'fimo.tsv')
+fimo.out = paste0('../results/scRNAseq_R13547_10x_mNT_20220813/motif_analysis/motif_analysis_', gene, '/fimo/',
+                  'mm10_Pax6_CRE/', 'fimo.tsv')
 
 fimo = fread(fimo.out, header = TRUE)
 fimo = fimo[which(fimo$`p-value` < 10^-4), ]
 
 motif.oc = table(fimo$motif_id, fimo$sequence_name, useNA = 'ifany')
-colnames(motif.oc) = c('enhancer.fp', 'enhancer.node', 'promoter_201', 'promoter_202')
+#colnames(motif.oc) = c('enhancer.fp', 'enhancer.node', 'promoter_201', 'promoter_202')
+
 motif.oc[grep('SMAD|TEAD|LEF|^TCF|FOXA|RAR|GLI|PAX', rownames(motif.oc)), ]
 
 motif.oc = t(motif.oc)
 
 print(head(rownames(motif.oc), 20))
 
-saveRDS(motif.oc, file = paste0(outDir, '/motif_oc_fimo_jaspar2022_pval.0.0001_Foxa2.enhancers.promoters.rds'))
+saveRDS(motif.oc, file = paste0(outDir, '/motif_oc_fimo_jaspar2022_pval.0.0001_', gene, '.rds'))
 
 ss = apply(motif.oc, 2, sum)
 motif.oc = motif.oc[, order(-ss)]
@@ -313,15 +449,17 @@ library(patchwork)
 library(ggplot2)
 library(ggrepel)
 
-motif.oc = readRDS(file = paste0(outDir, '/motif_oc_fimo_jaspar2022_pval.0.0001_Foxa2.enhancers.promoters.rds'))
+motif.oc = readRDS(file = paste0(outDir, '/motif_oc_fimo_jaspar2022_pval.0.0001_', gene, '.rds'))
 motif.oc = t(as.matrix(motif.oc))
 #motif.oc = as.data.frame(motif.oc)
 
 mapping = readRDS(paste0('../results/scRNAseq_R13547_10x_mNT_20220813/motif_analysis/', 
-                         'JASPAR2022_CORE_UNVALIDED_vertebrates_nonRedundant_metadata_manual_rmRedundantUNVALIDED.rds'))
+                         'JASPAR2022_CORE_UNVALIDED_vertebrates_nonRedundant_metadata_manual',
+                         '_rmRedundantUNVALIDED.rds'))
 
 mapping = mapping[which(!is.na(match(mapping$name, rownames(motif.oc)))), ]
 mapping$gene = firstup(mapping$gene)
+
 mapping$enhancer.fp = motif.oc[match(mapping$name, rownames(motif.oc)), 1]
 mapping$enhancer.node = motif.oc[match(mapping$name, rownames(motif.oc)), 2]
 mapping$enhancer = 'node'
@@ -394,6 +532,7 @@ ggplot(data = var.cor, aes(x=rho, y=ave.counts, label = gene2)) +
 ggsave(filename = paste0(outDir_cc, '/scran_correlation.with.FoxA2.pdf'), width = 10, height = 6)
 
 dev.off()
+
 pdf(paste0(outDir_cc, '/Compare_expressionPattern.pdf'),
     width =16, height = 10, useDingbats = FALSE)
 
@@ -406,69 +545,60 @@ plot_manyFeatures_seurat(seurat_obj = aa, features = unique(features))
 dev.off()
 
 
-########################################################
-########################################################
-# Section IV : Genie3 random-forest-based method to predict TF regulators for FoxA2
-# 
-########################################################
-########################################################
-motif.oc = readRDS(file = paste0(outDir, '/motif_oc_fimo_jaspar2022_pval.0.0001_Foxa2.enhancers.promoters.rds'))
-motif.oc = t(motif.oc)
-mapping = readRDS(paste0('../results/scRNAseq_R13547_10x_mNT_20220813/motif_analysis/', 
-                         'JASPAR2022_CORE_UNVALIDED_vertebrates_nonRedundant_metadata_manual_rmRedundantUNVALIDED.rds'))
-
-mapping = mapping[which(!is.na(match(mapping$name, rownames(motif.oc)))), ]
-mapping$gene = firstup(mapping$gene)
-
-Idents(aa) = factor(aa$condition)
-
-levels_sels = c(
-                "day2.5_RA", "day3_RA.rep1", "day3.5_RA", "day4_RA")
-                
-data_version = "d2.5.d3,d3.5,d4"
-
-outDir_cc = paste0(outDir, '/Genie3_FoxA2', data_version)
-system(paste0('mkdir -p ', outDir_cc))
-
-sce = subset(aa, idents = levels_sels)
-sce$condition = droplevels(sce$condition)
-#sce = as.SingleCellExperiment(sce)
-
-E = sce@assays$RNA@data
-gg_sels = intersect(c(mapping$gene, 'Foxa2', 'Lhx1'), rownames(E))
-
-E = E[match(gg_sels, rownames(E)), ]
-ss = rowSums(E)
-E = E[ss>0, ]
-
-E = as.matrix(E)
-
-saveRDS(E, file = paste0('analysis_examples/Genie3/ExprMatrix_4FoxA2.rds'))
-
 ##########################################
-# run the GENIE3 on the laptop due to dynamical.loading issue
+# plot the result from imputation and pseudotime by palantir 
 ##########################################
-# tic()
-# source('myGENIE3.R')
-# wtm = GENIE3_withSpecificTargets(expr.matrix = E, priorTargets = c('Foxa2'), ncore = 1)
+library("plyr")
+library("reshape2")
+library("ggplot2")
+library(ggrepel)
+library(dplyr)
+
+# trend = read.csv(file = paste0('../results/scRNAseq_R13547_10x_mNT_20220813/',
+#                                'RA_symetryBreaking/dataIntegration_timePoints_4pseudotime/',
+#                                'palantir_gene_trends_FP_noCSS.csv'), header = TRUE, row.names = c(1))
+# pst = colnames(trend)
+# pst = as.numeric(gsub('X','', pst))
+# trend = trend[!is.na(match(rownames(trend), c(tfs, 'Shh'))), ]
 # 
-# saveRDS(wtm, file = paste0(RdataDir, '/first_test_Genie3_v3.rds'))
-# 
-# toc()
+# plot(pst, trend[96, ])
+load(file = paste0( "../results/scRNAseq_R13547_10x_mNT_20220813/RA_symetryBreaking/",
+                    "dataIntegration_timePoints_4pseudotime/",
+                    'gene_trends_branch_np.Rdata'))
+
+trend = data.frame(t(trend), time = bx)
+
+#ggs = c('Foxa2', 'Foxa1', 'Shh', 'Rarg', 'Zfp42', 'Lhx1', 'Tead1', 'Prrx2')
+ggs = c('Pax6', 'Sox11', 'Sox1', 'Pou5f1', 'Otx2', 'Etv5', 'Nr2f1', 'Meis2')
+mm = match(ggs, colnames(trend))
+xx = reshape::melt(trend[,c(mm, ncol(trend))],  id.vars = c('time'), 
+                   measure.vars = ggs,
+                   variable_name = 'gene',
+                   value.name = 'expression') 
+ggplot(data = xx, aes(x = time, y = value, group = gene, color = gene))+
+  geom_line(size = 1.2) +
+  geom_text_repel(data = filter(xx, time == max(time)),
+            aes(label = gene),
+            hjust = 0, nudge_x = 0.1,
+            size = 5) + 
+  scale_color_brewer(palette="Paired") +
+  theme_classic() + 
+  theme(legend.position = "none",
+        axis.text.x = element_text(angle = 0, size = 14), 
+        axis.text.y = element_text(angle = 0, size = 14), 
+        axis.title =  element_text(size = 14)
+        #legend.text = element_text(size=12),
+        #legend.title = element_text(size = 12
+        ) +
+  labs(x = "pseudotime by Palantir", y = "imputated gene expression by MAGIC")
+  
+ggsave(filename = paste0(outDir, '/Pax6_regulators_summary_pseudotime_imputatedExpression.pdf'), 
+       width = 8, height = 5)
 
 
-wtm = readRDS(file = paste0('analysis_examples/Genie3/ranked_predictedRegulators_FoxA2.rds'))
 
 
-pdf(paste0(outDir_cc, '/GENIE3_regulators_expressionPattern.pdf'),
-    width =16, height = 10, useDingbats = FALSE)
 
-features = c('Foxa2', 'Pax6', wtm$regulator[which(wtm$Foxa2>10^-3)])
 
-plot_manyFeatures_seurat(seurat_obj = aa, features = unique(features))
-
-dev.off()
-
-FeaturePlot(aa, features = c('Pax6', 'Foxa2', 'Rarg', 'Pou5f1', 'Zfp42', 'Lhx1', 'Jun', 'Lef1', 'Gata3'))
 
 

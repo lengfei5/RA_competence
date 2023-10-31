@@ -27,8 +27,8 @@ mkdir -p $out_fimo
 #bedtools getfasta -fi Mus_musculus.GRCm38.dna.toplevel.fa -bed mm10_background_2000.random.promoters.bed -name -fo mm10_background_2000.random.promoters.fa
 
 #nb_cores=2;
-#pwms="/groups/tanaka/People/current/jiwang/Databases/motifs_TFs/JASPAR2022/JASPAR2022_CORE_vertebrates_nonRedundant.meme"
-pwms="/groups/tanaka/People/current/jiwang/Databases/motifs_TFs/PWMs_Mus/motifMatrix_SuissRegulon.meme"
+pwms="/groups/tanaka/People/current/jiwang/Databases/motifs_TFs/JASPAR2022/JASPAR2022_CORE_vertebrates_nonRedundant.meme"
+#pwms="/groups/tanaka/People/current/jiwang/Databases/motifs_TFs/PWMs_Mus/motifMatrix_SuissRegulon.meme"
 genome="/groups/tanaka/People/current/jiwang/Genomes/mouse/mm10_ens/Mus_musculus.GRCm38.dna.toplevel.fa"
 bg="/groups/tanaka/People/current/jiwang/Genomes/mouse/mm10_ens/mm10_background_2000.random.promoters.fa"
 #primMotif="/groups/cochella/jiwang/Databases/motifs_TFs/PWMs_C_elegans/tbx_motif.meme"
