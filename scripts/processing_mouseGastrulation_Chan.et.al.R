@@ -268,11 +268,7 @@ saveRDS(aa, file = paste0(RdataDir, 'seuratObject_', species, version.analysis,
 # 
 ########################################################
 ########################################################
-aa = readRDS(paste0(RdataDir, 'seuratObject_', species, version.analysis, 
-                    '_lognormamlized_pca_umap_clustered.rds'))
-
-
-srat = readRDS(file = paste0('..//results/scRNAseq_R13547_10x_mNT_20220813/mapping_to_MouseGastrulationData/Rdata',  
+srat = readRDS(file = paste0('../results/scRNAseq_R13547_10x_mNT_20220813/mapping_to_MouseGastrulationData/Rdata',  
                              '/seuratObject_EmbryoAtlasData_all36sample_RNAassay.rds'))
 xx = readRDS(file = paste0('../results/dataset_scRNAseq_MouseGastrulationData/Rdata/',
                            'seuratObject_EmbryoAtlasData_all36sample.rds'))
@@ -282,7 +278,48 @@ umap.embedding = umap.embedding[match(colnames(srat), rownames(umap.embedding)),
 srat[['umap']] = Seurat::CreateDimReducObject(embeddings=umap.embedding,
                                               key='UMAP_',
                                               assay='RNA')
-rm(xx)
-rm(umap.embedding)
+
+pca.embedding = xx@reductions$pca.corrected@cell.embeddings
+pca.embedding = pca.embedding[match(colnames(srat), rownames(pca.embedding)), ]
+srat[['pca.corrected']] = Seurat::CreateDimReducObject(embeddings=pca.embedding,
+                                              key='PCACorrected_',
+                                              assay='RNA')
+
+rm(list = c("xx", "pca.embedding", "umap.embedding"))
+
+p1 = DimPlot(srat, reduction = 'umap', 
+             #cols = EmbryoCelltypeColours, 
+             group.by = 'celltype', 
+             label = TRUE, repel = TRUE,
+             raster=FALSE) 
+
+p2 = DimPlot(srat, reduction = 'umap', 
+             #cols = EmbryoCelltypeColours, 
+             group.by = 'stage', 
+             label = TRUE, repel = TRUE,
+             raster=FALSE) 
+
+p1 /p2
+
+ggsave(filename = paste0(resDir, '/MouseGastrulation_celltypes_stage.pdf'), width = 18, height = 20)
 
 
+srat[["percent.mt"]] <- PercentageFeatureSet(srat, pattern = "^mt-")
+
+pdfname = paste0(resDir, '/QCs_nCounts_nFeatures_percentMT_Marioni.dataset.pdf')
+pdf(pdfname, width=16, height = 8)
+
+Idents(srat) = factor(srat$stage)
+
+VlnPlot(srat, features = 'nFeature_RNA', y.max = 10000, raster = FALSE)
+VlnPlot(srat, features = 'nCount_RNA', y.max = 100000, raster = FALSE)
+VlnPlot(srat, features = 'percent.mt', y.max =50, raster = FALSE)
+
+dev.off()
+
+
+saveRDS(srat, file = paste0(RdataDir, 'seuratObject_EmbryoAtlasData_all36sample_Marioni.rds'))
+
+
+aa = readRDS(paste0(RdataDir, 'seuratObject_', species, version.analysis, 
+                    '_lognormamlized_pca_umap_clustered.rds'))
