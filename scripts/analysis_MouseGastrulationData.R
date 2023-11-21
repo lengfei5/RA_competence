@@ -50,7 +50,6 @@ mem_used()
 
 species = '_mouseGastrulation'
 
-
 ##########################################
 # make plots of processed data
 ##########################################
@@ -230,7 +229,7 @@ ggsave(filename = paste0(resDir, '/Featureplots_Pax6_Foxa2_blended_ordered_subse
 
 ########################################################
 ########################################################
-# Section II: Explore the mapping between the mouse data and our scRNA-seq data
+# Section II: Explore the mapping between the mouse data and our mNT scRNA-seq data
 # 
 ########################################################
 ########################################################
@@ -302,4 +301,120 @@ ref$dataset = 'ref'
 aa$celltype = paste0('mNT_', aa$condition)
 
 refs.merged = merge(aa, y = ref, add.cell.ids = c("mNT", "mouseGastrulation"), project = "RA_competence")
+
+
+
+##########################################
+# main function for mapping to reference  
+##########################################
+ref.list <- SplitObject(refs.merged, split.by = "dataset")
+
+rm(list = c('refs.merged', 'aa', 'srat')) # remove big seurat objects to clear memory
+
+# normalize and identify variable features for each dataset independently
+ref.list <- lapply(X = ref.list, FUN = function(x) {
+  x <- NormalizeData(x, normalization.method = "LogNormalize")
+  x <- FindVariableFeatures(x, selection.method = "vst")
+  
+})
+
+# select features that are repeatedly variable across datasets for integration run PCA on each
+# dataset using these features
+features <- SelectIntegrationFeatures(object.list = ref.list)
+
+ref.list <- lapply(X = ref.list, FUN = function(x) {
+  x <- ScaleData(x, features = features.common, verbose = TRUE)
+  x <- RunPCA(x, features = features, verbose = FALSE)
+  
+})
+
+ref.anchors <- FindIntegrationAnchors(object.list = ref.list, 
+                                      anchor.features = features, 
+                                      #reference = c(2),
+                                      #reduction = "cca", 
+                                      reduction = 'rpca',
+                                      k.anchor = 5,
+                                      dims = 1:50)
+
+rm(ref.list)
+
+# this command creates an 'integrated' data assay
+ref.combined <- IntegrateData(anchorset = ref.anchors, features.to.integrate = features.common, 
+                              dims = 1:50) ## take ~100G memory
+
+rm(ref.anchors)
+
+# specify that we will perform downstream analysis on the corrected data note that the
+# original unmodified data still resides in the 'RNA' assay
+DefaultAssay(ref.combined) <- "integrated"
+
+#xx = DietSeurat(ref.combined, counts = TRUE, data = TRUE, scale.data = TRUE, assays = 'integrated')
+#xx@assays$integrated@counts = ref.combined@assays$RNA@counts
+#saveRDS(xx, file = paste0(outDir, 
+#                          '/Seurat.obj_mouseGastrulation_mNT_integrated.rds'))
+
+# Run the standard workflow for visualization and clustering
+#ref.combined = readRDS(file =paste0(outDir, 
+#                                    '/Seurat.obj_mouseGastrulation_mNT_integrated.rds'))
+
+
+ref.combined <- ScaleData(ref.combined, verbose = FALSE)
+ref.combined <- RunPCA(ref.combined, npcs = 50, verbose = FALSE)
+
+ElbowPlot(ref.combined, ndims = 50)
+
+kk = which(ref.combined$dataset == 'mNT') 
+ref.combined$celltype[kk] = paste0('mNT_', ref.combined$condition[kk])
+names(cols_sel) = paste0('mNT_', names(cols_sel))
+
+
+#ref.combined <- FindNeighbors(ref.combined, reduction = "pca", dims = 1:20)
+#ref.combined <- FindClusters(ref.combined, resolution = 0.2)
+ref.combined <- RunUMAP(ref.combined, reduction = "pca", dims = 1:50, n.neighbors = 50, 
+                        min.dist = 0.2) 
+
+#DimPlot(ref.combined, reduction = "umap")
+
+saveRDS(ref.combined, file = paste0(outDir, '/integrated_mNT_mouseGastrulation_SeuratRPCA.rds'))
+
+cols_used = c(cols_mouse, cols_sel)
+saveRDS(cols_used, file = paste0(outDir, '/integrated_mNT_mouseGastrulation_colorsUsed.rds'))
+
+# Visualization
+DimPlot(ref.combined, reduction = "umap", group.by = "celltype", label = TRUE,
+        repel = TRUE, raster=FALSE, cols = c(cols_mouse, cols_sel))
+
+ggsave(paste0(outDir, '/Integration_dataset_celltypes.pdf'), 
+       width = 14, height = 8)
+
+DimPlot(ref.combined, reduction = "umap", group.by = "dataset", raster=FALSE)
+ggsave(paste0(outDir, '/Integration_dataset.pdf'), 
+       width = 10, height = 8)
+
+pdf(paste0(outDir, '/FeaturePlot_Markers.pdf'),
+    width =10, height = 8, useDingbats = FALSE)
+
+ggs = c('Pax6', 'Foxa2', 'Pou5f1', 'Sox17', 'Sox1', 'Sox2')
+for(n in 1:length(ggs))
+{
+  p1 = FeaturePlot(ref.combined, features = ggs[n], min.cutoff = 'q5')
+  #FeaturePlot(ref.combined, features = 'Foxa2', min.cutoff = 'q5')
+  #FeaturePlot(ref.combined, features = 'Sox17', min.cutoff = 'q5')
+  plot(p1)
+}
+
+dev.off()
+
+DimPlot(ref.combined, reduction = "umap", group.by = "celltype", label = TRUE, split.by = 'dataset',
+        repel = TRUE, raster=FALSE) + NoLegend()
+
+ggsave(paste0(outDir, '/Integration_celltypes_split.dataset.pdf'), 
+       width = 24, height = 8)
+
+DimPlot(ref.combined, reduction = "umap", group.by = "stage", label = TRUE,
+        repel = TRUE, raster=FALSE)
+
+ggsave(paste0(outDir, '/Integration_stage.pdf'), 
+       width = 16, height = 8)
+
 
