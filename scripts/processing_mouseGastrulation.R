@@ -440,6 +440,10 @@ if(Test_batchCorrection_fastMNN){
                                 correct.all = TRUE,
                                 reference = NULL)
   
+  xx[['pca']] = aa[['pca']]
+  xx[['umap.mnn']] = xx[['umap']]
+  xx[['umap']] = aa[['umap']]
+  
   aa = xx
   rm(xx)
   
@@ -450,6 +454,10 @@ if(Test_batchCorrection_fastMNN){
   
   ggsave(filename = paste0(resDir, '/umap_tranferred_celltypes_fastMNN.batchCorrected.pdf'), width = 14, 
          height = 22)
+  
+  
+  saveRDS(aa, file = paste0(RdataDir, 'seuratObject_', species, version.analysis,
+                            '_lognormamlized_var.to.regress.nCount.RNA_pca_clusterIDs_celltypes_fastmnn.rds'))
   
   
 }
@@ -520,10 +528,43 @@ dev.off()
 saveRDS(srat, file = paste0(RdataDir, 'seuratObject_EmbryoAtlasData_all36sample_Marioni_pca.corrected.umap.rds'))
 
 ##########################################
-# benchmark different integration methods
+# merge first two atlas
 ##########################################
 source(paste0(functionDir, 'functions_dataIntegration.R'))
+aa = readRDS(file = paste0(RdataDir, 'seuratObject_', species, version.analysis,
+              '_lognormamlized_var.to.regress.nCount.RNA_pca_clusterIDs_celltypes_fastmnn.rds'))
+
+aa$celltype[which(is.na(aa$celltype))] = 'unknown'
+
+srat = readRDS(file = paste0(RdataDir, 
+                             'seuratObject_EmbryoAtlasData_all36sample_Marioni_pca.corrected.umap.rds'))
+
+srat[['mnt']] = srat[['pca.corrected']]
+
+## merge two references
+aa$dataset = 'Chan2019'
+srat$dataset = 'Marioni2019'
+features.common = intersect(rownames(aa), rownames(srat))
+
+xx = subset(aa, features = features.common)
+yy = subset(srat, features = features.common)
+
+yy[['mnn']] = yy[['pca.corrected']]
+yy[['umap.mnn']] = yy[['umap.orig']]
+
+rm(list = c('aa', 'srat'))
+
+refs = merge(yy, y = xx, add.cell.ids = c("Marioni2019", "Chan2019"), project = "mouseGastrulation",
+             merge.dr = c('pca', 'mnn', 'umap.mnn'))
+
+rm(list = c('xx', 'yy'))
+#refs = subset(refs, features = features.common)
+
+saveRDS(refs, file = paste0(RdataDir, 
+                            'seuratObject_mouseGastrulationAtlasData_Marioni2019_Chan2019_mnn.rds'))
 
 
-
+##########################################
+# benchmark different integration methods
+##########################################
 
