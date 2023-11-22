@@ -10,10 +10,10 @@
 ##########################################################################
 rm(list = ls())
 
-functionDir = '/groups/tanaka/People/current/jiwang/projects/heart_regeneration/scripts'
+functionDir = '/groups/tanaka/People/current/jiwang/projects/heart_regeneration/scripts/'
 source('/groups/tanaka/People/current/jiwang/projects/heart_regeneration/scripts/functions_scRNAseq.R')
 source('/groups/tanaka/People/current/jiwang/projects/heart_regeneration/scripts/functions_Visium.R')
-source('/groups/tanaka/People/current/jiwang/projects/heart_regeneration/scripts/functions_dataIntegration.R')
+source(paste0(functionDir, 'functions_dataIntegration.R'))
 
 library(pryr) # monitor the memory usage
 require(ggplot2)
@@ -421,14 +421,19 @@ p2
 ggsave(filename = paste0(resDir, '/umap_tranferred_celltypes_scmap.method.pdf'), width = 12, height = 10)
 
 
-saveRDS(aa, file = paste0(RdataDir, 'seuratObject_', species, version.analysis, 
+saveRDS(aa, file = paste0(RdataDir, 'seuratObject_', species, version.analysis,
                           '_lognormamlized_var.to.regress.nCount.RNA_pca_clusterIDs_celltypes.rds'))
+
 
 Test_batchCorrection_fastMNN = FALSE
 if(Test_batchCorrection_fastMNN){
   
+  aa = readRDS(file = paste0(RdataDir, 'seuratObject_', species, version.analysis,
+                '_lognormamlized_var.to.regress.nCount.RNA_pca_clusterIDs_celltypes.rds'))
+  
   aa$condition = factor(aa$condition)
-  source('/groups/tanaka/People/current/jiwang/projects/heart_regeneration/scripts/functions_dataIntegration.R')
+ 
+  source(paste0(functionDir, 'functions_dataIntegration.R'))
   xx = IntegrateData_runFastMNN(aa, group.by = 'condition', nfeatures = 3000,
                                 ndims = c(1:50), 
                                 merge.order = c("E8.5_1ab", "E8.0_1ab","E7.5_2", "E7.5_1", "E7.0_1", "E6.5_1"),
@@ -445,6 +450,7 @@ if(Test_batchCorrection_fastMNN){
   
   ggsave(filename = paste0(resDir, '/umap_tranferred_celltypes_fastMNN.batchCorrected.pdf'), width = 14, 
          height = 22)
+  
   
 }
 
@@ -512,6 +518,12 @@ VlnPlot(srat, features = 'percent.mt', y.max =50, raster = FALSE)
 dev.off()
 
 saveRDS(srat, file = paste0(RdataDir, 'seuratObject_EmbryoAtlasData_all36sample_Marioni_pca.corrected.umap.rds'))
+
+##########################################
+# benchmark different integration methods
+##########################################
+source(paste0(functionDir, 'functions_dataIntegration.R'))
+
 
 
 
