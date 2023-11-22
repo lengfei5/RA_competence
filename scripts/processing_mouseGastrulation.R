@@ -464,10 +464,132 @@ if(Test_batchCorrection_fastMNN){
 
 ########################################################
 ########################################################
-# Section II : harmonize the two dataset as unified reference
+# Section II : Process mouse gastrulation data Marioni2019
 # 
 ########################################################
 ########################################################
+Load_process_MouseGastrulation_Marioni2019 = FALSE
+if(Load_process_MouseGastrulation_Marioni2019){
+  library(MouseGastrulationData)
+  head(AtlasSampleMetadata, n = 3)
+  
+  sce <- EmbryoAtlasData(type = 'processed', samples = NULL)
+  sce
+  
+  saveRDS(sce, file = paste0(RdataDir, 'EmbryoAtlasData_all36sample.rds'))
+  
+  sce = readRDS(paste0('../results/dataset_scRNAseq_MouseGastrulationData/Rdata/', 
+                       'EmbryoAtlasData_all36sample.rds'))
+  
+  head(rowData(sce))
+  rownames(sce) = rowData(sce)$SYMBOL
+  
+  head(colData(sce))
+  
+  #exclude technical artefacts
+  singlets <- which(!(colData(sce)$doublet | colData(sce)$stripped))
+  
+  plot(
+    x = reducedDim(sce, "umap")[singlets, 1],
+    y = reducedDim(sce, "umap")[singlets, 2],
+    col = sce$colour[singlets],
+    pch = 19,
+    xaxt = "n", yaxt = "n",
+    xlab = "UMAP1", ylab = "UMAP2"
+  )
+  
+  sce = sce[, singlets]
+  EmbryoCelltypeColours = EmbryoCelltypeColours[colData(sce)$celltype[singlets]]
+  
+  sce = scuttle::logNormCounts(sce)
+  rownames(sce) = make.unique(rownames(sce))
+  srat = as.Seurat(sce, counts = "counts",  assay = NULL)
+  
+  rm(sce)
+  
+  DimPlot(srat, reduction = 'umap', cols = EmbryoCelltypeColours, group.by = 'celltype', 
+          label = TRUE, repel = TRUE,
+          raster=FALSE)
+  
+  ggsave(filename = paste0(resDir, '/umap_celltypes.pdf'), width = 20, height = 10)
+  
+  saveRDS(srat, file = paste0(RdataDir, 'seuratObject_EmbryoAtlasData_all36sample.rds'))
+  
+}
+
+Modify.Assay.Name = FALSE
+if(Modify.Assay.Name){
+  srat = readRDS(file = paste0('../results/dataset_scRNAseq_MouseGastrulationData/Rdata/',
+                               'seuratObject_EmbryoAtlasData_all36sample.rds'))
+  
+  ## change assay name
+  adt.data <- GetAssayData(object =  srat[['originalexp']], slot = 'counts')
+  srat[["RNA"]] <- CreateAssayObject(counts = adt.data )
+  DefaultAssay(srat) <- "RNA"
+  srat[['originalexp']] = NULL
+  
+  srat <- NormalizeData(srat, normalization.method = "LogNormalize")
+  srat <- FindVariableFeatures(srat, selection.method = "vst", nfeatures = 3000)
+  srat <- ScaleData(srat, verbose = FALSE)
+  srat <- RunPCA(srat, verbose = FALSE)
+  
+  saveRDS(srat, file = paste0(RdataDir,  'seuratObject_EmbryoAtlasData_all36sample_RNAassay.rds'))
+  
+}
+
+##########################################
+# keep only relevant cell types 
+##########################################
+Filter_unrelevant_celltype_Marioni2019 = FALSE
+if(Filter_unrelevant_celltype_Marioni2019){
+  srat = readRDS(file = paste0(RdataDir,  'seuratObject_EmbryoAtlasData_all36sample_RNAassay.rds'))
+  xx = readRDS(file = paste0('../results/dataset_scRNAseq_MouseGastrulationData/Rdata/',
+                             'seuratObject_EmbryoAtlasData_all36sample.rds'))
+  
+  umap.embedding = xx@reductions$umap@cell.embeddings
+  umap.embedding = umap.embedding[match(colnames(srat), rownames(umap.embedding)), ]
+  srat[['umap']] = Seurat::CreateDimReducObject(embeddings=umap.embedding,
+                                                key='UMAP_',
+                                                assay='RNA')
+  rm(xx)
+  rm(umap.embedding)
+  
+  ## filter unlikely celltypes in the reference
+  sels = grep('Erythroid|Blood|Allantois|mesoderm|Haemato|Cardiomy|Endothelium|Mesenchyme|ExE', srat$celltype, 
+              invert = TRUE)
+  srat = subset(srat, cells = colnames(srat)[sels])
+  
+  saveRDS(srat, file = paste0(RdataDir,  
+                              'seuratObject_EmbryoAtlasData_all36sample_RNAassay_keep.relevant.celltypes.rds'))
+  
+  srat = readRDS(file = paste0(RdataDir,  
+                               'seuratObject_EmbryoAtlasData_all36sample_RNAassay_keep.relevant.celltypes.rds'))
+  
+  
+  sels = grep('Parietal', srat$celltype, 
+              invert = TRUE)
+  srat = subset(srat, cells = colnames(srat)[sels])
+  
+  saveRDS(srat, file = paste0(RdataDir,  
+                              'seuratObject_EmbryoAtlasData_all36sample_RNAassay_keep.relevant.celltypes_v2.rds'))
+  
+  p1 = DimPlot(srat, reduction = 'umap', 
+               #cols = EmbryoCelltypeColours, 
+               group.by = 'celltype', 
+               label = TRUE, repel = TRUE,
+               raster=FALSE) 
+  
+  p2 = DimPlot(srat, reduction = 'umap', 
+               #cols = EmbryoCelltypeColours, 
+               group.by = 'stage', 
+               label = TRUE, repel = TRUE,
+               raster=FALSE) 
+  
+  p1 /p2
+  
+  ggsave(filename = paste0(resDir, '/MouseGastrulation_celltypes_stage.pdf'), width = 18, height = 20)
+  
+}
 
 ##########################################
 # process a bit more the Morioni dataset
@@ -527,6 +649,13 @@ dev.off()
 
 saveRDS(srat, file = paste0(RdataDir, 'seuratObject_EmbryoAtlasData_all36sample_Marioni_pca.corrected.umap.rds'))
 
+
+########################################################
+########################################################
+# Section III : harmonize the two dataset as unified reference
+# 
+########################################################
+########################################################
 ##########################################
 # merge first two atlas
 ##########################################
