@@ -454,6 +454,10 @@ if(Test_batchCorrection_fastMNN){
 # 
 ########################################################
 ########################################################
+
+##########################################
+# process a bit more the Morioni dataset
+##########################################
 srat = readRDS(file = paste0('../results/scRNAseq_R13547_10x_mNT_20220813/mapping_to_MouseGastrulationData/Rdata',  
                              '/seuratObject_EmbryoAtlasData_all36sample_RNAassay.rds'))
 xx = readRDS(file = paste0('../results/dataset_scRNAseq_MouseGastrulationData/Rdata/',
@@ -463,6 +467,10 @@ umap.embedding = xx@reductions$umap@cell.embeddings
 umap.embedding = umap.embedding[match(colnames(srat), rownames(umap.embedding)), ]
 srat[['umap']] = Seurat::CreateDimReducObject(embeddings=umap.embedding,
                                               key='UMAP_',
+                                              assay='RNA')
+
+srat[['umap.orig']] = Seurat::CreateDimReducObject(embeddings=umap.embedding,
+                                              key='UMAP_orig_',
                                               assay='RNA')
 
 pca.embedding = xx@reductions$pca.corrected@cell.embeddings
@@ -503,10 +511,7 @@ VlnPlot(srat, features = 'percent.mt', y.max =50, raster = FALSE)
 
 dev.off()
 
+saveRDS(srat, file = paste0(RdataDir, 'seuratObject_EmbryoAtlasData_all36sample_Marioni_pca.corrected.umap.rds'))
 
 
-saveRDS(srat, file = paste0(RdataDir, 'seuratObject_EmbryoAtlasData_all36sample_Marioni.rds'))
 
-
-aa = readRDS(paste0(RdataDir, 'seuratObject_', species, version.analysis, 
-                    '_lognormamlized_pca_umap_clustered.rds'))

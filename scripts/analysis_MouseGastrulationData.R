@@ -303,7 +303,6 @@ aa$celltype = paste0('mNT_', aa$condition)
 refs.merged = merge(aa, y = ref, add.cell.ids = c("mNT", "mouseGastrulation"), project = "RA_competence")
 
 
-
 ##########################################
 # main function for mapping to reference  
 ##########################################
