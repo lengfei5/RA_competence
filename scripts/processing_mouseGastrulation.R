@@ -649,7 +649,6 @@ dev.off()
 
 saveRDS(srat, file = paste0(RdataDir, 'seuratObject_EmbryoAtlasData_all36sample_Marioni_pca.corrected.umap.rds'))
 
-
 ########################################################
 ########################################################
 # Section III : harmonize the two dataset as unified reference

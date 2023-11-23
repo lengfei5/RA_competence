@@ -50,28 +50,9 @@ mem_used()
 
 species = '_mouseGastrulation'
 
-########################################################
-########################################################
-# Section I: Explore the mapping between the mouse data and our mNT scRNA-seq data
-# 
-########################################################
-########################################################
-
 ##########################################
-# test Seurat data integration
+# import mNT scRNA-seq data
 ##########################################
-data_version = "subsettingRef_mNT.noRA.RA.d2_d5_Harmony"
-
-outDir = paste0(resDir, 'dataMapping_', data_version)
-system(paste0('mkdir -p ', outDir))
-
-srat = readRDS(file = paste0(RdataDir,  
-                             'seuratObject_EmbryoAtlasData_all36sample_RNAassay_keep.relevant.celltypes_v2.rds'))
-
-cols_mouse = sapply(srat$colour, function(x) {paste0('#', x, collapse = '')})
-names(cols_mouse) =srat$celltype
-cols_mouse = cols_mouse[match(unique(names(cols_mouse)), names(cols_mouse))]
-
 aa =  readRDS(file = paste0('../results/Rdata/',  
                             'seuratObject_merged_cellFiltered_doublet.rm_mt.ribo.geneFiltered_regressout.nCounts_',
                             'cellCycleScoring_annot.v1_', 'mNT_scRNAseq',
@@ -109,6 +90,43 @@ aa = subset(aa, idents = levels_sels)
 # downsample for each condition
 aa = subset(x = aa, downsample = 1000)
 
+saveRDS(aa, file = paste0(RdataDir, 'seuratObject_mNT_selectedCondition_downsampled.1k.perCondition.rds'))
+
+
+##########################################
+# import the reference which has multiple choices
+# 1) full atlas from Marioni2019 or Chan2019 or integrated Marioni.Chan
+# 2) selected relevant cell types from those full atlas 
+##########################################
+ref = readRDS(file = paste0(RdataDir,  
+                             'seuratObject_EmbryoAtlasData_all36sample_RNAassay_keep.relevant.celltypes_v2.rds'))
+
+cols_mouse = sapply(srat$colour, function(x) {paste0('#', x, collapse = '')})
+names(cols_mouse) =srat$celltype
+cols_mouse = cols_mouse[match(unique(names(cols_mouse)), names(cols_mouse))]
+
+reference_version = 'Marioni2019_selectedCelltypes'
+
+########################################################
+########################################################
+# Section I: Explore the mapping our mNT scRNA-seq data to mouse gastrulation atlas
+# 
+########################################################
+########################################################
+
+##########################################
+# test Seurat data integration
+##########################################
+data_version = "subsettingRef_mNT.noRA.RA.d2_d5_Harmony"
+
+outDir = paste0(resDir, 'dataMapping_', data_version)
+system(paste0('mkdir -p ', outDir))
+
+
+
+
+
+
 features.common = intersect(rownames(aa), rownames(srat))
 aa = subset(aa, features = features.common)
 srat = subset(srat, features = features.common)
@@ -124,7 +142,6 @@ ref$dataset = 'ref'
 aa$celltype = paste0('mNT_', aa$condition)
 
 refs.merged = merge(aa, y = ref, add.cell.ids = c("mNT", "mouseGastrulation"), project = "RA_competence")
-
 
 ##########################################
 # main function for mapping to reference  
@@ -179,7 +196,6 @@ DefaultAssay(ref.combined) <- "integrated"
 #ref.combined = readRDS(file =paste0(outDir, 
 #                                    '/Seurat.obj_mouseGastrulation_mNT_integrated.rds'))
 
-
 ref.combined <- ScaleData(ref.combined, verbose = FALSE)
 ref.combined <- RunPCA(ref.combined, npcs = 50, verbose = FALSE)
 
@@ -188,7 +204,6 @@ ElbowPlot(ref.combined, ndims = 50)
 kk = which(ref.combined$dataset == 'mNT') 
 ref.combined$celltype[kk] = paste0('mNT_', ref.combined$condition[kk])
 names(cols_sel) = paste0('mNT_', names(cols_sel))
-
 
 #ref.combined <- FindNeighbors(ref.combined, reduction = "pca", dims = 1:20)
 #ref.combined <- FindClusters(ref.combined, resolution = 0.2)
