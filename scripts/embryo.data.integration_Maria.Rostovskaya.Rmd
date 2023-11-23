@@ -1,0 +1,202 @@
+---
+title: "Integration of embryo datasets - Seurat"
+output: html_document
+---
+
+```{r}
+suppressPackageStartupMessages(library(tidyverse))
+theme_set(theme_bw(base_size=14))
+suppressPackageStartupMessages(library(Seurat))
+suppressPackageStartupMessages(library(data.table))
+
+`%notin%` <- negate(`%in%`)
+```
+
+
+
+```{r}
+#####################################################################
+##### Get a list of protein coding genes excluding Y chromosome
+#####################################################################
+
+#### Attention: the datasets processed in BI name Brachyury gene "T" whereas the official name of this gene is "TBXT", so integration with data processed elsewhere may lose this gene; this is why I rename it to its official name and always check that it's there ####
+
+fread("./Protein.coding.genes.filtering.txt") %>%
+  as_tibble() %>%
+  filter(Chr != "Y") %>%
+  dplyr::select(Feature, ID) %>%
+  dplyr::rename(Gene = Feature) %>%
+  mutate(Gene = if_else(Gene == "T", "TBXT", Gene)) -> protein.coding
+
+protein.coding %>%
+  filter(Gene == "TBXT")
+```
+
+
+```{r}
+#######################################################
+##### Prepare data from human embryo
+#######################################################
+
+fread("./merged_counts_Xiang.txt") %>% 
+  as_tibble() %>%
+  dplyr::rename(ID = gene) %>%
+  right_join(protein.coding) %>%
+  dplyr::select(Gene, everything()) %>%
+  dplyr::select(-ID) %>%
+  distinct(Gene, .keep_all = T) -> Xiang.human.embryo
+
+gsub("^.*Embryo_","",colnames(Xiang.human.embryo)) -> colnames(Xiang.human.embryo)
+
+Xiang.human.embryo %>%
+  filter(Gene == "TBXT")
+```
+
+
+
+```{r}
+#######################################################
+##### Prepare data from cynomolgus embryo
+#######################################################
+
+fread("./GSE130114_MF1453_Ma.csv.gz") %>%
+  as_tibble() %>%
+  dplyr::rename(Gene = V1) %>%
+  mutate(Gene = if_else(Gene == "T", "TBXT", Gene)) %>% 
+  filter(Gene %in% protein.coding$Gene) %>%
+  distinct(Gene, .keep_all = T) -> Ma.monkey.embryo
+
+Ma.monkey.embryo %>%
+  filter(Gene == "TBXT")
+```
+
+
+
+```{r}
+##############################################################################
+### Prepare the data from human gastrula
+##############################################################################
+
+fread("./human_gastrula.csv.gz") %>%
+  as_tibble() -> Tyser.human.gastrula
+
+Tyser.human.gastrula %>%
+  dplyr::select(-c(57594:57595)) %>%
+  t() %>%
+  as.tibble() %>%
+  janitor::row_to_names(1) -> Tyser.human.gastrula.1
+
+colnames(Tyser.human.gastrula[2:57593]) -> Tyser.human.gastrula.1$Gene
+
+Tyser.human.gastrula.1 %>% relocate(Gene) -> Tyser.human.gastrula
+rm(Tyser.human.gastrula.1)
+
+Tyser.human.gastrula[,2:ncol(Tyser.human.gastrula)] <- apply(Tyser.human.gastrula[,2:ncol(Tyser.human.gastrula)], 2, function(x) as.integer(as.character(x)))
+```
+
+
+
+```{r}
+###############################################################################################################
+##### Prepare annotation
+###############################################################################################################
+
+read_tsv("./Xiang.Ma.Tyser.integrated.dataset.annotation.txt") %>%
+  filter(QC == "PASSED") %>%
+  dplyr::rename(sample = cell.ID) %>%
+  dplyr::select(-QC ) -> cell.annotation
+
+cell.annotation %>%
+  group_by(dataset) %>%
+  dplyr::count()
+
+cell.annotation %>%
+  group_by(new.identity) %>%
+  dplyr::count()
+
+### If you don't need certain cell types - 
+
+cell.annotation %>%
+  filter(!new.identity %in% c("cyEXMC", "cyPGC", "hsEarly.EVT", "hsEarly.STB", "hsPGC", "hsPreEPI/PrE")) -> cell.annotation
+
+cell.annotation %>%
+  group_by(new.identity) %>%
+  dplyr::count()
+
+head(cell.annotation)
+```
+
+
+
+```{r}
+#################################################################################################################################################
+##### Combine all three datasets: human in vitro cultured embryo, cynomolgus in vitro cultured embryo, human gastrula taken from in utero
+#################################################################################################################################################
+
+Xiang.human.embryo %>%
+  inner_join(Ma.monkey.embryo) %>%
+  inner_join(Tyser.human.gastrula) %>%
+  dplyr::select(Gene, cell.annotation$sample) %>%
+  na.omit %>%
+  column_to_rownames(var="Gene") -> embryo.master.table.raw
+
+
+embryo.master.table.raw %>%
+  rownames_to_column(var = "Gene") %>%
+  filter(Gene == "TBXT")
+```
+
+
+
+```{r}
+###################################################################
+### Create Seurat object
+###################################################################
+
+CreateSeuratObject(
+  counts = embryo.master.table.raw, 
+  project = "Integrated_dataset_embryo", 
+  min.cells = 3, 
+  min.features=200
+) -> embryo
+
+embryo@meta.data %>%
+  rownames_to_column(var="sample") %>%
+  left_join(cell.annotation) %>%
+  column_to_rownames(var="sample") -> embryo@meta.data
+
+```
+```{r}
+############################################################
+### Normalize
+############################################################
+
+NormalizeData(embryo, normalization.method = "LogNormalize") -> embryo
+
+as_tibble(embryo@assays$RNA@data, rownames="Gene") -> embryo.fpkm
+
+embryo.fpkm %>%
+  pivot_longer(-Gene, names_to = "sample", values_to = "log_fpkm") %>% 
+  mutate(fpkm = 2^log_fpkm - 1) %>%
+  mutate(log_fpkm = log2(fpkm + 0.1)) %>%
+  dplyr::select(-fpkm) -> embryo.fpkm
+
+embryo.fpkm %>% 
+  pivot_wider(names_from = "sample", values_from = "log_fpkm") %>% 
+  fwrite("./Xiang.Ma.Tyser.human.monkey.embryos.log.fpkm.seurat.T.csv.gz", compress = "gzip")
+```
+
+
+
+```{r}
+############################################################
+### Save the object
+############################################################
+
+embryo %>%
+  saveRDS("./Xiang.Ma.Tyser.human.monkey.embryos.rds")
+
+```
+
+
+

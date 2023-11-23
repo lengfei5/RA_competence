@@ -465,7 +465,10 @@ if(Test_batchCorrection_fastMNN){
 ########################################################
 ########################################################
 # Section II : Process mouse gastrulation data Marioni2019
-# 
+# # the data from the following paper:
+# https://www.nature.com/articles/s41586-019-0933-9
+# R pacakge of the data were found: 
+# https://bioconductor.org/packages/release/data/experiment/html/MouseGastrulationData.html
 ########################################################
 ########################################################
 Load_process_MouseGastrulation_Marioni2019 = FALSE
