@@ -554,27 +554,34 @@ if(Filter_unrelevant_celltype_Marioni2019){
   srat[['umap']] = Seurat::CreateDimReducObject(embeddings=umap.embedding,
                                                 key='UMAP_',
                                                 assay='RNA')
+  
+  pca.embedding = xx@reductions$pca.corrected@cell.embeddings
+  pca.embedding = pca.embedding[match(colnames(srat), rownames(pca.embedding)), ]
+  srat[['pca.corrected']] = Seurat::CreateDimReducObject(embeddings=pca.embedding,
+                                                key='PCAcorrected_',
+                                                assay='RNA')
+  
   rm(xx)
   rm(umap.embedding)
+  rm(pca.embedding)
   
   ## filter unlikely celltypes in the reference
   sels = grep('Erythroid|Blood|Allantois|mesoderm|Haemato|Cardiomy|Endothelium|Mesenchyme|ExE', srat$celltype, 
               invert = TRUE)
   srat = subset(srat, cells = colnames(srat)[sels])
   
-  saveRDS(srat, file = paste0(RdataDir,  
-                              'seuratObject_EmbryoAtlasData_all36sample_RNAassay_keep.relevant.celltypes.rds'))
+  #saveRDS(srat, file = paste0(RdataDir,  
+  #                            'seuratObject_EmbryoAtlasData_all36sample_RNAassay_keep.relevant.celltypes.rds'))
   
-  srat = readRDS(file = paste0(RdataDir,  
-                               'seuratObject_EmbryoAtlasData_all36sample_RNAassay_keep.relevant.celltypes.rds'))
-  
+  #srat = readRDS(file = paste0(RdataDir,  
+  #                             'seuratObject_EmbryoAtlasData_all36sample_RNAassay_keep.relevant.celltypes.rds'))
   
   sels = grep('Parietal', srat$celltype, 
               invert = TRUE)
   srat = subset(srat, cells = colnames(srat)[sels])
   
   saveRDS(srat, file = paste0(RdataDir,  
-                              'seuratObject_EmbryoAtlasData_all36sample_RNAassay_keep.relevant.celltypes_v2.rds'))
+                              'seuratObject_EmbryoAtlasData_all36sample_RNAassay_keep.relevant.celltypes_v3.rds'))
   
   p1 = DimPlot(srat, reduction = 'umap', 
                #cols = EmbryoCelltypeColours, 

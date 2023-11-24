@@ -7,7 +7,6 @@
 # Date of creation: Wed Mar 29 11:02:25 2023
 ##########################################################################
 ##########################################################################
-
 rm(list = ls())
 
 version.analysis = '_MouseGastrulationData/'
@@ -252,6 +251,9 @@ ref.combined <- FindClusters(ref.combined, resolution = 1.0)
 DimPlot(ref.combined, reduction = "umap", group.by = "seurat_clusters", label = TRUE,
         repel = TRUE, raster=FALSE)
 
+ggsave(paste0(outDir, '/integrated_ref_mNT_27clusters_resolution1.0.pdf'), 
+       width = 16, height = 10)
+
 cluster19.markers <- FindMarkers(ref.combined, ident.1 = 19)
 head(cluster19.markers, n = 10)
 
@@ -263,8 +265,15 @@ markers <- FindAllMarkers(ref.combined, only.pos = TRUE)
 save(cluster.markers, cluster19.markers, markers, 
      file = paste0(outDir, '/marker_Genes.Rdata'))
 
+markers %>%
+  group_by(cluster) %>%
+  dplyr::filter(avg_log2FC > 1) %>%
+  slice_head(n = 30) %>%
+  ungroup() -> top10
 
-
+DoHeatmap(ref.combined, features = top10$gene) + NoLegend()
+ggsave(paste0(outDir, '/markerGenes_all.clusters.for.cluster19_top30.pdf'), 
+       width = 16, height = 30)
 
 
 ########################################################
