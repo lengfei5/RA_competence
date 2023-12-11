@@ -66,33 +66,243 @@ levels_sels = c("day2_beforeRA",
 
 cols_sel = cols[match(levels_sels, names(cols))]
 
-##########################################
-# import the mNT scRNAseq data and reference
-##########################################
-aa = readRDS(file = paste0(RdataDir, 'seuratObject_mNT_selectedCondition_downsampled.1k.perCondition.rds'))
+xx = readRDS(paste0(RdataDir, 'seuratObject_EmbryoAtlasData_all36sample_RNAassay.rds'))
+cols_mouse = sapply(xx$colour, function(x) {paste0('#', x, collapse = '')})
+cols_mouse = unique(c(cols_mouse, cols25(n = 25)))
 
-ref = readRDS(file = paste0(RdataDir,  
-                            'seuratObject_EmbryoAtlasData_all36sample_RNAassay_keep.relevant.celltypes_v3.rds'))
+names(cols_sel) = paste0('mNT_', names(cols_sel))
 
-cols_mouse = sapply(ref$colour, function(x) {paste0('#', x, collapse = '')})
-names(cols_mouse) =ref$celltype
-cols_mouse = cols_mouse[match(unique(names(cols_mouse)), names(cols_mouse))]
+sps = readRDS(file = paste0('../data/annotations/curated_signaling.pathways_gene.list_v3.rds'))
+sps = unique(sps$gene)
 
-data_version = 'mapping_mNT.noRA.RA.d2_d5_Marioni2019_selectedCelltypes'
+tfs = readRDS(file = paste0('../data/annotations/curated_human_TFs_Lambert.rds'))
+tfs = unique(tfs$`HGNC symbol`)
+tfs = as.character(unlist(sapply(tfs, firstup)))
 
 
-features.common = intersect(rownames(aa), rownames(ref))
+########################################################
+########################################################
+# Section : test seurat_RPCA
+# 
+########################################################
+########################################################
+Test_seurat_RPCA_Chan2019 = FALSE
+if(Test_seurat_RPCA_Chan2019){
+  ##########################################
+  # import the mNT data and reference
+  ##########################################
+  mapping_method = "seurat_rpca"
+  aa = readRDS(file = paste0(RdataDir, 'seuratObject_mNT_selectedCondition_downsampled.1k.perCondition.rds'))
+  
+  ref = readRDS(file = paste0('../results/Rdata/',  
+                              'seuratObject_mm10_mouse_gastrulation_Chan.et.al_',
+                              'lognormamlized_var.to.regress.nCount.RNA_pca_clusterIDs_celltypes_fastmnn.rds'))
+  
+    
+  data_version = 'mapping_mNT.noRA.RA.d2_d5_Chan2019_allCelltypes_TFs.SPs.only'
+  
+  outDir = paste0(resDir, mapping_method, '/',  data_version, '/')
+  system(paste0('mkdir -p ', outDir))
+  
+  ##########################################
+  # test Seurat data integration
+  ##########################################
+  features.common = intersect(rownames(aa), rownames(ref))
+  features.common = intersect(features.common, c(tfs, sps))
+  
+  aa = subset(aa, features = features.common)
+  ref = subset(ref, features = features.common)
+  
+  aa$dataset = 'mNT'
+  aa$stage = aa$condition
+  aa$sequencing.batch = 'mNT'
+  ref$dataset = 'ref'
+  
+  aa$celltype = paste0('mNT_', aa$condition)
+  
+  celltypes = unique(ref$celltype)
+  cols_mouse = cols_mouse[1:length(celltypes)]
+  names(cols_mouse) = celltypes
+  rm(celltypes)
+  
+  ##########################################
+  # test integration method
+  ##########################################
+  refs.merged = merge(aa, y = ref, add.cell.ids = c("mNT", "mouseGastrulation"), project = "RA_competence")
+  
+  source(paste0(functionDir, '/functions_dataIntegration.R'))
+  
+  ref.combined = IntegrateData_Seurat_RPCA(seuratObj = refs.merged, group.by = 'dataset', nfeatures = 1000)
+  rm(refs.merged)
+  
+  jj = which(ref.combined$dataset == 'mNT')
+  ref.combined$celltype[jj] = paste0('mNT_', ref.combined$condition[jj])
+  
+  # Visualization
+  DimPlot(ref.combined, reduction = "umap", group.by = "celltype", label = TRUE,
+          repel = TRUE, raster=FALSE, cols = c(cols_sel, cols_mouse)) + NoLegend()
+  
+  ggsave(paste0(outDir, '/Integration_mNT_celltypes_noref.batchcorrection_1000HVGs.pdf'), 
+         width = 16, height = 8)
+  
+  
+  ## highlight the RA cells in the umap
+  Idents(ref.combined) = factor(ref.combined$condition)
+  for(cc in c('day3_RA.rep1', 'day3.5_RA', 'day4_RA', 'day5_RA'))
+  {
+    # cc = 'day5_RA'
+    cat(cc, '\n')
+    cells = which(ref.combined$condition == cc)
+    DimPlot(ref.combined, reduction = "umap", group.by = "celltype", label = TRUE,
+            repel = TRUE, raster=FALSE, 
+            #cols = c(cols_sel, cols_mouse),
+            #order = c('day3_RA.rep1'),
+            cells.highlight = cells,
+            #shuffle = TRUE,
+            cols.highlight = 'red'
+    ) + NoLegend()
+    
+    ggsave(paste0(outDir, '/Integration_mNT_celltypes_noref.batchcorrection_highlight.', cc, '_2000HVGs.pdf'), 
+           width = 16, height = 8)
+    
+  }
+  
+  
+  #DimPlot(ref.combined, reduction = "umap")
+  saveRDS(ref.combined, file = paste0(outDir, '/integrated_mNT_mouseGastrulation_SeuratRPCA.rds'))
+  
+ 
+  
+  ref.combined[['mnn.reconstructed']] = NULL
 
-aa = subset(aa, features = features.common)
-ref = subset(ref, features = features.common)
-
-aa$dataset = 'mNT'
-aa$stage = aa$condition
-aa$sequencing.batch = 'mNT'
-ref$dataset = 'ref'
-
-aa$celltype = paste0('mNT_', aa$condition)
-
+  ref.combined$celltype[which(is.na(ref.combined$celltype))] = 'unknown'  
+  DimPlot(ref.combined, reduction = "umap", group.by = "celltype", label = TRUE, split.by = 'dataset',
+          repel = TRUE, raster=FALSE, cols = c(cols_sel, cols_mouse)) + NoLegend()
+  
+  ggsave(paste0(outDir, '/Integration_celltypes_split.dataset.pdf'), 
+         width = 24, height = 8)
+  
+  DimPlot(ref.combined, reduction = "umap", group.by = "stage", label = TRUE,
+          repel = TRUE, raster=FALSE)
+  
+  ggsave(paste0(outDir, '/Integration_stage.pdf'), 
+         width = 16, height = 8)
+  
+  DimPlot(ref.combined, reduction = "umap", group.by = "dataset", raster=FALSE)
+  ggsave(paste0(outDir, '/Integration_dataset.pdf'), 
+         width = 16, height = 8)
+  
+  ggs = c('Pax6', 'Foxa2', 'Pou5f1', 'Sox17', 'Sox1', 'Sox2', 
+          "Ifitm1", "T",
+          "Krt8", 'Tuba1a', "Eno1", 'Krt18','Foxj1', 'Sp5', 'Noto', 'Pou5f1','Foxa2','Cdx2', 'Gsta4', 'Sox9','Fst',
+          'Nog', 'Shh', 'Slc2a1', 'Cxx1b','Igfbp2','Epcam', 'Lhx1','Ptch1',
+          'Flrt3','Foxp1', 'Hoxb1', 'Dnmt3b', 'Nr6a1','Cdh2','Rspo3','Zfp503','Fgf5')
+  
+  ggs = ggs[which(!is.na(match(ggs, rownames(ref.combined))))]
+  
+  pdf(paste0(outDir, '/FeaturePlot_Markers.pdf'),
+      width =10, height = 8, useDingbats = FALSE)
+  for(n in 1:length(ggs))
+  {
+    cat(n, '--', ggs[n], '\n')
+    p1 = FeaturePlot(ref.combined, features = ggs[n], min.cutoff = 'q5')
+    #FeaturePlot(ref.combined, features = 'Foxa2', min.cutoff = 'q5')
+    #FeaturePlot(ref.combined, features = 'Sox17', min.cutoff = 'q5')
+    plot(p1)
+    
+  }
+  
+  dev.off()
+  
+  ##########################################
+  # clustering the combined data
+  ##########################################
+  ref.combined = readRDS(file = paste0(outDir, '/integrated_mNT_mouseGastrulation_SeuratRPCA.rds'))
+  
+  ElbowPlot(ref.combined, ndims = 50)
+  ref.combined <- FindNeighbors(ref.combined, reduction = "pca", dims = 1:20)
+  ref.combined <- FindClusters(ref.combined, resolution = 1.0)
+  
+  DimPlot(ref.combined, reduction = "umap", group.by = "seurat_clusters", label = TRUE,
+          repel = TRUE, raster=FALSE)
+  
+  ggsave(paste0(outDir, '/integrated_ref_mNT_27clusters_resolution1.0.pdf'), 
+         width = 16, height = 10)
+  
+  cluster19.markers <- FindMarkers(ref.combined, ident.1 = 19)
+  head(cluster19.markers, n = 10)
+  
+  cluster.markers <- FindMarkers(ref.combined, ident.1 = 19, ident.2 = c(16, 24))
+  head(cluster.markers, n = 10)
+  
+  markers <- FindAllMarkers(ref.combined, only.pos = TRUE)
+  
+  save(cluster.markers, cluster19.markers, markers, 
+       file = paste0(outDir, '/marker_Genes.Rdata'))
+  
+  markers %>%
+    group_by(cluster) %>%
+    dplyr::filter(avg_log2FC > 1) %>%
+    slice_head(n = 30) %>%
+    ungroup() -> top10
+  
+  DoHeatmap(ref.combined, features = top10$gene) + NoLegend()
+  ggsave(paste0(outDir, '/markerGenes_all.clusters.for.cluster19_top30.pdf'), 
+         width = 16, height = 30)
+  
+  
+  
+  ##########################################
+  # calculate the similarity distribution between mNT cells and cell types in the reference 
+  ##########################################
+  aa = FindVariableFeatures(aa, selection.method = "vst")
+  aa <- ScaleData(aa, verbose = FALSE)
+  aa <- RunPCA(aa, npcs = 50, verbose = FALSE)
+  ElbowPlot(aa, ndims = 50)
+  
+  aa <- RunUMAP(aa, reduction = "pca", dims = 1:30, n.neighbors = 50, 
+                min.dist = 0.2) 
+  DimPlot(aa, group.by = 'condition')
+  
+  aa <- FindNeighbors(aa, reduction = "pca", dims = 1:20)
+  aa <- FindClusters(aa, resolution = 1.0)
+  aa$clusters = aa$seurat_clusters
+  
+  DimPlot(aa, group.by = 'seurat_clusters', label = TRUE, repel = TRUE)
+  ggsave(paste0(outDir, '/umap_query_clusters.pdf'), 
+         width = 12, height = 8)
+  
+  FeaturePlot(aa, features = 'Foxa2')
+  
+  source(paste0(functionDir, '/functions_dataIntegration.R'))
+  
+  ref = FindVariableFeatures(ref, selection.method = 'vst', nfeatures = 1000)
+  
+  cc = c(2, 1, 10, 15, 0, 4, 3, 12, 13)
+  
+  for(n in 1:length(cc))
+  {
+    # n = 4
+    cat(n, ' -- ', cc[n], '\n')
+    
+    subs = subset(aa, cells = colnames(aa)[which(aa$clusters == cc[n])]);
+    px = calculate_similarity_query_ref(query = subs, 
+                                        ref = ref, 
+                                        nHVGs = 1000, 
+                                        method = c("spearman"),
+                                        group.by = 'celltype')
+    
+    pdfname = paste0(outDir, '/spearman_similarity_withRefCelltypes_', cc[n], '.pdf')
+    
+    pdf(pdfname, width=16, height = 8)
+    plot(px)
+    
+    dev.off()
+    
+  }
+  
+}
+  
 
 ##########################################
 # test projection method (slight different from integration)
@@ -103,6 +313,30 @@ Test_Seurat_projection = FALSE
 if(Test_Seurat_projection){
   mapping_method = "seurat_projection"
   
+  aa = readRDS(file = paste0(RdataDir, 'seuratObject_mNT_selectedCondition_downsampled.1k.perCondition.rds'))
+  
+  ref = readRDS(file = paste0(RdataDir,  
+                              'seuratObject_EmbryoAtlasData_all36sample_RNAassay_keep.relevant.celltypes_v3.rds'))
+  
+  cols_mouse = sapply(ref$colour, function(x) {paste0('#', x, collapse = '')})
+  names(cols_mouse) =ref$celltype
+  cols_mouse = cols_mouse[match(unique(names(cols_mouse)), names(cols_mouse))]
+  
+  data_version = 'mapping_mNT.noRA.RA.d2_d5_Marioni2019_selectedCelltypes'
+  
+  
+  features.common = intersect(rownames(aa), rownames(ref))
+  
+  aa = subset(aa, features = features.common)
+  ref = subset(ref, features = features.common)
+  
+  aa$dataset = 'mNT'
+  aa$stage = aa$condition
+  aa$sequencing.batch = 'mNT'
+  ref$dataset = 'ref'
+  
+  aa$celltype = paste0('mNT_', aa$condition)
+  s
   outDir = paste0(resDir,  data_version, '/', mapping_method, '/')
   system(paste0('mkdir -p ', outDir))
   
