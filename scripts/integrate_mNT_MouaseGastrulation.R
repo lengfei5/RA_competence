@@ -67,6 +67,15 @@ levels_sels = c("day2_beforeRA",
 cols_sel = cols[match(levels_sels, names(cols))]
 
 
+col_mouse = readRDS(file = paste0(RdataDir, 'cols_mouse_gastrulation_celltypes.rds'))
+
+sps = readRDS(file = paste0('../data/annotations/curated_signaling.pathways_gene.list_v3.rds'))
+sps = unique(sps$gene)
+
+tfs = readRDS(file = paste0('../data/annotations/curated_human_TFs_Lambert.rds'))
+tfs = unique(tfs$`HGNC symbol`)
+tfs = as.character(unlist(sapply(tfs, firstup)))
+
 ##########################################
 # import mNT scRNA-seq data
 ##########################################
@@ -329,12 +338,16 @@ for(n in 1:length(cc))
   cells = colnames(aa)[which(aa$clusters == cc[n])]
   mm1 = match(colnames(ref.combined), paste0('mNT_', cells))
   subs = subset(ref.combined, cells = colnames(ref.combined)[!is.na(mm1)]);
+  subs = FindVariableFeatures(subs, selection.method = 'vst', nfeatures = 2000)
+  
+  ggs = intersect(VariableFeatures(subs), c(sps, tfs))
   
   px = calculate_similarity_query_ref(query = subs, 
                                       ref = refs_subs, 
                                       assay_use = 'integrated',
                                       find_hvg = FALSE,
-                                      method = c("spearman"),
+                                      features_use = ggs,
+                                      method = c("pearson"),
                                       group.by = 'celltype')
   
   pdfname = paste0(outDir, '/spearman_similarity_withRefCelltypes_dataIntegration_', cc[n], '_test_1.pdf')
