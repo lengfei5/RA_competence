@@ -39,7 +39,6 @@ options(future.globals.maxSize = 160000 * 1024^2)
 mem_used()
 
 species = '_mouseGastrulation'
-
 levels = c("day0_beforeRA", "day1_beforeRA", 
            "day2_beforeRA",
            "day2.5_RA", "day3_RA.rep1", "day3_RA.rep2", 'day3.5_RA',
@@ -49,6 +48,8 @@ levels = c("day0_beforeRA", "day1_beforeRA",
 # manually set colors by Hannah
 library(RColorBrewer)
 library("viridis")
+library('pals')
+
 cols = rep(NA, length = 16)
 names(cols) = levels
 cols[grep('_beforeRA', names(cols))] = colorRampPalette((brewer.pal(n = 3, name ="Greys")))(3)
@@ -65,12 +66,14 @@ levels_sels = c("day2_beforeRA",
 #                "day4_RA", "day5_RA", "day6_RA")
 
 cols_sel = cols[match(levels_sels, names(cols))]
-
-xx = readRDS(paste0(RdataDir, 'seuratObject_EmbryoAtlasData_all36sample_RNAassay.rds'))
-cols_mouse = sapply(xx$colour, function(x) {paste0('#', x, collapse = '')})
-cols_mouse = unique(c(cols_mouse, cols25(n = 25)))
-
 names(cols_sel) = paste0('mNT_', names(cols_sel))
+
+# xx = readRDS(paste0(RdataDir, 'seuratObject_EmbryoAtlasData_all36sample_RNAassay.rds'))
+# cols_mouse = sapply(xx$colour, function(x) {paste0('#', x, collapse = '')})
+# cols_mouse = unique(c(cols_mouse, cols25(n = 25)))
+# saveRDS(cols_mouse, file = paste0(RdataDir, 'cols_mouse_gastrulation_celltypes.rds'))
+
+col_mouse = readRDS(file = paste0(RdataDir, 'cols_mouse_gastrulation_celltypes.rds'))
 
 sps = readRDS(file = paste0('../data/annotations/curated_signaling.pathways_gene.list_v3.rds'))
 sps = unique(sps$gene)
@@ -78,7 +81,6 @@ sps = unique(sps$gene)
 tfs = readRDS(file = paste0('../data/annotations/curated_human_TFs_Lambert.rds'))
 tfs = unique(tfs$`HGNC symbol`)
 tfs = as.character(unlist(sapply(tfs, firstup)))
-
 
 ########################################################
 ########################################################
@@ -94,11 +96,15 @@ if(Test_seurat_RPCA_Chan2019){
   mapping_method = "seurat_rpca"
   aa = readRDS(file = paste0(RdataDir, 'seuratObject_mNT_selectedCondition_downsampled.1k.perCondition.rds'))
   
+  ## Marioni2019 subset data
+  ref = readRDS(file = paste0(RdataDir,  
+                              'seuratObject_EmbryoAtlasData_all36sample_RNAassay_keep.relevant.celltypes_v2.rds'))
+  
+  ## Chan2019 full data
   ref = readRDS(file = paste0('../results/Rdata/',  
                               'seuratObject_mm10_mouse_gastrulation_Chan.et.al_',
                               'lognormamlized_var.to.regress.nCount.RNA_pca_clusterIDs_celltypes_fastmnn.rds'))
   
-    
   data_version = 'mapping_mNT.noRA.RA.d2_d5_Chan2019_allCelltypes_TFs.SPs.only'
   
   outDir = paste0(resDir, mapping_method, '/',  data_version, '/')
@@ -167,15 +173,15 @@ if(Test_seurat_RPCA_Chan2019){
     
   }
   
-  
   #DimPlot(ref.combined, reduction = "umap")
   saveRDS(ref.combined, file = paste0(outDir, '/integrated_mNT_mouseGastrulation_SeuratRPCA.rds'))
   
- 
+  ref.combined = readRDS(file = paste0(outDir, '/integrated_mNT_mouseGastrulation_SeuratRPCA.rds'))
   
   ref.combined[['mnn.reconstructed']] = NULL
 
-  ref.combined$celltype[which(is.na(ref.combined$celltype))] = 'unknown'  
+  ref.combined$celltype[which(is.na(ref.combined$celltype))] = 'unknown'
+  
   DimPlot(ref.combined, reduction = "umap", group.by = "celltype", label = TRUE, split.by = 'dataset',
           repel = TRUE, raster=FALSE, cols = c(cols_sel, cols_mouse)) + NoLegend()
   
@@ -302,7 +308,7 @@ if(Test_seurat_RPCA_Chan2019){
   }
   
 }
-  
+
 
 ##########################################
 # test projection method (slight different from integration)
@@ -370,6 +376,7 @@ if(Test_Seurat_projection){
   p2 <- DimPlot(query, reduction = "ref.umap", group.by = "condition", label = TRUE,
                 label.size = 3, repel = TRUE) + NoLegend() + ggtitle("Query transferred labels")
   p1 + p2
+  
   
 }
 
@@ -443,7 +450,3 @@ if(Test_Seurat_rpca_bc){
   
   
 }
-
-
-
-
