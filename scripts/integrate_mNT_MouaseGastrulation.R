@@ -318,6 +318,104 @@ ggsave(paste0(outDir, '/Integration_stage.pdf'),
        width = 16, height = 8)
 
 ##########################################
+# test the symphony (MapQuery in Seurat didn't work well)
+##########################################
+Test_Symphony = FALSE
+if(Test_Symphony){
+  suppressPackageStartupMessages({
+    library(symphony)
+    library(singlecellmethods)
+    library(tidyverse)
+    library(data.table)
+    library(matrixStats)
+    library(Matrix)
+    library(plyr)
+    library(dplyr)
+    
+    # Plotting
+    library(ggplot2)
+    library(ggthemes)
+    library(ggrastr)
+    library(RColorBrewer)
+    library(patchwork)
+    
+  })
+  
+  fig.size <- function (height, width) {
+    options(repr.plot.height = height, repr.plot.width = width)
+  }
+  
+  #source('../pre-built_references/colors.R') # color palette definitions
+  #mapping_method = "seurat_projection"
+  
+  aa = readRDS(file = paste0(RdataDir, 'seuratObject_mNT_selectedCondition_downsampled.1k.perCondition.rds'))
+  
+  ref = readRDS(file = paste0(RdataDir,  
+                              'seuratObject_EmbryoAtlasData_all36sample_RNAassay_keep.relevant.celltypes_v3.rds'))
+  
+  cols_mouse = sapply(ref$colour, function(x) {paste0('#', x, collapse = '')})
+  names(cols_mouse) =ref$celltype
+  cols_mouse = cols_mouse[match(unique(names(cols_mouse)), names(cols_mouse))]
+  
+  data_version = 'mapping_mNT.noRA.RA.d2_d5_Marioni2019_selectedCelltypes'
+  
+  
+  features.common = intersect(rownames(aa), rownames(ref))
+  
+  aa = subset(aa, features = features.common)
+  ref = subset(ref, features = features.common)
+  
+  aa$dataset = 'mNT'
+  aa$stage = aa$condition
+  aa$sequencing.batch = 'mNT'
+  ref$dataset = 'ref'
+  
+  aa$celltype = paste0('mNT_', aa$condition)
+  s
+  outDir = paste0(resDir,  data_version, '/', mapping_method, '/')
+  system(paste0('mkdir -p ', outDir))
+  
+  
+  ElbowPlot(ref, ndims = 50, reduction = 'pca')
+  ref = RunUMAP(ref, reduction = "pca", dims = 1:30, n.neighbors = 30, 
+                min.dist = 0.1, return.model = TRUE) 
+  
+  DimPlot(ref, reduction = "umap", 
+          group.by = "celltype", label = TRUE,
+          repel = TRUE, raster=FALSE, cols = cols_mouse) 
+  
+  anchors <- FindTransferAnchors(reference = ref, 
+                                 query = aa, 
+                                 dims = 1:50,
+                                 normalization.method = "LogNormalize",
+                                 reference.reduction = "pca",
+                                 reduction = "rpca"
+  )
+  
+  query <- MapQuery(anchorset = anchors, 
+                    reference = ref, 
+                    query = aa,
+                    #refdata = list(celltype = "celltype"), 
+                    reference.reduction = "pca", 
+                    reduction.model = "umap")
+  
+  p1 <- DimPlot(ref, reduction = "umap", group.by = "celltype", 
+                label = TRUE, label.size = 3,
+                repel = TRUE) + NoLegend() + ggtitle("Reference annotations")
+  p2 <- DimPlot(query, reduction = "ref.umap", group.by = "condition", label = TRUE,
+                label.size = 3, repel = TRUE) + NoLegend() + ggtitle("Query transferred labels")
+  p1 + p2
+  
+  
+  
+}
+
+##########################################
+# test milo or bipartite grapha 
+##########################################
+
+
+##########################################
 # test the similarity calculation between mNT cells and cell types in the reference
 # after data integration
 # 
@@ -330,6 +428,10 @@ refs_subs = subset(ref.combined, cells = colnames(ref.combined)[grep('mouseGastr
 cc = c(3, 6, 5, 1, 7, 4, 11, 10)
 source(paste0(functionDir, '/functions_dataIntegration.R'))
 
+refs_subs = FindVariableFeatures(refs_subs, selection.method = 'vst', nfeatures = 3000, assay = 'integrated')
+ggs = VariableFeatures(refs_subs)
+ggs = intersect(ggs, c(sps, tfs))
+
 for(n in 1:length(cc))
 {
   # n = 1
@@ -338,9 +440,7 @@ for(n in 1:length(cc))
   cells = colnames(aa)[which(aa$clusters == cc[n])]
   mm1 = match(colnames(ref.combined), paste0('mNT_', cells))
   subs = subset(ref.combined, cells = colnames(ref.combined)[!is.na(mm1)]);
-  subs = FindVariableFeatures(subs, selection.method = 'vst', nfeatures = 2000)
-  
-  ggs = intersect(VariableFeatures(subs), c(sps, tfs))
+  #subs = FindVariableFeatures(subs, selection.method = 'vst', nfeatures = 2000)
   
   px = calculate_similarity_query_ref(query = subs, 
                                       ref = refs_subs, 
@@ -350,13 +450,12 @@ for(n in 1:length(cc))
                                       method = c("pearson"),
                                       group.by = 'celltype')
   
-  pdfname = paste0(outDir, '/spearman_similarity_withRefCelltypes_dataIntegration_', cc[n], '_test_1.pdf')
+  pdfname = paste0(outDir, '/spearman_similarity_withRefCelltypes_dataIntegration_', cc[n], '_test_4.pdf')
   
   pdf(pdfname, width=16, height = 8)
   plot(px)
   
   dev.off()
-  
   
 }
 
