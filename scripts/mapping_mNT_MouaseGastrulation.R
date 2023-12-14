@@ -1,7 +1,8 @@
 ##########################################################################
 ##########################################################################
 # Project: RA competence project
-# Script purpose: check the Pax6 and Fox2 co-expression in mouse data
+# Script purpose: mapping mNT cells into mouse gastrulation datsets 
+# check the Pax6 and Fox2 co-expression in mouse data
 # Usage example: 
 # Author: Jingkui Wang (jingkui.wang@imp.ac.at)
 # Date of creation: Wed Mar 29 11:02:25 2023
@@ -429,99 +430,157 @@ if(Test_Seurat_query_ref_mapping){
 ##########################################
 # test the symphony 
 ##########################################
-Test_Symphony = FALSE
-if(Test_Symphony){
-  suppressPackageStartupMessages({
-    library(symphony)
-    library(singlecellmethods)
-    library(tidyverse)
-    library(data.table)
-    library(matrixStats)
-    library(Matrix)
-    library(plyr)
-    library(dplyr)
-    
-    # Plotting
-    library(ggplot2)
-    library(ggthemes)
-    library(ggrastr)
-    library(RColorBrewer)
-    library(patchwork)
-    
-  })
+Test_reference_mapping_Symphony = FALSE
+if(Test_reference_mapping_Symphony){
+  library(symphony)
+  library(singlecellmethods)
+  source('utils_symphony.R')
   
   fig.size <- function (height, width) {
     options(repr.plot.height = height, repr.plot.width = width)
   }
   
-  #source('../pre-built_references/colors.R') # color palette definitions
-  #mapping_method = "seurat_projection"
+  mapping_method = 'symphony_mapping'
+  data_version = "mapping_mNT.noRA.RA.d2_d5_Marioni2019_selectedCelltypes"
   
-  aa = readRDS(file = paste0(RdataDir, 'seuratObject_mNT_selectedCondition_downsampled.1k.perCondition.rds'))
-  
-  ref = readRDS(file = paste0(RdataDir,  
-                              'seuratObject_EmbryoAtlasData_all36sample_RNAassay_keep.relevant.celltypes_v3.rds'))
-  
-  cols_mouse = sapply(ref$colour, function(x) {paste0('#', x, collapse = '')})
-  names(cols_mouse) =ref$celltype
-  cols_mouse = cols_mouse[match(unique(names(cols_mouse)), names(cols_mouse))]
-  
-  data_version = 'mapping_mNT.noRA.RA.d2_d5_Marioni2019_selectedCelltypes'
-  
-  
-  features.common = intersect(rownames(aa), rownames(ref))
-  
-  aa = subset(aa, features = features.common)
-  ref = subset(ref, features = features.common)
-  
-  aa$dataset = 'mNT'
-  aa$stage = aa$condition
-  aa$sequencing.batch = 'mNT'
-  ref$dataset = 'ref'
-  
-  aa$celltype = paste0('mNT_', aa$condition)
-  s
-  outDir = paste0(resDir,  data_version, '/', mapping_method, '/')
+  outDir = paste0(resDir,  mapping_method, '/', data_version, '/')
   system(paste0('mkdir -p ', outDir))
   
+  # Read in normalized expression and metadata
+  exprs_norm = readRDS('../data/data_symphony/exprs_norm_all.rds')
+  metadata = read.csv('../data/data_symphony/meta_data_subtypes.csv', row.names = 1)
   
-  ElbowPlot(ref, ndims = 50, reduction = 'pca')
-  ref = RunUMAP(ref, reduction = "pca", dims = 1:30, n.neighbors = 30, 
-                min.dist = 0.1, return.model = TRUE) 
+  dim(exprs_norm)
+  dim(metadata)
   
-  DimPlot(ref, reduction = "umap", 
-          group.by = "celltype", label = TRUE,
-          repel = TRUE, raster=FALSE, cols = cols_mouse) 
+  idx_query = which(metadata$donor == "5'") # use 5' dataset as the query
+  ref_exp_full = exprs_norm[, -idx_query]
+  ref_metadata = metadata[-idx_query, ]
+  query_exp = exprs_norm[, idx_query]
+  query_metadata = metadata[idx_query, ]
   
-  anchors <- FindTransferAnchors(reference = ref, 
-                                 query = aa, 
-                                 dims = 1:50,
-                                 normalization.method = "LogNormalize",
-                                 reference.reduction = "pca",
-                                 reduction = "rpca"
+  # Sparse matrix with the normalized genes x cells matrix
+  ref_exp_full[1:5, 1:2]
+  
+  # Select variable genes and subset reference expression by variable genes
+  var_genes = vargenes_vst(ref_exp_full, groups = as.character(ref_metadata[['donor']]), topn = 2000)
+  ref_exp = ref_exp_full[var_genes, ]
+  dim(ref_exp)
+  
+  # Calculate and save the mean and standard deviations for each gene
+  vargenes_means_sds = tibble(symbol = var_genes, mean = Matrix::rowMeans(ref_exp))
+  vargenes_means_sds$stddev = singlecellmethods::rowSDs(ref_exp,  row_means = vargenes_means_sds$mean)
+  head(vargenes_means_sds)
+  
+  #Scale data using calculated gene means and standard deviations
+  ref_exp_scaled = singlecellmethods::scaleDataWithStats(ref_exp, vargenes_means_sds$mean, 
+                                                         vargenes_means_sds$stddev, 1)
+  
+  #Run SVD, save gene loadings (s$u)
+  set.seed(0)
+  s = irlba::irlba(ref_exp_scaled, nv = 20)
+  Z_pca_ref = diag(s$d) %*% t(s$v) # [pcs by cells]
+  loadings = s$u
+  
+  #Run Harmony integration
+  set.seed(0)
+  ref_harmObj = harmony::HarmonyMatrix(
+    data_mat = t(Z_pca_ref),  ## PCA embedding matrix of cells
+    meta_data = ref_metadata, ## dataframe with cell labels
+    theta = c(2),             ## cluster diversity enforcement
+    vars_use = c('donor'),    ## variable to integrate out
+    nclust = 100,             ## number of clusters in Harmony model
+    max.iter.harmony = 20,
+    return_object = TRUE,     ## return the full Harmony model object
+    do_pca = FALSE            ## don't recompute PCs
   )
   
-  query <- MapQuery(anchorset = anchors, 
-                    reference = ref, 
-                    query = aa,
-                    #refdata = list(celltype = "celltype"), 
-                    reference.reduction = "pca", 
-                    reduction.model = "umap")
-  
-  p1 <- DimPlot(ref, reduction = "umap", group.by = "celltype", 
-                label = TRUE, label.size = 3,
-                repel = TRUE) + NoLegend() + ggtitle("Reference annotations")
-  p2 <- DimPlot(query, reduction = "ref.umap", group.by = "condition", label = TRUE,
-                label.size = 3, repel = TRUE) + NoLegend() + ggtitle("Query transferred labels")
-  p1 + p2
+  # To run the next function buildReferenceFromHarmonyObj(), 
+  # you need to input the saved gene loadings (loadings) and vargenes_means_sds.
+  # Compress a Harmony object into a Symphony reference
+  reference = symphony::buildReferenceFromHarmonyObj(
+    ref_harmObj,            # output object from HarmonyMatrix()
+    ref_metadata,           # reference cell metadata
+    vargenes_means_sds,     # gene names, means, and std devs for scaling
+    loadings,               # genes x PCs matrix
+    verbose = TRUE,         # verbose output
+    do_umap = TRUE,         # Set to TRUE only when UMAP model was saved for reference
+    save_uwot_path = '/groups/tanaka/People/current/jiwang/projects/RA_competence/results/scRNAseq_R13547_10x_mNT_20220813/mapping_to_MouseGastrulationData/symphony_mapping/mapping_mNT.noRA.RA.d2_d5_Marioni2019_selectedCelltypes/model_test')
   
   
+  # Optionally, you can specify which normalization method was
+  # used to build the reference as a custom slot inside the Symphony object to 
+  # help record this information for future query users
+  #reference$normalization_method = 'log(CP10k+1)'
+  saveRDS(reference, paste0(outDir, 'testing_reference1.rds'))
   
+  str(reference)
+  
+  # The harmonized embedding is located in the Z_corr slot of the reference object.
+  dim(reference$Z_corr)
+  reference$Z_corr[1:5, 1:5]
+  
+  # reference = readRDS(paste0(outDir, 'testing_reference1.rds'))
+  umap_labels = cbind(ref_metadata, reference$umap$embedding)
+  
+  fig.size(3, 5)
+  plotBasic(umap_labels, title = 'Reference', color.by = 'cell_type')
+  
+  # In order to map a new query dataset onto the reference, 
+  # you will need a reference object saved from the steps above, 
+  # as well as query cell expression and metadata.
+  # Map query
+  query = mapQuery(query_exp,             # query gene expression (genes x cells)
+                   query_metadata,        # query metadata (cells x attributes)
+                   reference,             # Symphony reference object
+                   do_normalize = FALSE,  # perform log(CP10k+1) normalization on query
+                   do_umap = TRUE)        # project query cells into reference UMAP
+  
+  ## Symphony assumes that the query is normalized in the same manner as the reference. 
+  # Our implementation currently uses log(CP10k) normalization.
+  
+  str(query)
+  
+  #Let's take a look at what the query object contains:
+
+   # Z: query cells in reference Harmonized embedding
+   #Zq_pca: query cells in pre-Harmony reference PC embedding (prior to correction)
+   # R: query cell soft cluster assignments
+   #  Xq: query cell design matrix for correction step
+   #  umap: query cells projected into reference UMAP coordinates (using uwot)
+   #  meta_data: metadata
+  # Predict query cell types using k-NN
+  query = knnPredict(query, reference, reference$meta_data$cell_type, k = 5)
+  
+  ## Query cell type predictions are now in the cell_type_pred_knn column. 
+  ## The cell_type_pred_knn_prob column reports the proportion of nearest neighbors with the winning vote 
+  # (can help identify query cells that fall "on the border" between 2 reference cell types).
+  
+  head(query$meta_data)
+  
+  # Add the UMAP coordinates to the metadata
+  reference$meta_data$cell_type_pred_knn = NA
+  reference$meta_data$cell_type_pred_knn_prob = NA
+  reference$meta_data$ref_query = 'reference'
+  query$meta_data$ref_query = 'query'
+  
+  # Add the UMAP coordinates to the metadata
+  meta_data_combined = rbind(query$meta_data, reference$meta_data)
+  umap_combined = rbind(query$umap, reference$umap$embedding)
+  umap_combined_labels = cbind(meta_data_combined, umap_combined)
+  
+  fig.size(3, 7)
+  plotBasic(umap_combined_labels, title = 'Reference and query cells', 
+            color.by = 'cell_type', facet.by = 'ref_query')
+  
+  
+      
 }
 
 ##########################################
 # test scArches and bipartite graph
 ##########################################
+
 
 
 ##########################################
@@ -603,7 +662,6 @@ markers %>%
 DoHeatmap(ref.combined, features = top10$gene) + NoLegend()
 ggsave(paste0(outDir, '/markerGenes_all.clusters.for.cluster19_top30.pdf'), 
        width = 16, height = 30)
-
 
 
 ########################################################
