@@ -194,6 +194,7 @@ for(n in 1:length(cc))
   
 }
 
+
 ##########################################
 # test integration method
 ##########################################
@@ -317,8 +318,116 @@ DimPlot(ref.combined, reduction = "umap", group.by = "stage", label = TRUE,
 ggsave(paste0(outDir, '/Integration_stage.pdf'), 
        width = 16, height = 8)
 
+
+
 ##########################################
-# test the symphony (MapQuery in Seurat didn't work well)
+# test seurat query-ref-mapping 
+# test projection method (slight different from integration)
+# https://satijalab.org/seurat/articles/integration_mapping.html (original code)
+# did not work well and don't know the reason
+##########################################
+Test_Seurat_query_ref_mapping = FALSE 
+if(Test_Seurat_query_ref_mapping){
+  mapping_method = "seurat_query_ref_mapping"
+  
+  aa = readRDS(file = paste0(RdataDir, 
+                             'seuratObject_mNT_selectedCondition_downsampled.1k.perCondition_reclustered.rds'))
+  
+  #aa = readRDS(file = paste0(RdataDir, 'seuratObject_mNT_selectedCondition_downsampled.1k.perCondition.rds'))
+  
+  ref = readRDS(file = paste0(RdataDir,  
+                              'seuratObject_EmbryoAtlasData_all36sample_RNAassay_keep.relevant.celltypes_v3.rds'))
+  
+  data_version = 'mapping_mNT.noRA.RA.d2_d5_Marioni2019_selectedCelltypes_test2'
+  
+  features.common = intersect(rownames(aa), rownames(ref))
+  
+  aa = subset(aa, features = features.common)
+  ref = subset(ref, features = features.common)
+  
+  aa$dataset = 'mNT'
+  aa$stage = aa$condition
+  aa$sequencing.batch = 'mNT'
+  ref$dataset = 'ref'
+  
+  aa$celltype = paste0('mNT_', aa$condition)
+  
+  outDir = paste0(resDir,  mapping_method, '/', data_version, '/')
+  system(paste0('mkdir -p ', outDir))
+  
+  
+  ElbowPlot(ref, ndims = 50, reduction = 'pca')
+  ref = RunUMAP(ref, reduction = "pca", dims = 1:30, n.neighbors = 30, 
+                min.dist = 0.1, return.model = TRUE) 
+  
+  DimPlot(ref, reduction = "umap", 
+          group.by = "celltype", label = TRUE,
+          repel = TRUE, raster=FALSE, cols = cols_mouse) 
+  
+  ref$labels = factor(paste0(ref$celltype, '_', ref$stage))
+  
+  # In data transfer, Seurat has an option (set by default) to project the PCA structure of a reference 
+  # onto the query, instead of learning a joint structure with CCA. 
+  # We generally suggest using this option when projecting data between scRNA-seq datasets.
+  anchors <- FindTransferAnchors(reference = ref, 
+                                 query = aa, 
+                                 dims = 1:50,
+                                 normalization.method = "LogNormalize",
+                                 #reference.reduction = "pca.corrected",
+                                 max.features = 200,
+                                 k.anchor = 10,
+                                 reduction = "cca" 
+  )
+  
+  #pancreas.anchors <- FindTransferAnchors(reference = pancreas.ref, query = pancreas.query, dims = 1:30,
+  #                                        reference.reduction = "pca")
+  predictions <- TransferData(anchorset = anchors, refdata = ref$labels, 
+                              reference = ref,
+                              query = aa,
+                              weight.reduction = 'rpca.ref',
+                              dims = 1:30)
+  
+  saveRDS(anchors, file = paste0(outDir, '/cca_anchors.rds'))
+  query = aa;
+  query$predicted.id = predictions$predicted.id 
+  query$predicted.score = predictions$predicted.id.score
+  
+  
+  p1 = DimPlot(query, reduction = "umap", 
+          group.by = "predicted.id", label = TRUE,
+          repel = TRUE, raster=FALSE) 
+  p2 = FeaturePlot(query, features = 'predicted.score')
+  
+  p1
+  ggsave(paste0(outDir, '/transfer_learning_seurat_cca.ref_v3.pdf'), 
+         width = 16, height = 8)
+  
+  
+  
+  ## visualize the query cells alongside our reference and didn't work well
+  ## (MapQuery in Seurat didn't work well)
+  # query <- Seurat::MapQuery(anchorset = anchors, 
+  #                   reference = ref, 
+  #                   query = aa,
+  #                   refdata = list(labels = "labels"),
+  #                   #refdata = list(celltype = "celltype"), 
+  #                   transferdata.args = list(weight.reduction = 'rpca.ref'), 
+  #                   reference.reduction = "pca", 
+  #                   reduction.model = "umap")
+  # 
+  # p1 <- DimPlot(ref, reduction = "umap", group.by = "celltype", 
+  #               label = TRUE, label.size = 3,
+  #               repel = TRUE) + NoLegend() + ggtitle("Reference annotations")
+  # p2 <- DimPlot(query, reduction = "ref.umap", group.by = "predicted.labels", 
+  #               label = TRUE,
+  #               label.size = 3, repel = TRUE) + NoLegend() + ggtitle("Query transferred labels")
+  # p1 + p2
+  
+  
+}
+
+##########################################
+# test the symphony 
 ##########################################
 Test_Symphony = FALSE
 if(Test_Symphony){
@@ -411,7 +520,7 @@ if(Test_Symphony){
 }
 
 ##########################################
-# test milo or bipartite grapha 
+# test scArches and bipartite graph
 ##########################################
 
 
