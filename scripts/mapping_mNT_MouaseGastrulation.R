@@ -142,24 +142,11 @@ aa$celltype = paste0('mNT_', aa$condition)
 
 ##########################################
 # calculate similarity before data integration
+# 
 ##########################################
-Test_cal_similarity = FALSE
-if(Test_cal_similarity){
-  # aa = FindVariableFeatures(aa, selection.method = "vst")
-  # aa <- ScaleData(aa, verbose = FALSE)
-  # aa <- RunPCA(aa, npcs = 50, verbose = FALSE)
-  # ElbowPlot(aa, ndims = 50)
-  # 
-  # aa <- RunUMAP(aa, reduction = "pca", dims = 1:30, n.neighbors = 50, 
-  #               min.dist = 0.2) 
-  # DimPlot(aa, group.by = 'condition')
-  # 
-  # aa <- FindNeighbors(aa, reduction = "pca", dims = 1:20)
-  # aa <- FindClusters(aa, resolution = 0.7)
-  # aa$clusters = aa$seurat_clusters
-  #saveRDS(aa, file = paste0(RdataDir, 
-  #                          'seuratObject_mNT_selectedCondition_downsampled.1k.perCondition_reclustered.rds'))
-  
+Test_cal_similarity_beforeIntegration = FALSE
+if(Test_cal_similarity_beforeIntegration){
+    
   p1 = DimPlot(aa, group.by = 'condition', label = TRUE, repel = TRUE)
   p2 = DimPlot(aa, group.by = 'seurat_clusters', label = TRUE, repel = TRUE)
   p1 + p2
@@ -195,11 +182,11 @@ if(Test_cal_similarity){
     dev.off()
     
   }
-    
+  
 }
 
 ##########################################
-# test integration method
+# test integration method before data integration
 ##########################################
 refs.merged = merge(aa, y = ref, add.cell.ids = c("mNT", "mouseGastrulation"), project = "RA_competence")
 
@@ -322,6 +309,92 @@ DimPlot(ref.combined, reduction = "umap", group.by = "stage", label = TRUE,
 
 ggsave(paste0(outDir, '/Integration_stage.pdf'), 
        width = 16, height = 8)
+
+
+##########################################
+# test the similarity calculation between mNT cells and cell types 
+# after data integration
+##########################################
+Test_cal_similarity_afterIntegration = FALSE
+if(Test_cal_similarity_afterIntegration)
+{
+  DefaultAssay(ref.combined) = 'integrated'
+  #ref.combined = FindVariableFeatures(ref.combined, selection.method = 'vst', nfeatures = 1000)
+  refs_subs = subset(ref.combined, cells = colnames(ref.combined)[grep('mouseGastrulation', 
+                                                                       colnames(ref.combined))]);
+  cc = c(3, 6, 5, 1, 7, 4, 11, 10)
+  source(paste0(functionDir, '/functions_dataIntegration.R'))
+  
+  refs_subs = FindVariableFeatures(refs_subs, selection.method = 'vst', nfeatures = 3000, assay = 'integrated')
+  ggs = VariableFeatures(refs_subs)
+  ggs = intersect(ggs, c(sps, tfs))
+  
+  for(n in 1:length(cc))
+  {
+    # n = 1
+    cat('cluster -- ', cc[n], '\n')
+    
+    cells = colnames(aa)[which(aa$clusters == cc[n])]
+    mm1 = match(colnames(ref.combined), paste0('mNT_', cells))
+    subs = subset(ref.combined, cells = colnames(ref.combined)[!is.na(mm1)]);
+    #subs = FindVariableFeatures(subs, selection.method = 'vst', nfeatures = 2000)
+    
+    px = calculate_similarity_query_ref(query = subs, 
+                                        ref = refs_subs, 
+                                        assay_use = 'integrated',
+                                        find_hvg = FALSE,
+                                        features_use = ggs,
+                                        method = c("pearson"),
+                                        group.by = 'celltype')
+    
+    pdfname = paste0(outDir, '/spearman_similarity_withRefCelltypes_dataIntegration_', cc[n], '_test_4.pdf')
+    
+    pdf(pdfname, width=16, height = 8)
+    plot(px)
+    
+    dev.off()
+    
+  }
+  
+}
+
+
+##########################################
+# clustering the combined data
+##########################################
+ref.combined = readRDS(file = paste0(outDir, '/integrated_mNT_mouseGastrulation_SeuratRPCA.rds'))
+
+ElbowPlot(ref.combined, ndims = 50)
+ref.combined <- FindNeighbors(ref.combined, reduction = "pca", dims = 1:20)
+ref.combined <- FindClusters(ref.combined, resolution = 1.0)
+
+DimPlot(ref.combined, reduction = "umap", group.by = "seurat_clusters", label = TRUE,
+        repel = TRUE, raster=FALSE)
+
+ggsave(paste0(outDir, '/integrated_ref_mNT_27clusters_resolution1.0.pdf'), 
+       width = 16, height = 10)
+
+cluster19.markers <- FindMarkers(ref.combined, ident.1 = 19)
+head(cluster19.markers, n = 10)
+
+cluster.markers <- FindMarkers(ref.combined, ident.1 = 19, ident.2 = c(16, 24))
+head(cluster.markers, n = 10)
+
+markers <- FindAllMarkers(ref.combined, only.pos = TRUE)
+
+save(cluster.markers, cluster19.markers, markers, 
+     file = paste0(outDir, '/marker_Genes.Rdata'))
+
+markers %>%
+  group_by(cluster) %>%
+  dplyr::filter(avg_log2FC > 1) %>%
+  slice_head(n = 30) %>%
+  ungroup() -> top10
+
+DoHeatmap(ref.combined, features = top10$gene) + NoLegend()
+ggsave(paste0(outDir, '/markerGenes_all.clusters.for.cluster19_top30.pdf'), 
+       width = 16, height = 30)
+
 
 
 ##########################################
@@ -649,86 +722,6 @@ if(Test_reference_mapping_Symphony){
 ##########################################
 
 
-
-##########################################
-# test the similarity calculation between mNT cells and cell types in the reference
-# after data integration
-# 
-##########################################
-DefaultAssay(ref.combined) = 'integrated'
-#ref.combined = FindVariableFeatures(ref.combined, selection.method = 'vst', nfeatures = 1000)
-
-refs_subs = subset(ref.combined, cells = colnames(ref.combined)[grep('mouseGastrulation', 
-                                                                    colnames(ref.combined))]);
-cc = c(3, 6, 5, 1, 7, 4, 11, 10)
-source(paste0(functionDir, '/functions_dataIntegration.R'))
-
-refs_subs = FindVariableFeatures(refs_subs, selection.method = 'vst', nfeatures = 3000, assay = 'integrated')
-ggs = VariableFeatures(refs_subs)
-ggs = intersect(ggs, c(sps, tfs))
-
-for(n in 1:length(cc))
-{
-  # n = 1
-  cat('cluster -- ', cc[n], '\n')
-  
-  cells = colnames(aa)[which(aa$clusters == cc[n])]
-  mm1 = match(colnames(ref.combined), paste0('mNT_', cells))
-  subs = subset(ref.combined, cells = colnames(ref.combined)[!is.na(mm1)]);
-  #subs = FindVariableFeatures(subs, selection.method = 'vst', nfeatures = 2000)
-  
-  px = calculate_similarity_query_ref(query = subs, 
-                                      ref = refs_subs, 
-                                      assay_use = 'integrated',
-                                      find_hvg = FALSE,
-                                      features_use = ggs,
-                                      method = c("pearson"),
-                                      group.by = 'celltype')
-  
-  pdfname = paste0(outDir, '/spearman_similarity_withRefCelltypes_dataIntegration_', cc[n], '_test_4.pdf')
-  
-  pdf(pdfname, width=16, height = 8)
-  plot(px)
-  
-  dev.off()
-  
-}
-
-##########################################
-# clustering the combined data
-##########################################
-ref.combined = readRDS(file = paste0(outDir, '/integrated_mNT_mouseGastrulation_SeuratRPCA.rds'))
-
-ElbowPlot(ref.combined, ndims = 50)
-ref.combined <- FindNeighbors(ref.combined, reduction = "pca", dims = 1:20)
-ref.combined <- FindClusters(ref.combined, resolution = 1.0)
-
-DimPlot(ref.combined, reduction = "umap", group.by = "seurat_clusters", label = TRUE,
-        repel = TRUE, raster=FALSE)
-
-ggsave(paste0(outDir, '/integrated_ref_mNT_27clusters_resolution1.0.pdf'), 
-       width = 16, height = 10)
-
-cluster19.markers <- FindMarkers(ref.combined, ident.1 = 19)
-head(cluster19.markers, n = 10)
-
-cluster.markers <- FindMarkers(ref.combined, ident.1 = 19, ident.2 = c(16, 24))
-head(cluster.markers, n = 10)
-
-markers <- FindAllMarkers(ref.combined, only.pos = TRUE)
-
-save(cluster.markers, cluster19.markers, markers, 
-     file = paste0(outDir, '/marker_Genes.Rdata'))
-
-markers %>%
-  group_by(cluster) %>%
-  dplyr::filter(avg_log2FC > 1) %>%
-  slice_head(n = 30) %>%
-  ungroup() -> top10
-
-DoHeatmap(ref.combined, features = top10$gene) + NoLegend()
-ggsave(paste0(outDir, '/markerGenes_all.clusters.for.cluster19_top30.pdf'), 
-       width = 16, height = 30)
 
 
 ########################################################
