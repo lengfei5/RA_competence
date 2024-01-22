@@ -77,6 +77,7 @@ tfs = readRDS(file = paste0('../data/annotations/curated_human_TFs_Lambert.rds')
 tfs = unique(tfs$`HGNC symbol`)
 tfs = as.character(unlist(sapply(tfs, firstup)))
 
+
 ##########################################
 # import mNT scRNA-seq data
 ##########################################
@@ -110,9 +111,6 @@ saveRDS(aa, file = paste0(RdataDir, 'seuratObject_mNT_selectedCondition_downsamp
 aa = readRDS(file = paste0(RdataDir, 
                            'seuratObject_mNT_selectedCondition_downsampled.1k.perCondition_reclustered.rds'))
 
-mapping_method = "seurat_rpca"
-
-
 ref = readRDS(file = paste0(RdataDir,  
                              'seuratObject_EmbryoAtlasData_all36sample_RNAassay_keep.relevant.celltypes_v2.rds'))
 
@@ -120,6 +118,8 @@ cols_mouse = sapply(ref$colour, function(x) {paste0('#', x, collapse = '')})
 names(cols_mouse) =ref$celltype
 cols_mouse = cols_mouse[match(unique(names(cols_mouse)), names(cols_mouse))]
 
+
+mapping_method = "seurat_rpca"
 data_version = 'mapping_mNT.noRA.RA.d2_d5_Marioni2019_selectedCelltypes'
 
 outDir = paste0(resDir, mapping_method, '/',  data_version, '/')
@@ -143,57 +143,60 @@ aa$celltype = paste0('mNT_', aa$condition)
 ##########################################
 # calculate similarity before data integration
 ##########################################
-# aa = FindVariableFeatures(aa, selection.method = "vst")
-# aa <- ScaleData(aa, verbose = FALSE)
-# aa <- RunPCA(aa, npcs = 50, verbose = FALSE)
-# ElbowPlot(aa, ndims = 50)
-# 
-# aa <- RunUMAP(aa, reduction = "pca", dims = 1:30, n.neighbors = 50, 
-#               min.dist = 0.2) 
-# DimPlot(aa, group.by = 'condition')
-# 
-# aa <- FindNeighbors(aa, reduction = "pca", dims = 1:20)
-# aa <- FindClusters(aa, resolution = 0.7)
-# aa$clusters = aa$seurat_clusters
-#saveRDS(aa, file = paste0(RdataDir, 
-#                          'seuratObject_mNT_selectedCondition_downsampled.1k.perCondition_reclustered.rds'))
-
-p1 = DimPlot(aa, group.by = 'condition', label = TRUE, repel = TRUE)
-p2 = DimPlot(aa, group.by = 'seurat_clusters', label = TRUE, repel = TRUE)
-p1 + p2
-
-ggsave(paste0(outDir, '/umap_query_conditions_clusters.pdf'), 
-       width = 16, height = 6)
-
-FeaturePlot(aa, features = 'Foxa2')
-
-source(paste0(functionDir, '/functions_dataIntegration.R'))
-
-ref = FindVariableFeatures(ref, selection.method = 'vst', nfeatures = 1000)
-
-cc = c(3, 6, 5, 1, 7, 4, 11, 10)
-
-for(n in 1:length(cc))
-{
-  # n = 4
-  cat(n, ' -- ', cc[n], '\n')
+Test_cal_similarity = FALSE
+if(Test_cal_similarity){
+  # aa = FindVariableFeatures(aa, selection.method = "vst")
+  # aa <- ScaleData(aa, verbose = FALSE)
+  # aa <- RunPCA(aa, npcs = 50, verbose = FALSE)
+  # ElbowPlot(aa, ndims = 50)
+  # 
+  # aa <- RunUMAP(aa, reduction = "pca", dims = 1:30, n.neighbors = 50, 
+  #               min.dist = 0.2) 
+  # DimPlot(aa, group.by = 'condition')
+  # 
+  # aa <- FindNeighbors(aa, reduction = "pca", dims = 1:20)
+  # aa <- FindClusters(aa, resolution = 0.7)
+  # aa$clusters = aa$seurat_clusters
+  #saveRDS(aa, file = paste0(RdataDir, 
+  #                          'seuratObject_mNT_selectedCondition_downsampled.1k.perCondition_reclustered.rds'))
   
-  subs = subset(aa, cells = colnames(aa)[which(aa$clusters == cc[n])]);
-  px = calculate_similarity_query_ref(query = subs, 
-                                      ref = ref, 
-                                      nHVGs = 1000, 
-                                      method = c("spearman"),
-                                      group.by = 'celltype')
+  p1 = DimPlot(aa, group.by = 'condition', label = TRUE, repel = TRUE)
+  p2 = DimPlot(aa, group.by = 'seurat_clusters', label = TRUE, repel = TRUE)
+  p1 + p2
   
-  pdfname = paste0(outDir, '/spearman_similarity_withRefCelltypes_', cc[n], '.pdf')
+  ggsave(paste0(outDir, '/umap_query_conditions_clusters.pdf'), 
+         width = 16, height = 6)
   
-  pdf(pdfname, width=16, height = 8)
-  plot(px)
+  FeaturePlot(aa, features = 'Foxa2')
   
-  dev.off()
+  source(paste0(functionDir, '/functions_dataIntegration.R'))
   
+  ref = FindVariableFeatures(ref, selection.method = 'vst', nfeatures = 1000)
+  
+  cc = c(3, 6, 5, 1, 7, 4, 11, 10)
+  
+  for(n in 1:length(cc))
+  {
+    # n = 4
+    cat(n, ' -- ', cc[n], '\n')
+    
+    subs = subset(aa, cells = colnames(aa)[which(aa$clusters == cc[n])]);
+    px = calculate_similarity_query_ref(query = subs, 
+                                        ref = ref, 
+                                        nHVGs = 1000, 
+                                        method = c("spearman"),
+                                        group.by = 'celltype')
+    
+    pdfname = paste0(outDir, '/spearman_similarity_withRefCelltypes_', cc[n], '.pdf')
+    
+    pdf(pdfname, width=16, height = 8)
+    plot(px)
+    
+    dev.off()
+    
+  }
+    
 }
-
 
 ##########################################
 # test integration method
@@ -269,8 +272,10 @@ ggsave(paste0(outDir, '/Integration_mNT_celltypes_noref.batchcorrection.pdf'),
 #DimPlot(ref.combined, reduction = "umap")
 saveRDS(ref.combined, file = paste0(outDir, '/integrated_mNT_mouseGastrulation_SeuratRPCA.rds'))
 
+
 ref.combined = readRDS(file = paste0(outDir, '/integrated_mNT_mouseGastrulation_SeuratRPCA.rds'))
 cols_used = readRDS(file = paste0(outDir, '/integrated_mNT_mouseGastrulation_colorsUsed.rds'))
+
 
 # Visualization
 DimPlot(ref.combined, reduction = "umap", group.by = "celltype", label = TRUE,
@@ -317,7 +322,6 @@ DimPlot(ref.combined, reduction = "umap", group.by = "stage", label = TRUE,
 
 ggsave(paste0(outDir, '/Integration_stage.pdf'), 
        width = 16, height = 8)
-
 
 
 ##########################################
