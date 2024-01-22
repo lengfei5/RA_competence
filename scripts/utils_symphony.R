@@ -112,6 +112,7 @@ plotBasic = function(umap_labels,                # metadata, with UMAP labels in
     dplyr::sample_frac(1L) %>% # permute rows randomly
     ggplot(aes(x = UMAP1, y = UMAP2)) + 
     geom_point_rast(aes(col = get(color.by)), size = 0.3, stroke = 0.2, shape = 16)
+  
   if (!is.null(color.mapping)) { p = p + scale_color_manual(values = color.mapping) }
   
   # Default formatting

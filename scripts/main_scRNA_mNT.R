@@ -523,6 +523,36 @@ aa = readRDS(file = paste0(RdataDir,
 Idents(aa) = factor(aa$condition, levels = levels)
 
 
+Test_Nog_correlation.with_FoxA2 = FALSE
+if(Test_Nog_correlation.with_FoxA2){
+  sels = grep('day4_RA|day3.5_RA|day5_RA|day6_RA', aa$condition)
+  xx = subset(aa, cells = colnames(aa)[sels])
+  xx$condition = droplevels(xx$condition)
+  Idents(xx) = xx$condition
+  xx = subset(x = xx, subset = Foxa2 > 0)
+  
+  gene = 'Nog'
+  
+  FeatureScatter(xx, feature2 = gene, feature1 = 'Foxa2')
+  
+  ggsave(filename = paste0(resDir, '/', gene,  '_vs_FoxA2_RA_day3.5_day4_dy5_day6.pdf'), 
+         width = 10, height = 8)
+  
+  xx$FoxA2 = 'low'
+  jj = which(rownames(xx) == 'Foxa2')
+  xx$FoxA2[which(xx@assays$RNA@data[jj, ]>2)] = 'high'
+  xx$FoxA2[which(xx@assays$RNA@data[jj, ]<=2 & xx@assays$RNA@data[jj, ]>=1.0)] = 'intermediate'
+  
+  xx$FoxA2 = factor(xx$FoxA2, levels = c('low', 'intermediate', 'high'))
+  
+  VlnPlot(xx, features = gene, group.by = 'condition', split.by = 'FoxA2')
+  
+  ggsave(filename = paste0(resDir, '/', gene, '.Expression_by_FoxA2.expression_RA_day3.5_day4_dy5_day6.pdf'), 
+         width = 10, height = 8)
+  
+  
+}
+
 sels = grep('_RA|day2_beforeRA', aa$condition)
 
 aa = subset(aa, cells = colnames(aa)[sels])
