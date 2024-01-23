@@ -82,6 +82,7 @@ tfs = readRDS(file = paste0('../data/annotations/curated_human_TFs_Lambert.rds')
 tfs = unique(tfs$`HGNC symbol`)
 tfs = as.character(unlist(sapply(tfs, firstup)))
 
+
 ########################################################
 ########################################################
 # Section : test seurat_RPCA
@@ -94,21 +95,19 @@ if(Test_seurat_RPCA_Chan2019){
   # import the mNT data and reference
   ##########################################
   mapping_method = "seurat_rpca"
-  aa = readRDS(file = paste0(RdataDir, 'seuratObject_mNT_selectedCondition_downsampled.1k.perCondition.rds'))
+  data_version = 'mapping_mNT.noRA.RA.d2_d5_Chan2019_allCelltypes'
   
-  ## Marioni2019 subset data
-  ref = readRDS(file = paste0(RdataDir,  
-                              'seuratObject_EmbryoAtlasData_all36sample_RNAassay_keep.relevant.celltypes_v2.rds'))
+  outDir = paste0(resDir, mapping_method, '/',  data_version, '/')
+  system(paste0('mkdir -p ', outDir))
+  
+  
+  aa = readRDS(file = paste0(RdataDir, 'seuratObject_mNT_selectedCondition_downsampled.1k.perCondition.rds'))
   
   ## Chan2019 full data
   ref = readRDS(file = paste0('../results/Rdata/',  
                               'seuratObject_mm10_mouse_gastrulation_Chan.et.al_',
                               'lognormamlized_var.to.regress.nCount.RNA_pca_clusterIDs_celltypes_fastmnn.rds'))
   
-  data_version = 'mapping_mNT.noRA.RA.d2_d5_Chan2019_allCelltypes_TFs.SPs.only'
-  
-  outDir = paste0(resDir, mapping_method, '/',  data_version, '/')
-  system(paste0('mkdir -p ', outDir))
   
   ##########################################
   # test Seurat data integration
@@ -127,8 +126,8 @@ if(Test_seurat_RPCA_Chan2019){
   aa$celltype = paste0('mNT_', aa$condition)
   
   celltypes = unique(ref$celltype)
-  cols_mouse = cols_mouse[1:length(celltypes)]
-  names(cols_mouse) = celltypes
+  col_mouse = col_mouse[1:length(celltypes)]
+  names(col_mouse) = celltypes
   rm(celltypes)
   
   ##########################################
@@ -138,7 +137,7 @@ if(Test_seurat_RPCA_Chan2019){
   
   source(paste0(functionDir, '/functions_dataIntegration.R'))
   
-  ref.combined = IntegrateData_Seurat_RPCA(seuratObj = refs.merged, group.by = 'dataset', nfeatures = 1000)
+  ref.combined = IntegrateData_Seurat_RPCA(seuratObj = refs.merged, group.by = 'dataset', nfeatures = 3000)
   rm(refs.merged)
   
   jj = which(ref.combined$dataset == 'mNT')
@@ -146,9 +145,9 @@ if(Test_seurat_RPCA_Chan2019){
   
   # Visualization
   DimPlot(ref.combined, reduction = "umap", group.by = "celltype", label = TRUE,
-          repel = TRUE, raster=FALSE, cols = c(cols_sel, cols_mouse)) + NoLegend()
+          repel = TRUE, raster=FALSE, cols = c(cols_sel, col_mouse)) + NoLegend()
   
-  ggsave(paste0(outDir, '/Integration_mNT_celltypes_noref.batchcorrection_1000HVGs.pdf'), 
+  ggsave(paste0(outDir, '/Integration_mNT_celltypes_noref.batchcorrection_3000HVGs.pdf'), 
          width = 16, height = 8)
   
   
@@ -168,13 +167,14 @@ if(Test_seurat_RPCA_Chan2019){
             cols.highlight = 'red'
     ) + NoLegend()
     
-    ggsave(paste0(outDir, '/Integration_mNT_celltypes_noref.batchcorrection_highlight.', cc, '_2000HVGs.pdf'), 
+    ggsave(paste0(outDir, '/Integration_mNT_celltypes_noref.batchcorrection_highlight.', cc, '_3000HVGs.pdf'), 
            width = 16, height = 8)
     
   }
   
+  
   #DimPlot(ref.combined, reduction = "umap")
-  saveRDS(ref.combined, file = paste0(outDir, '/integrated_mNT_mouseGastrulation_SeuratRPCA.rds'))
+  saveRDS(ref.combined, file = paste0(outDir, '/integrated_mNT_mouseGastrulation_SeuratRPCA_3000features.rds'))
   
   ref.combined = readRDS(file = paste0(outDir, '/integrated_mNT_mouseGastrulation_SeuratRPCA.rds'))
   
@@ -223,87 +223,42 @@ if(Test_seurat_RPCA_Chan2019){
   ##########################################
   # clustering the combined data
   ##########################################
-  ref.combined = readRDS(file = paste0(outDir, '/integrated_mNT_mouseGastrulation_SeuratRPCA.rds'))
-  
-  ElbowPlot(ref.combined, ndims = 50)
-  ref.combined <- FindNeighbors(ref.combined, reduction = "pca", dims = 1:20)
-  ref.combined <- FindClusters(ref.combined, resolution = 1.0)
-  
-  DimPlot(ref.combined, reduction = "umap", group.by = "seurat_clusters", label = TRUE,
-          repel = TRUE, raster=FALSE)
-  
-  ggsave(paste0(outDir, '/integrated_ref_mNT_27clusters_resolution1.0.pdf'), 
-         width = 16, height = 10)
-  
-  cluster19.markers <- FindMarkers(ref.combined, ident.1 = 19)
-  head(cluster19.markers, n = 10)
-  
-  cluster.markers <- FindMarkers(ref.combined, ident.1 = 19, ident.2 = c(16, 24))
-  head(cluster.markers, n = 10)
-  
-  markers <- FindAllMarkers(ref.combined, only.pos = TRUE)
-  
-  save(cluster.markers, cluster19.markers, markers, 
-       file = paste0(outDir, '/marker_Genes.Rdata'))
-  
-  markers %>%
-    group_by(cluster) %>%
-    dplyr::filter(avg_log2FC > 1) %>%
-    slice_head(n = 30) %>%
-    ungroup() -> top10
-  
-  DoHeatmap(ref.combined, features = top10$gene) + NoLegend()
-  ggsave(paste0(outDir, '/markerGenes_all.clusters.for.cluster19_top30.pdf'), 
-         width = 16, height = 30)
-  
-  
-  
-  ##########################################
-  # calculate the similarity distribution between mNT cells and cell types in the reference 
-  ##########################################
-  aa = FindVariableFeatures(aa, selection.method = "vst")
-  aa <- ScaleData(aa, verbose = FALSE)
-  aa <- RunPCA(aa, npcs = 50, verbose = FALSE)
-  ElbowPlot(aa, ndims = 50)
-  
-  aa <- RunUMAP(aa, reduction = "pca", dims = 1:30, n.neighbors = 50, 
-                min.dist = 0.2) 
-  DimPlot(aa, group.by = 'condition')
-  
-  aa <- FindNeighbors(aa, reduction = "pca", dims = 1:20)
-  aa <- FindClusters(aa, resolution = 1.0)
-  aa$clusters = aa$seurat_clusters
-  
-  DimPlot(aa, group.by = 'seurat_clusters', label = TRUE, repel = TRUE)
-  ggsave(paste0(outDir, '/umap_query_clusters.pdf'), 
-         width = 12, height = 8)
-  
-  FeaturePlot(aa, features = 'Foxa2')
-  
-  source(paste0(functionDir, '/functions_dataIntegration.R'))
-  
-  ref = FindVariableFeatures(ref, selection.method = 'vst', nfeatures = 1000)
-  
-  cc = c(2, 1, 10, 15, 0, 4, 3, 12, 13)
-  
-  for(n in 1:length(cc))
+  RedoClustering_findMarkers = FALSE
+  if(RedoClustering_findMarkers)
   {
-    # n = 4
-    cat(n, ' -- ', cc[n], '\n')
+    ref.combined = readRDS(file = paste0(outDir, '/integrated_mNT_mouseGastrulation_SeuratRPCA.rds'))
     
-    subs = subset(aa, cells = colnames(aa)[which(aa$clusters == cc[n])]);
-    px = calculate_similarity_query_ref(query = subs, 
-                                        ref = ref, 
-                                        nHVGs = 1000, 
-                                        method = c("spearman"),
-                                        group.by = 'celltype')
+    ElbowPlot(ref.combined, ndims = 50)
+    ref.combined <- FindNeighbors(ref.combined, reduction = "pca", dims = 1:20)
+    ref.combined <- FindClusters(ref.combined, resolution = 1.0)
     
-    pdfname = paste0(outDir, '/spearman_similarity_withRefCelltypes_', cc[n], '.pdf')
+    DimPlot(ref.combined, reduction = "umap", group.by = "seurat_clusters", label = TRUE,
+            repel = TRUE, raster=FALSE)
     
-    pdf(pdfname, width=16, height = 8)
-    plot(px)
+    ggsave(paste0(outDir, '/integrated_ref_mNT_27clusters_resolution1.0.pdf'), 
+           width = 16, height = 10)
     
-    dev.off()
+    cluster19.markers <- FindMarkers(ref.combined, ident.1 = 19)
+    head(cluster19.markers, n = 10)
+    
+    cluster.markers <- FindMarkers(ref.combined, ident.1 = 19, ident.2 = c(16, 24))
+    head(cluster.markers, n = 10)
+    
+    markers <- FindAllMarkers(ref.combined, only.pos = TRUE)
+    
+    save(cluster.markers, cluster19.markers, markers, 
+         file = paste0(outDir, '/marker_Genes.Rdata'))
+    
+    markers %>%
+      group_by(cluster) %>%
+      dplyr::filter(avg_log2FC > 1) %>%
+      slice_head(n = 30) %>%
+      ungroup() -> top10
+    
+    DoHeatmap(ref.combined, features = top10$gene) + NoLegend()
+    ggsave(paste0(outDir, '/markerGenes_all.clusters.for.cluster19_top30.pdf'), 
+           width = 16, height = 30)
+    
     
   }
   
