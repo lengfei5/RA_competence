@@ -73,7 +73,7 @@ names(cols_sel) = paste0('mNT_', names(cols_sel))
 # cols_mouse = unique(c(cols_mouse, cols25(n = 25)))
 # saveRDS(cols_mouse, file = paste0(RdataDir, 'cols_mouse_gastrulation_celltypes.rds'))
 
-col_mouse = readRDS(file = paste0(RdataDir, 'cols_mouse_gastrulation_celltypes.rds'))
+cols_mouse = readRDS(file = paste0(RdataDir, 'cols_mouse_gastrulation_celltypes.rds'))
 
 sps = readRDS(file = paste0('../data/annotations/curated_signaling.pathways_gene.list_v3.rds'))
 sps = unique(sps$gene)
@@ -95,7 +95,7 @@ if(Test_seurat_RPCA_Chan2019){
   # import the mNT data and reference
   ##########################################
   mapping_method = "seurat_rpca"
-  data_version = 'mapping_mNT.noRA.RA.d2_d5_Chan2019_allCelltypes'
+  data_version = 'mapping_mNT.noRA.RA.d2_d5_Chan2019_subsetCelltypes'
   
   outDir = paste0(resDir, mapping_method, '/',  data_version, '/')
   system(paste0('mkdir -p ', outDir))
@@ -126,8 +126,8 @@ if(Test_seurat_RPCA_Chan2019){
   aa$celltype = paste0('mNT_', aa$condition)
   
   celltypes = unique(ref$celltype)
-  col_mouse = col_mouse[1:length(celltypes)]
-  names(col_mouse) = celltypes
+  cols_mouse = cols_mouse[1:length(celltypes)]
+  names(cols_mouse) = celltypes
   rm(celltypes)
   
   ##########################################
@@ -145,7 +145,7 @@ if(Test_seurat_RPCA_Chan2019){
   
   # Visualization
   DimPlot(ref.combined, reduction = "umap", group.by = "celltype", label = TRUE,
-          repel = TRUE, raster=FALSE, cols = c(cols_sel, col_mouse)) + NoLegend()
+          repel = TRUE, raster=FALSE, cols = c(cols_sel, cols_mouse)) + NoLegend()
   
   ggsave(paste0(outDir, '/Integration_mNT_celltypes_noref.batchcorrection_3000HVGs.pdf'), 
          width = 16, height = 8)
@@ -259,10 +259,9 @@ if(Test_seurat_RPCA_Chan2019){
     ggsave(paste0(outDir, '/markerGenes_all.clusters.for.cluster19_top30.pdf'), 
            width = 16, height = 30)
     
-    
   }
   
-    
+  
   
 }
 

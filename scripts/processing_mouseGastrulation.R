@@ -464,15 +464,45 @@ if(Test_batchCorrection_fastMNN){
 }
 
 ##########################################
-# subset the Chan2019 data 
+# subset the Chan2019 data according to Hannah's manual selection of cell types
 ##########################################
 aa = readRDS(file = paste0(RdataDir, 'seuratObject_', species, version.analysis,
                            '_lognormamlized_var.to.regress.nCount.RNA_pca_clusterIDs_celltypes.rds'))
 
-p1 = DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'condition', raster=FALSE)
-p2 = DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'celltype', raster=FALSE) + NoLegend()
+DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'condition', raster=FALSE)
+DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'celltype', raster=FALSE) + NoLegend()
 
-p1 / p2  
+cluster_sels = c(1,2,3,4,6,7,8,10,
+                 11,16,17,19,
+                 23,24,26,27,29,
+                 31,33,35,37,38,39,40)
+
+mm = which(!is.na(match(aa$clusterID, cluster_sels)))
+aa = subset(aa, cells = colnames(aa)[mm])
+
+aa <- FindVariableFeatures(aa, selection.method = "dispersion", 
+                           mean.function = ExpMean,
+                           dispersion.function = LogVMR, 
+                           mean.cutoff = c(0.0125, 3),
+                           dispersion.cutoff = c(0.5, Inf)
+)
+
+aa = FindVariableFeatures(aa, selection.method = 'vst', nfeatures = 2000)
+aa <- RunPCA(aa, verbose = FALSE, weight.by.var = TRUE)
+ElbowPlot(aa, ndims = 50)
+
+aa <- FindNeighbors(aa, dims = 1:20)
+aa <- FindClusters(aa, verbose = FALSE, algorithm = 3, resolution = 10)
+
+aa <- RunUMAP(aa, dims = 1:30, n.neighbors = 30, min.dist = 0.2)
+
+DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'celltype', raster=FALSE) + NoLegend()
+
+ggsave(filename = paste0(resDir, '/umap_Chan2019_selectedCelltypes.pdf'), width = 12, height = 8)
+
+saveRDS(aa, file = paste0(RdataDir, 'seuratObject_', species, version.analysis,
+                          '_lognormamlized_var.to.regress.nCount.RNA_pca_clusterIDs_celltype.subsets.rds'))
+
 
 ########################################################
 ########################################################
