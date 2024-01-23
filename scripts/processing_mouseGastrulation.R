@@ -460,7 +460,19 @@ if(Test_batchCorrection_fastMNN){
                             '_lognormamlized_var.to.regress.nCount.RNA_pca_clusterIDs_celltypes_fastmnn.rds'))
   
   
+  
 }
+
+##########################################
+# subset the Chan2019 data 
+##########################################
+aa = readRDS(file = paste0(RdataDir, 'seuratObject_', species, version.analysis,
+                           '_lognormamlized_var.to.regress.nCount.RNA_pca_clusterIDs_celltypes.rds'))
+
+p1 = DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'condition', raster=FALSE)
+p2 = DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'celltype', raster=FALSE) + NoLegend()
+
+p1 / p2  
 
 ########################################################
 ########################################################

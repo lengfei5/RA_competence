@@ -307,6 +307,8 @@ if(Test_seurat_RPCA_Chan2019){
     
   }
   
+    
+  
 }
 
 
@@ -342,7 +344,7 @@ if(Test_Seurat_projection){
   ref$dataset = 'ref'
   
   aa$celltype = paste0('mNT_', aa$condition)
-  s
+  
   outDir = paste0(resDir,  data_version, '/', mapping_method, '/')
   system(paste0('mkdir -p ', outDir))
   
