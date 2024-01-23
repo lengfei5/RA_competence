@@ -360,42 +360,47 @@ if(Test_cal_similarity_afterIntegration)
 
 
 ##########################################
-# clustering the combined data
+# clustering the combined data and 
+# find the identity of overlapping population between Marioni2019 and mNT by SeuratRPCA
 ##########################################
-ref.combined = readRDS(file = paste0(outDir, '/integrated_mNT_mouseGastrulation_SeuratRPCA.rds'))
-
-ElbowPlot(ref.combined, ndims = 50)
-ref.combined <- FindNeighbors(ref.combined, reduction = "pca", dims = 1:20)
-ref.combined <- FindClusters(ref.combined, resolution = 1.0)
-
-DimPlot(ref.combined, reduction = "umap", group.by = "seurat_clusters", label = TRUE,
-        repel = TRUE, raster=FALSE)
-
-ggsave(paste0(outDir, '/integrated_ref_mNT_27clusters_resolution1.0.pdf'), 
-       width = 16, height = 10)
-
-cluster19.markers <- FindMarkers(ref.combined, ident.1 = 19)
-head(cluster19.markers, n = 10)
-
-cluster.markers <- FindMarkers(ref.combined, ident.1 = 19, ident.2 = c(16, 24))
-head(cluster.markers, n = 10)
-
-markers <- FindAllMarkers(ref.combined, only.pos = TRUE)
-
-save(cluster.markers, cluster19.markers, markers, 
-     file = paste0(outDir, '/marker_Genes.Rdata'))
-
-markers %>%
-  group_by(cluster) %>%
-  dplyr::filter(avg_log2FC > 1) %>%
-  slice_head(n = 30) %>%
-  ungroup() -> top10
-
-DoHeatmap(ref.combined, features = top10$gene) + NoLegend()
-ggsave(paste0(outDir, '/markerGenes_all.clusters.for.cluster19_top30.pdf'), 
-       width = 16, height = 30)
-
-
+Identify_markerGenes_4overlappingPopulation = FALSE
+if(Identify_markerGenes_4overlappingPopulation)
+{
+  ref.combined = readRDS(file = paste0(outDir, '/integrated_mNT_mouseGastrulation_SeuratRPCA.rds'))
+  
+  ElbowPlot(ref.combined, ndims = 50)
+  ref.combined <- FindNeighbors(ref.combined, reduction = "pca", dims = 1:20)
+  ref.combined <- FindClusters(ref.combined, resolution = 1.0)
+  
+  DimPlot(ref.combined, reduction = "umap", group.by = "seurat_clusters", label = TRUE,
+          repel = TRUE, raster=FALSE)
+  
+  ggsave(paste0(outDir, '/integrated_ref_mNT_27clusters_resolution1.0.pdf'), 
+         width = 16, height = 10)
+  
+  cluster19.markers <- FindMarkers(ref.combined, ident.1 = 19)
+  head(cluster19.markers, n = 10)
+  
+  cluster.markers <- FindMarkers(ref.combined, ident.1 = 19, ident.2 = c(16, 24))
+  head(cluster.markers, n = 10)
+  
+  markers <- FindAllMarkers(ref.combined, only.pos = TRUE)
+  
+  save(cluster.markers, cluster19.markers, markers, 
+       file = paste0(outDir, '/marker_Genes.Rdata'))
+  
+  markers %>%
+    group_by(cluster) %>%
+    dplyr::filter(avg_log2FC > 1) %>%
+    slice_head(n = 30) %>%
+    ungroup() -> top10
+  
+  DoHeatmap(ref.combined, features = top10$gene) + NoLegend()
+  ggsave(paste0(outDir, '/markerGenes_all.clusters.for.cluster19_top30.pdf'), 
+         width = 16, height = 30)
+  
+  
+}
 
 ##########################################
 # test seurat query-ref-mapping 
@@ -726,7 +731,7 @@ if(Test_reference_mapping_Symphony){
 
 ########################################################
 ########################################################
-# Section II: first check Pax6-FoxA2 positive cells
+# Section II: check Pax6-FoxA2 positive cells
 # 
 ########################################################
 ########################################################
