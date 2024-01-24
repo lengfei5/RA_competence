@@ -455,7 +455,6 @@ if(Test_batchCorrection_fastMNN){
   ggsave(filename = paste0(resDir, '/umap_tranferred_celltypes_fastMNN.batchCorrected.pdf'), width = 14, 
          height = 22)
   
-  
   saveRDS(aa, file = paste0(RdataDir, 'seuratObject_', species, version.analysis,
                             '_lognormamlized_var.to.regress.nCount.RNA_pca_clusterIDs_celltypes_fastmnn.rds'))
   
@@ -503,6 +502,90 @@ ggsave(filename = paste0(resDir, '/umap_Chan2019_selectedCelltypes.pdf'), width 
 saveRDS(aa, file = paste0(RdataDir, 'seuratObject_', species, version.analysis,
                           '_lognormamlized_var.to.regress.nCount.RNA_pca_clusterIDs_celltype.subsets.rds'))
 
+
+##########################################
+# annotate the floorplate  
+##########################################
+aa = readRDS(paste0(RdataDir, 'seuratObject_', species, version.analysis,
+                    '_lognormamlized_var.to.regress.nCount.RNA_pca_clusterIDs_celltype.subsets.rds'))
+
+DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'celltype', raster=FALSE)
+ggsave(filename = paste0(resDir, '/Ref_Chan2019_selectedCelltypes.pdf'), width = 16, height = 8)
+
+aa <- FindNeighbors(aa, dims = 1:20)
+aa <- FindClusters(aa, verbose = FALSE, algorithm = 3, resolution = 0.6)
+
+
+DimPlot(aa, label = TRUE, repel = TRUE, raster=FALSE)
+
+FeaturePlot(aa, features = c('Shh', 'Foxa2', 'Arx', 'Nkx6-1', 'Ntn'))
+
+cells = which(aa$celltype == 'anterior_primitive_streak')
+DimPlot(aa, reduction = "umap", group.by = "celltype", label = TRUE,
+        repel = TRUE, raster=FALSE, 
+        #cols = c(cols_sel, cols_mouse),
+        #order = c('day3_RA.rep1'),
+        cells.highlight = cells,
+        #shuffle = TRUE,
+        cols.highlight = 'red'
+) + NoLegend()
+
+ggsave(filename = paste0(resDir, '/Ref_Chan2019_selectedCelltypes_highlightedCelltypes_closeToNode.pdf'), 
+       width = 16, height = 8)
+
+celltype_sels = c('anterior_primitive_streak', 'node', 'notochord', 'future_spinal_cord', 'fore/midbrain', 
+                  'gut_endoderm')
+
+mm = match(aa$celltype, celltype_sels)
+aa = subset(aa, cells = colnames(aa)[which(!is.na(mm))])
+
+aa = FindVariableFeatures(aa, selection.method = 'vst', nfeatures = 2000)
+aa <- RunPCA(aa, verbose = FALSE, weight.by.var = TRUE)
+ElbowPlot(aa, ndims = 50)
+
+aa <- RunUMAP(aa, dims = 1:20, n.neighbors = 30, min.dist = 0.2)
+
+DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'celltype', raster=FALSE)
+
+ggsave(filename = paste0(resDir, '/Ref_Chan2019_selectedCelltypes_subsetting_for_FP.pdf'), 
+       width = 16, height = 8)
+
+
+aa <- FindNeighbors(aa, dims = 1:20)
+aa <- FindClusters(aa, verbose = FALSE, algorithm = 3, resolution = 10)
+
+FeaturePlot(aa, features = c('Shh', 'Foxa2', 'Arx', 'Nkx6-1', 'Sox17', 'Pax6', 
+                             'Gsc', 'Lhx1', 'Cer1', 'Eomes', 'Mixl1', 'Tdgf1', 'T'))
+
+FeaturePlot(aa, features = c('Shh', 'Foxa2', 'Arx', 'Nkx6-1', 'Sox17', 'Pax6', 
+                             'Gsc', 'Lhx1', 'Cer1', 'Eomes', 'Mixl1', 'Tdgf1', 'T', 
+                             'Afp', 'Acvr2b', 'Acvr1b', 'Aldh1a2', 'Apc', 'Bmp4', 'Smad2',
+                             'Aifm2', 'Nodal', 'Foxa3',
+                             "Hhex", 'Cdx1', 'Foxa1', 'Ctnnb1', 'Gata4', 'Gata6', 'Cdx1', 'Ihh', 'Hesx1'))
+
+
+ggsave(paste0(outDir, '/test_APS_Endoderm_Gut_markers.pdf'), 
+       width = 16, height = 32)
+
+
+celltype_sels = c('anterior_primitive_streak', 'node', 'notochord', 'future_spinal_code', 'fore/midbrain', 
+                  'gut_endoderm')
+
+mm = match(aa$celltype, celltype_sels)
+aa = subset(aa, cells = colnames(aa)[which(!is.na(mm))])
+
+aa = FindVariableFeatures(aa, selection.method = 'vst', nfeatures = 2000)
+aa <- RunPCA(aa, verbose = FALSE, weight.by.var = TRUE)
+ElbowPlot(aa, ndims = 50)
+
+aa <- RunUMAP(aa, dims = 1:20, n.neighbors = 30, min.dist = 0.2)
+
+DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'celltype', raster=FALSE)
+
+aa <- FindNeighbors(aa, dims = 1:20)
+aa <- FindClusters(aa, verbose = FALSE, algorithm = 3, resolution = 10)
+
+FeaturePlot(aa, features = c('Shh', 'Foxa2', 'Arx', 'Nkx6-1'))
 
 ########################################################
 ########################################################

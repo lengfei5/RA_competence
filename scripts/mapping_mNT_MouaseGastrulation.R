@@ -111,6 +111,17 @@ saveRDS(aa, file = paste0(RdataDir, 'seuratObject_mNT_selectedCondition_downsamp
 aa = readRDS(file = paste0(RdataDir, 
                            'seuratObject_mNT_selectedCondition_downsampled.1k.perCondition_reclustered.rds'))
 
+## check the markers of anterior primitive streak, node, and endoderm, gut  
+FeaturePlot(aa, features = c('Shh', 'Foxa2', 'Arx', 'Nkx6-1', 'Sox17', 'Pax6', 
+                             'Gsc', 'Lhx1', 'Cer1', 'Eomes', 'Mixl1', 'Tdgf1', 'T', 
+                             'Afp', 'Acvr2b', 'Acvr1b', 'Aldh1a2', 'Apc', 'Bmp4', 'Smad2',
+                             'Aifm2', 'Nodal', 'Foxa3',
+                             "Hhex", 'Cdx1', 'Foxa1', 'Ctnnb1', 'Gata4', 'Gata6', 'Cdx1', 'Ihh', 'Hesx1'))
+
+
+ggsave(paste0(outDir, '/test_APS_Endoderm_Gut_markers.pdf'), 
+       width = 16, height = 32)
+
 ref = readRDS(file = paste0(RdataDir,  
                              'seuratObject_EmbryoAtlasData_all36sample_RNAassay_keep.relevant.celltypes_v2.rds'))
 
