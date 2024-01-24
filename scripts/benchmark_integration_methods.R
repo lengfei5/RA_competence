@@ -104,10 +104,14 @@ if(Test_seurat_RPCA_Chan2019){
   aa = readRDS(file = paste0(RdataDir, 'seuratObject_mNT_selectedCondition_downsampled.1k.perCondition.rds'))
   
   ## Chan2019 full data
+  #ref = readRDS(file = paste0('../results/Rdata/',  
+  #                            'seuratObject_mm10_mouse_gastrulation_Chan.et.al_',
+  #                            'lognormamlized_var.to.regress.nCount.RNA_pca_clusterIDs_celltypes_fastmnn.rds'))
+  
+  ## Chan219 subset 
   ref = readRDS(file = paste0('../results/Rdata/',  
                               'seuratObject_mm10_mouse_gastrulation_Chan.et.al_',
-                              'lognormamlized_var.to.regress.nCount.RNA_pca_clusterIDs_celltypes_fastmnn.rds'))
-  
+                              'lognormamlized_var.to.regress.nCount.RNA_pca_clusterIDs_celltype.subsets.rds'))
   
   ##########################################
   # test Seurat data integration
@@ -145,10 +149,10 @@ if(Test_seurat_RPCA_Chan2019){
   
   # Visualization
   DimPlot(ref.combined, reduction = "umap", group.by = "celltype", label = TRUE,
-          repel = TRUE, raster=FALSE, cols = c(cols_sel, cols_mouse)) + NoLegend()
+          repel = TRUE, raster=FALSE, cols = c(cols_sel, cols_mouse)) 
   
   ggsave(paste0(outDir, '/Integration_mNT_celltypes_noref.batchcorrection_3000HVGs.pdf'), 
-         width = 16, height = 8)
+         width = 16, height = 12)
   
   
   ## highlight the RA cells in the umap
@@ -176,11 +180,11 @@ if(Test_seurat_RPCA_Chan2019){
   #DimPlot(ref.combined, reduction = "umap")
   saveRDS(ref.combined, file = paste0(outDir, '/integrated_mNT_mouseGastrulation_SeuratRPCA_3000features.rds'))
   
+  
   ref.combined = readRDS(file = paste0(outDir, '/integrated_mNT_mouseGastrulation_SeuratRPCA.rds'))
   
-  ref.combined[['mnn.reconstructed']] = NULL
-
-  ref.combined$celltype[which(is.na(ref.combined$celltype))] = 'unknown'
+  #ref.combined[['mnn.reconstructed']] = NULL
+  #ref.combined$celltype[which(is.na(ref.combined$celltype))] = 'unknown'
   
   DimPlot(ref.combined, reduction = "umap", group.by = "celltype", label = TRUE, split.by = 'dataset',
           repel = TRUE, raster=FALSE, cols = c(cols_sel, cols_mouse)) + NoLegend()
@@ -188,11 +192,11 @@ if(Test_seurat_RPCA_Chan2019){
   ggsave(paste0(outDir, '/Integration_celltypes_split.dataset.pdf'), 
          width = 24, height = 8)
   
-  DimPlot(ref.combined, reduction = "umap", group.by = "stage", label = TRUE,
+  DimPlot(ref.combined, reduction = "umap", group.by = "condition", label = TRUE, split.by = 'dataset',
           repel = TRUE, raster=FALSE)
   
   ggsave(paste0(outDir, '/Integration_stage.pdf'), 
-         width = 16, height = 8)
+         width = 24, height = 8)
   
   DimPlot(ref.combined, reduction = "umap", group.by = "dataset", raster=FALSE)
   ggsave(paste0(outDir, '/Integration_dataset.pdf'), 
@@ -202,9 +206,12 @@ if(Test_seurat_RPCA_Chan2019){
           "Ifitm1", "T",
           "Krt8", 'Tuba1a', "Eno1", 'Krt18','Foxj1', 'Sp5', 'Noto', 'Pou5f1','Foxa2','Cdx2', 'Gsta4', 'Sox9','Fst',
           'Nog', 'Shh', 'Slc2a1', 'Cxx1b','Igfbp2','Epcam', 'Lhx1','Ptch1',
-          'Flrt3','Foxp1', 'Hoxb1', 'Dnmt3b', 'Nr6a1','Cdh2','Rspo3','Zfp503','Fgf5')
+          'Flrt3','Foxp1', 'Hoxb1', 'Dnmt3b', 'Nr6a1','Cdh2','Rspo3','Zfp503','Fgf5',
+          'Igbp5', 'Pyy', 'Nepn', 'Peg3')
   
-  ggs = ggs[which(!is.na(match(ggs, rownames(ref.combined))))]
+  FeaturePlot(ref.combined, features = c('Arx', "Ntn1"), min.cutoff = 'q5')
+  
+  ggs = unique(ggs[which(!is.na(match(ggs, rownames(ref.combined))))])
   
   pdf(paste0(outDir, '/FeaturePlot_Markers.pdf'),
       width =10, height = 8, useDingbats = FALSE)
@@ -238,26 +245,36 @@ if(Test_seurat_RPCA_Chan2019){
     ggsave(paste0(outDir, '/integrated_ref_mNT_27clusters_resolution1.0.pdf'), 
            width = 16, height = 10)
     
-    cluster19.markers <- FindMarkers(ref.combined, ident.1 = 19)
-    head(cluster19.markers, n = 10)
+    cluster.markers1 <- FindMarkers(ref.combined, ident.1 = c(26))
+    cluster.markers2 <- FindMarkers(ref.combined, ident.1 = c(12))
+    cluster.markers3 <- FindMarkers(ref.combined, ident.1 = c(28))
+    cluster.markers4 <- FindMarkers(ref.combined, ident.1 = c(16))
     
-    cluster.markers <- FindMarkers(ref.combined, ident.1 = 19, ident.2 = c(16, 24))
-    head(cluster.markers, n = 10)
+    cluster.markers1$cluster = '26';cluster.markers1$gene = rownames(cluster.markers1)
+    cluster.markers2$cluster = '12';cluster.markers2$gene = rownames(cluster.markers2)
+    cluster.markers3$cluster = '28';cluster.markers3$gene = rownames(cluster.markers3)
+    cluster.markers4$cluster = '16';cluster.markers4$gene = rownames(cluster.markers4)
     
-    markers <- FindAllMarkers(ref.combined, only.pos = TRUE)
     
-    save(cluster.markers, cluster19.markers, markers, 
-         file = paste0(outDir, '/marker_Genes.Rdata'))
+    markers = rbind(cluster.markers1, cluster.markers2, cluster.markers3, cluster.markers4)
+    #cluster.markers <- FindMarkers(ref.combined, ident.1 = 19, ident.2 = c(16, 24))
+    #head(cluster.markers, n = 10)
+    
+    #markers <- FindAllMarkers(ref.combined, only.pos = TRUE)
+    
+    saveRDS(markers, file = paste0(outDir, '/marker_Genes.rds'))
     
     markers %>%
       group_by(cluster) %>%
       dplyr::filter(avg_log2FC > 1) %>%
-      slice_head(n = 30) %>%
+      slice_head(n = 10) %>%
       ungroup() -> top10
     
-    DoHeatmap(ref.combined, features = top10$gene) + NoLegend()
+    DoHeatmap(ref.combined, cells = colnames(ref.combined)[!is.na(match(ref.combined$seurat_clusters, 
+                                                                        c('26', '12', '28', '16')))],  
+              features = top10$gene) + NoLegend()
     ggsave(paste0(outDir, '/markerGenes_all.clusters.for.cluster19_top30.pdf'), 
-           width = 16, height = 30)
+           width = 16, height = 12)
     
   }
   
