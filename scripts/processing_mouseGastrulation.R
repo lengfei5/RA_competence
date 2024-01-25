@@ -510,6 +510,7 @@ aa = readRDS(paste0(RdataDir, 'seuratObject_', species, version.analysis,
                     '_lognormamlized_var.to.regress.nCount.RNA_pca_clusterIDs_celltype.subsets.rds'))
 
 DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'celltype', raster=FALSE)
+
 ggsave(filename = paste0(resDir, '/Ref_Chan2019_selectedCelltypes.pdf'), width = 16, height = 8)
 
 aa <- FindNeighbors(aa, dims = 1:20)
@@ -555,28 +556,41 @@ saveRDS(aa, file = paste0(RdataDir, 'seuratObject_', species, version.analysis,
                           '_lognormamlized_var.to.regress.nCount.RNA_pca_clusterIDs_celltype.subsets_APS_.rds'))
 
 
+## subset again the forbrain
+aa = readRDS(file = paste0(RdataDir, 'seuratObject_', species, version.analysis,
+                           '_lognormamlized_var.to.regress.nCount.RNA_pca_clusterIDs_celltype.subsets_APS_.rds'))
+
+
 aa <- FindNeighbors(aa, dims = 1:20)
 aa <- FindClusters(aa, verbose = FALSE, algorithm = 3, resolution = 10)
 
 
+ggs = c('Shh', 'Foxa2', 'Arx', 'Nkx6-1', 'Sox17', 'Pax6', 
+        'Gsc', 'Lhx1', 'Cer1', 'Eomes', 'Mixl1', 'Tdgf1', 'T', 
+        'Afp', 'Acvr2b', 'Acvr1b', 'Aldh1a2', 'Apc', 'Bmp4', 'Smad2',
+        'Aifm2', 'Nodal', 'Foxa3',
+        "Hhex", 'Cdx1', 'Foxa1', 'Ctnnb1', 'Gata4', 'Gata6', 'Cdx1', 'Ihh', 'Hesx1')
 
-FeaturePlot(aa, features = c('Shh', 'Foxa2', 'Arx', 'Nkx6-1', 'Sox17', 'Pax6', 
-                             'Gsc', 'Lhx1', 'Cer1', 'Eomes', 'Mixl1', 'Tdgf1', 'T', 
-                             'Afp', 'Acvr2b', 'Acvr1b', 'Aldh1a2', 'Apc', 'Bmp4', 'Smad2',
-                             'Aifm2', 'Nodal', 'Foxa3',
-                             "Hhex", 'Cdx1', 'Foxa1', 'Ctnnb1', 'Gata4', 'Gata6', 'Cdx1', 'Ihh', 'Hesx1'))
+ggs = ggs[!is.na(match(ggs, rownames(aa)))]
 
-ggsave(paste0(resDir, '/test_APS_Endoderm_Gut_markers.pdf'), 
-       width = 16, height = 32)
+pdf(paste0(resDir, '/FeaturePlot_Markers_celltype.subsets_APS_gutEndoderm.pdf'),
+    width =10, height = 8, useDingbats = FALSE)
+for(n in 1:length(ggs))
+{
+  cat(n, '--', ggs[n], '\n')
+  p1 = FeaturePlot(aa, features = ggs[n], min.cutoff = 'q5')
+  #FeaturePlot(ref.combined, features = 'Foxa2', min.cutoff = 'q5')
+  #FeaturePlot(ref.combined, features = 'Sox17', min.cutoff = 'q5')
+  plot(p1)
+  
+}
+
+dev.off()
 
 
+FeaturePlot(aa, features = c('Shh', 'Foxa2', 'Arx', 'Nkx6-1', 'Sox17', 'Pax6'))
 
-FeaturePlot(aa, features = c('Shh', 'Foxa2', 'Arx', 'Nkx6-1', 'Sox17', 'Pax6', 
-                             'Gsc', 'Lhx1', 'Cer1', 'Eomes', 'Mixl1', 'Tdgf1', 'T'))
-
-
-celltype_sels = c('anterior_primitive_streak', 'node', 'notochord', 'future_spinal_code', 'fore/midbrain', 
-                  'gut_endoderm')
+celltype_sels = c('future_spinal_cord', 'fore/midbrain')
 
 mm = match(aa$celltype, celltype_sels)
 aa = subset(aa, cells = colnames(aa)[which(!is.na(mm))])
@@ -590,9 +604,22 @@ aa <- RunUMAP(aa, dims = 1:20, n.neighbors = 30, min.dist = 0.2)
 DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'celltype', raster=FALSE)
 
 aa <- FindNeighbors(aa, dims = 1:20)
-aa <- FindClusters(aa, verbose = FALSE, algorithm = 3, resolution = 10)
+aa <- FindClusters(aa, verbose = FALSE, algorithm = 3, resolution = 1)
+
+DimPlot(aa, label = TRUE, repel = TRUE,  raster=FALSE)
+ggsave(filename = paste0(resDir, '/Ref_Chan2019_selectedCelltypes_subsetting_for_FP_reclustering.pdf'), 
+       width = 16, height = 12)
 
 FeaturePlot(aa, features = c('Shh', 'Foxa2', 'Arx', 'Nkx6-1'))
+ggsave(filename = paste0(resDir, '/Ref_Chan2019_selectedCelltypes_subsetting_for_FP_markerGenes.pdf'), 
+       width = 16, height = 12)
+
+VlnPlot(aa, features = c('Shh', 'Foxa2', "Arx"))
+
+fp_cells = colnames(aa)[which(aa$seurat_clusters == '15')]
+
+saveRDS(fp_cells, file = paste0(RdataDir, 'mouseGastrulation_Chan2019_FPcells.annotated.rds'))
+
 
 ########################################################
 ########################################################
@@ -696,6 +723,8 @@ if(Filter_unrelevant_celltype_Marioni2019){
   rm(xx)
   rm(umap.embedding)
   rm(pca.embedding)
+  
+  
   
   ## filter unlikely celltypes in the reference
   sels = grep('Erythroid|Blood|Allantois|mesoderm|Haemato|Cardiomy|Endothelium|Mesenchyme|ExE', srat$celltype, 
