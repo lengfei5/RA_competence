@@ -697,6 +697,7 @@ if(Modify.Assay.Name){
   
   saveRDS(srat, file = paste0(RdataDir,  'seuratObject_EmbryoAtlasData_all36sample_RNAassay.rds'))
   
+  
 }
 
 ##########################################
@@ -704,7 +705,8 @@ if(Modify.Assay.Name){
 ##########################################
 Filter_unrelevant_celltype_Marioni2019 = FALSE
 if(Filter_unrelevant_celltype_Marioni2019){
-  srat = readRDS(file = paste0(RdataDir,  'seuratObject_EmbryoAtlasData_all36sample_RNAassay.rds'))
+  srat = readRDS(file = paste0('../results/dataset_scRNAseq_MouseGastrulationData/Rdata/',  
+                               'seuratObject_EmbryoAtlasData_all36sample_RNAassay.rds'))
   xx = readRDS(file = paste0('../results/dataset_scRNAseq_MouseGastrulationData/Rdata/',
                              'seuratObject_EmbryoAtlasData_all36sample.rds'))
   
