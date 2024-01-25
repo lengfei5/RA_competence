@@ -534,7 +534,7 @@ ggsave(filename = paste0(resDir, '/Ref_Chan2019_selectedCelltypes_highlightedCel
        width = 16, height = 8)
 
 celltype_sels = c('anterior_primitive_streak', 'node', 'notochord', 'future_spinal_cord', 'fore/midbrain', 
-                  'gut_endoderm')
+                  'primitive/definitive_endoderm', 'gut_endoderm')
 
 mm = match(aa$celltype, celltype_sels)
 aa = subset(aa, cells = colnames(aa)[which(!is.na(mm))])
@@ -545,17 +545,20 @@ ElbowPlot(aa, ndims = 50)
 
 aa <- RunUMAP(aa, dims = 1:20, n.neighbors = 30, min.dist = 0.2)
 
-DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'celltype', raster=FALSE)
-
+p1 = DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'celltype', raster=FALSE)
+p2 = DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'condition', raster=FALSE)
+p1 / p2
 ggsave(filename = paste0(resDir, '/Ref_Chan2019_selectedCelltypes_subsetting_for_FP.pdf'), 
-       width = 16, height = 8)
+       width = 16, height = 16)
+
+saveRDS(aa, file = paste0(RdataDir, 'seuratObject_', species, version.analysis,
+                          '_lognormamlized_var.to.regress.nCount.RNA_pca_clusterIDs_celltype.subsets_APS_.rds'))
 
 
 aa <- FindNeighbors(aa, dims = 1:20)
 aa <- FindClusters(aa, verbose = FALSE, algorithm = 3, resolution = 10)
 
-FeaturePlot(aa, features = c('Shh', 'Foxa2', 'Arx', 'Nkx6-1', 'Sox17', 'Pax6', 
-                             'Gsc', 'Lhx1', 'Cer1', 'Eomes', 'Mixl1', 'Tdgf1', 'T'))
+
 
 FeaturePlot(aa, features = c('Shh', 'Foxa2', 'Arx', 'Nkx6-1', 'Sox17', 'Pax6', 
                              'Gsc', 'Lhx1', 'Cer1', 'Eomes', 'Mixl1', 'Tdgf1', 'T', 
@@ -563,9 +566,13 @@ FeaturePlot(aa, features = c('Shh', 'Foxa2', 'Arx', 'Nkx6-1', 'Sox17', 'Pax6',
                              'Aifm2', 'Nodal', 'Foxa3',
                              "Hhex", 'Cdx1', 'Foxa1', 'Ctnnb1', 'Gata4', 'Gata6', 'Cdx1', 'Ihh', 'Hesx1'))
 
-
-ggsave(paste0(outDir, '/test_APS_Endoderm_Gut_markers.pdf'), 
+ggsave(paste0(resDir, '/test_APS_Endoderm_Gut_markers.pdf'), 
        width = 16, height = 32)
+
+
+
+FeaturePlot(aa, features = c('Shh', 'Foxa2', 'Arx', 'Nkx6-1', 'Sox17', 'Pax6', 
+                             'Gsc', 'Lhx1', 'Cer1', 'Eomes', 'Mixl1', 'Tdgf1', 'T'))
 
 
 celltype_sels = c('anterior_primitive_streak', 'node', 'notochord', 'future_spinal_code', 'fore/midbrain', 
