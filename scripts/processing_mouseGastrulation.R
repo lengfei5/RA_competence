@@ -516,7 +516,6 @@ ggsave(filename = paste0(resDir, '/Ref_Chan2019_selectedCelltypes.pdf'), width =
 aa <- FindNeighbors(aa, dims = 1:20)
 aa <- FindClusters(aa, verbose = FALSE, algorithm = 3, resolution = 0.6)
 
-
 DimPlot(aa, label = TRUE, repel = TRUE, raster=FALSE)
 
 FeaturePlot(aa, features = c('Shh', 'Foxa2', 'Arx', 'Nkx6-1', 'Ntn'))
@@ -705,7 +704,7 @@ if(Modify.Assay.Name){
 ##########################################
 Filter_unrelevant_celltype_Marioni2019 = FALSE
 if(Filter_unrelevant_celltype_Marioni2019){
-  srat = readRDS(file = paste0('../results/dataset_scRNAseq_MouseGastrulationData/Rdata/',  
+  srat = readRDS(file = paste0(RdataDir, 
                                'seuratObject_EmbryoAtlasData_all36sample_RNAassay.rds'))
   xx = readRDS(file = paste0('../results/dataset_scRNAseq_MouseGastrulationData/Rdata/',
                              'seuratObject_EmbryoAtlasData_all36sample.rds'))
@@ -726,6 +725,24 @@ if(Filter_unrelevant_celltype_Marioni2019){
   rm(umap.embedding)
   rm(pca.embedding)
   
+  p1 = DimPlot(srat, reduction = 'umap', 
+               #cols = EmbryoCelltypeColours, 
+               group.by = 'celltype', 
+               label = TRUE, repel = TRUE,
+               raster=FALSE) 
+  
+  p2 = DimPlot(srat, reduction = 'umap', 
+               #cols = EmbryoCelltypeColours, 
+               group.by = 'stage', 
+               label = TRUE, repel = TRUE,
+               raster=FALSE) 
+  
+  p1 /p2
+  
+  ggsave(filename = paste0(resDir, '/MouseGastrulation_Marioni2019_all.celltypes.pdf'), width = 18, height = 20)
+  
+  saveRDS(srat, file = paste0(RdataDir,
+                              'seuratObject_MouseGastrulation_Marioni2019_all36sample_RNAassay_all.celltypes.rds'))
   
   
   ## filter unlikely celltypes in the reference
@@ -762,7 +779,152 @@ if(Filter_unrelevant_celltype_Marioni2019){
   
   ggsave(filename = paste0(resDir, '/MouseGastrulation_celltypes_stage.pdf'), width = 18, height = 20)
   
+  
 }
+
+##########################################
+# annot FP in the Marioni2019 dataset 
+##########################################
+Annot_FP_Marioni219 = FALSE
+if(Annot_FP_Marioni219){
+  aa = readRDS(file = paste0('../results/scRNAseq_R13547_10x_mNT_20220813/mapping_to_MouseGastrulationData/Rdata/',  
+                             'seuratObject_EmbryoAtlasData_all36sample_RNAassay_keep.relevant.celltypes_v2.rds'))
+  
+  DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'celltype', raster=FALSE)
+  
+  ggsave(filename = paste0(resDir, '/Ref_Marioni2019_originalUMAP_selectedCelltypes.pdf'), width = 16, height = 8)
+  
+  aa <- FindVariableFeatures(aa, selection.method = "vst", nfeatures = 3000)
+  aa <- ScaleData(aa, verbose = FALSE)
+  aa <- RunPCA(aa, verbose = FALSE)
+  
+  ElbowPlot(aa, ndims = 50)
+  
+  aa <- RunUMAP(aa, dims = 1:30, n.neighbors = 30, min.dist = 0.2)
+  
+  DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'celltype', raster=FALSE)
+  
+  aa <- FindNeighbors(aa, dims = 1:20)
+  aa <- FindClusters(aa, verbose = FALSE, algorithm = 3, resolution = 1.0)
+  
+  p1 = DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'celltype', raster=FALSE)
+  p2 = DimPlot(aa, label = TRUE, repel = TRUE, raster=FALSE)
+  
+  p1 /p2
+  
+  ggsave(filename = paste0(resDir, '/Ref_Marioni2019_selectedCelltypes_redoUMAP.clustering.pdf'), 
+         width = 16, height = 20)
+  
+  
+  FeaturePlot(aa, features = c('Shh', 'Foxa2', 'Arx', 'Nkx6-1', 'Ntn'))
+  
+  ggsave(filename = paste0(resDir, '/Ref_Marioni2019_selectedCelltypes_FPmarkers.pdf'), 
+         width = 16, height = 8)
+  
+  celltype_sels = c('Anterior Primitive Streak', 'Def. endoderm', 
+                    'Forebrain/Midbrain/Hindbrain', 'Gut', 'Notochord', 
+                    'Primitive Streak', 'Spinal cord')
+  
+  mm = match(aa$celltype, celltype_sels)
+  aa = subset(aa, cells = colnames(aa)[which(!is.na(mm))])
+  
+  aa = FindVariableFeatures(aa, selection.method = 'vst', nfeatures = 2000)
+  aa <- RunPCA(aa, verbose = FALSE, weight.by.var = TRUE)
+  ElbowPlot(aa, ndims = 50)
+  
+  aa <- RunUMAP(aa, dims = 1:20, n.neighbors = 30, min.dist = 0.2)
+  
+  p1 = DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'celltype', raster=FALSE)
+  p2 = DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'stage', raster=FALSE)
+  p1 / p2
+  
+  ggsave(filename = paste0(resDir, '/Ref_Marioni2019_selectedCelltypes_subsetting_for_FP.pdf'), 
+         width = 16, height = 16)
+  
+  saveRDS(aa, file = paste0(RdataDir, 'seuratObject_mouseGastrulation_Marioni2019',
+                            '_celltype.subsets_APS.rds'))
+  
+  
+  ## subset again the forbrain
+  aa = readRDS(file = paste0(RdataDir, 'seuratObject_mouseGastrulation_Marioni2019',
+                             '_celltype.subsets_APS.rds'))
+  
+  
+  aa <- FindNeighbors(aa, dims = 1:20)
+  aa <- FindClusters(aa, verbose = FALSE, algorithm = 3, resolution = 10)
+  
+  
+  ggs = c('Shh', 'Foxa2', 'Arx', 'Nkx6-1', 'Sox17', 'Pax6', 
+          'Gsc', 'Lhx1', 'Cer1', 'Eomes', 'Mixl1', 'Tdgf1', 'T', 
+          'Afp', 'Acvr2b', 'Acvr1b', 'Aldh1a2', 'Apc', 'Bmp4', 'Smad2',
+          'Aifm2', 'Nodal', 'Foxa3',
+          "Hhex", 'Cdx1', 'Foxa1', 'Ctnnb1', 'Gata4', 'Gata6', 'Cdx1', 'Ihh', 'Hesx1')
+  
+  ggs = ggs[!is.na(match(ggs, rownames(aa)))]
+  
+  
+  pdf(paste0(resDir, '/Ref_Marioni2019_FeaturePlot_Markers_celltype.subsets_APS_gutEndoderm.pdf'),
+      width =10, height = 8, useDingbats = FALSE)
+  for(n in 1:length(ggs))
+  {
+    cat(n, '--', ggs[n], '\n')
+    p1 = FeaturePlot(aa, features = ggs[n], min.cutoff = 'q5')
+    #FeaturePlot(ref.combined, features = 'Foxa2', min.cutoff = 'q5')
+    #FeaturePlot(ref.combined, features = 'Sox17', min.cutoff = 'q5')
+    plot(p1)
+    
+  }
+  
+  dev.off()
+  
+  
+  FeaturePlot(aa, features = c('Shh', 'Foxa2', 'Arx', 'Nkx6-1', 'Sox17', 'Pax6'))
+  
+  celltype_sels = c('Forebrain/Midbrain/Hindbrain', 'Spinal cord')
+  
+  mm = match(aa$celltype, celltype_sels)
+  aa = subset(aa, cells = colnames(aa)[which(!is.na(mm))])
+  
+  aa = FindVariableFeatures(aa, selection.method = 'vst', nfeatures = 2000)
+  aa <- RunPCA(aa, verbose = FALSE, weight.by.var = TRUE)
+  ElbowPlot(aa, ndims = 50)
+  
+  aa <- RunUMAP(aa, dims = 1:20, n.neighbors = 30, min.dist = 0.2)
+  
+  DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'celltype', raster=FALSE)
+  
+  
+  aa <- FindNeighbors(aa, dims = 1:20)
+  aa <- FindClusters(aa, verbose = FALSE, algorithm = 3, resolution = 1)
+  
+  p1 = DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'celltype', raster=FALSE)
+  p2 = DimPlot(aa, label = TRUE, repel = TRUE,  raster=FALSE)
+  p1 /p2
+  
+  ggsave(filename = paste0(resDir, '/Ref_Marioni2019_selectedCelltypes_subsetting_for_FP_reclustering.pdf'), 
+         width = 16, height = 20)
+  
+  FeaturePlot(aa, features = c('Shh', 'Foxa2', 'Arx', 'Nkx6-1'))
+  ggsave(filename = paste0(resDir, '/Ref_Chan2019_selectedCelltypes_subsetting_for_FP_markerGenes.pdf'), 
+         width = 16, height = 12)
+  
+  VlnPlot(aa, features = c('Shh', 'Foxa2', "Arx"))
+  
+  fp_cells = colnames(aa)[which(aa$seurat_clusters == '8')]
+  
+  saveRDS(fp_cells, file = paste0(RdataDir, 'mouseGastrulation_Marioni2019_FPcells.annotated.rds'))
+  
+  
+}
+
+
+########################################################
+########################################################
+# Section III:
+# compare those two reference datasets
+########################################################
+########################################################
+
 
 ##########################################
 # process a bit more the Morioni dataset
@@ -824,7 +986,7 @@ saveRDS(srat, file = paste0(RdataDir, 'seuratObject_EmbryoAtlasData_all36sample_
 
 ########################################################
 ########################################################
-# Section III : harmonize the two dataset as unified reference
+# Section IV : harmonize the two dataset as unified reference
 # 
 ########################################################
 ########################################################
