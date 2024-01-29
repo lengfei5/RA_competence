@@ -118,6 +118,8 @@ FeaturePlot(aa, features = c('Shh', 'Foxa2', 'Arx', 'Nkx6-1', 'Sox17', 'Pax6',
                              'Aifm2', 'Nodal', 'Foxa3',
                              "Hhex", 'Cdx1', 'Foxa1', 'Ctnnb1', 'Gata4', 'Gata6', 'Cdx1', 'Ihh', 'Hesx1'))
 
+FeaturePlot(aa, features = c('Foxi3','Tbx1', 'Foxi2', 
+                             'Tfap2a', 'Tfap2c', 'Gata3', 'Gata6'))
 
 ggsave(paste0(outDir, '/test_APS_Endoderm_Gut_markers.pdf'), 
        width = 16, height = 32)

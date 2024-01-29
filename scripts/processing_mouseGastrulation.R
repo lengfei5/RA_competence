@@ -961,21 +961,192 @@ if(Compare_Refs_Marioni2019_Chan2019){
   
 }
 
-Search_FoxA2_Pax6_doublePositive = FALSE
-if(Search_FoxA2_Pax6_doublePositive){
- 
-  srat = readRDS(file = paste0(RdataDir,
-                               'seuratObject_MouseGastrulation_Marioni2019_all36sample_RNAassay_all.celltypes.rds'))
+##########################################
+# check the Pax6 and FoxA2 co-expression
+##########################################
+Search_FoxA2_Pax6_doublePositive_Chan2019 = FALSE
+if(Search_FoxA2_Pax6_doublePositive_Chan2019){
   
   aa = readRDS(file = paste0(RdataDir, 'seuratObject_', species, version.analysis,
                              '_lognormamlized_var.to.regress.nCount.RNA_pca_clusterIDs_celltypes.rds'))
   
+  outDir = paste0(resDir, '/Chan2019_FoxA2.Pax6.double.positive/')
+  if(!dir.exists(outDir)) dir.create(outDir)
   
-  ##########################################
-  # check the Pax6 and FoxA2 co-expression
-  ##########################################
-  p1 = VlnPlot(srat, features = c('Pax6'), group.by = 'celltype') + NoLegend()
-  p2 = VlnPlot(srat, features = 'Foxa2', group.by = 'celltype') + NoLegend()
+  DimPlot(aa, group.by = 'celltype', label = TRUE) + NoLegend()
+  #DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'celltype', raster=FALSE)
+  ggsave(filename = paste0(outDir, '/Celltypes_umap.pdf'), width = 12, height = 8)
+  
+  p1 = VlnPlot(aa, features = c('Pax6'), group.by = 'celltype') + NoLegend()
+  p2 = VlnPlot(aa, features = 'Foxa2', group.by = 'celltype') + NoLegend()
+  
+  p1 / p2
+  
+  ggsave(filename = paste0(outDir, '/Vlnplot_Pax6_Foxa2_celltypes.pdf'), width = 14, height = 10)
+  
+  
+  FeaturePlot(aa, features = c('Pax6', 'Foxa2'), blend = TRUE, raster = TRUE, order = TRUE)
+  
+  ggsave(filename = paste0(outDir, '/Featureplots_Pax6_Foxa2_blended_ordered.pdf'), width = 20, height = 8)
+  
+  
+  
+  ## subset potential clusters
+  Idents(aa) = as.factor(aa$celltype)
+  
+  celltypes_sels = c('anterior_primitive_streak', 'ectoderm_early_1', 'ectoderm_early_2', 
+                     'fore/midbrain', 'future_spinal_cord',
+                     'neural_ectoderm_anterior', 'neural_ectoderm_posterior', 
+                     'neuromesodermal_progenitor_early', 'neuromesodermal_progenitor_late',
+                     'preplacodal_ectoderm', 'presomitic_mesoderm',
+                     'primitive_streak_early', 'primitive_streak_late', 'primitive/definitive_endoderm',
+                     'secondary_heart_field/splanchnic_lateral_plate', 'visceral_endoderm_early', 
+                     'visceral_endoderm_late'
+  )
+  
+  sub.obj = subset(aa, idents = celltypes_sels)
+  
+  Idents(sub.obj) = as.factor(sub.obj$celltype)
+  
+  
+  DimPlot(sub.obj, reduction = 'umap', group.by = 'celltype', 
+          label = TRUE, repel = TRUE,
+          raster=FALSE)
+  
+  sub.obj = FindVariableFeatures(sub.obj, selection.method = 'vst', nfeatures = 3000)
+  sub.obj <- RunPCA(sub.obj, verbose = FALSE, weight.by.var = TRUE)
+  ElbowPlot(sub.obj, ndims = 50)
+  
+  sub.obj <- RunUMAP(sub.obj, reduction = "pca", dims = 1:20, 
+                     n.neighbors = 30, min.dist = 0.1)
+  
+  p1 = DimPlot(sub.obj, reduction = 'umap', group.by = 'celltype', 
+               label = TRUE, repel = TRUE,
+               raster=FALSE)
+  p2 = DimPlot(sub.obj, reduction = 'umap', group.by = 'condition', 
+               label = TRUE, repel = TRUE,
+               raster=FALSE)
+  
+  p1 + p2
+  
+  ggsave(filename = paste0(outDir, '/umap_subsetting_celltypes_stages.pdf'), width = 25, height = 8)
+  
+  FeaturePlot(sub.obj, features = c('Pax6', 'Foxa2'), blend = TRUE, raster = TRUE, order = TRUE)
+  ggsave(filename = paste0(outDir, '/Featureplots_Pax6_Foxa2_blended_ordered_subsetting.pdf'), 
+         width = 20, height = 8)
+  
+  sub.obj <- FindNeighbors(sub.obj, dims = 1:20)
+  sub.obj <- FindClusters(sub.obj, verbose = FALSE, algorithm = 3, resolution = 1.5)
+  
+  DimPlot(sub.obj, reduction = 'umap', 
+          label = TRUE, repel = TRUE, raster=FALSE)
+ 
+  ggsave(filename = paste0(outDir, '/subset_celltypes_reclustering.pdf'), width = 12, height = 8)
+  
+  p1 = VlnPlot(sub.obj, features = c('Pax6'), group.by = 'seurat_clusters') + NoLegend()
+  p2 = VlnPlot(sub.obj, features = 'Foxa2', group.by = 'seurat_clusters') + NoLegend()
+  
+  p1 / p2
+  
+  ggsave(filename = paste0(outDir, '/Vlnplot_Pax6_Foxa2_subset.celltypes_reclustered.pdf'), 
+         width = 14, height = 10)
+    
+  
+  ## second round of subsetting
+  celltypes_sels = c(1, 2, 3, 4, 6, 8,11,12,18,20,22,25,26,29,32,37)
+  xx = subset(sub.obj, idents = celltypes_sels)
+  sub.obj = xx
+  
+  #Idents(sub.obj) = as.factor(sub.obj$celltype)
+  DimPlot(sub.obj, reduction = 'umap', group.by = 'celltype', 
+          label = TRUE, repel = TRUE,
+          raster=FALSE)
+  
+  sub.obj = FindVariableFeatures(sub.obj, selection.method = 'vst', nfeatures = 2000)
+  sub.obj <- RunPCA(sub.obj, verbose = FALSE, weight.by.var = TRUE)
+  ElbowPlot(sub.obj, ndims = 50)
+  
+  sub.obj <- RunUMAP(sub.obj, reduction = "pca", dims = 1:20, 
+                     n.neighbors = 30, min.dist = 0.1)
+  
+  p1 = DimPlot(sub.obj, reduction = 'umap', group.by = 'celltype', 
+               label = TRUE, repel = TRUE,
+               raster=FALSE)
+  p2 = DimPlot(sub.obj, reduction = 'umap', group.by = 'condition', 
+               label = TRUE, repel = TRUE,
+               raster=FALSE)
+  
+  p1 + p2
+  
+  ggsave(filename = paste0(outDir, '/umap_subsetting_celltypes_stages_2ndRound.pdf'), width = 25, height = 8)
+  
+  FeaturePlot(sub.obj, features = c('Pax6', 'Foxa2'), blend = TRUE, raster = TRUE, order = TRUE)
+  ggsave(filename = paste0(outDir, '/Featureplots_Pax6_Foxa2_blended_ordered_subsetting_2ndRound.pdf'), 
+         width = 20, height = 8)
+  
+  sub.obj <- FindNeighbors(sub.obj, dims = 1:20)
+  sub.obj <- FindClusters(sub.obj, verbose = FALSE, algorithm = 3, resolution = 2.0)
+  
+  DimPlot(sub.obj, reduction = 'umap', 
+          label = TRUE, repel = TRUE, raster=FALSE)
+  
+  ggsave(filename = paste0(outDir, '/subset_celltypes_reclustering_2ndROund.pdf'), width = 12, height = 8)
+  
+  p1 = VlnPlot(sub.obj, features = c('Pax6'), group.by = 'seurat_clusters') + NoLegend()
+  p2 = VlnPlot(sub.obj, features = 'Foxa2', group.by = 'seurat_clusters') + NoLegend()
+  
+  p1 / p2
+  
+  ggsave(filename = paste0(outDir, '/Vlnplot_Pax6_Foxa2_subset.celltypes_reclustered.pdf'), 
+         width = 14, height = 10)
+  
+  celltypes_sels = c(3, 19, 28, 32, 30, 2)
+  xx = subset(sub.obj, idents = celltypes_sels)
+  sub.obj = xx
+  
+  DimPlot(sub.obj, reduction = 'umap', group.by = 'celltype', 
+          label = TRUE, repel = TRUE,
+          raster=FALSE)
+  
+  sub.obj = FindVariableFeatures(sub.obj, selection.method = 'vst', nfeatures = 2000)
+  sub.obj <- RunPCA(sub.obj, verbose = FALSE, weight.by.var = TRUE)
+  ElbowPlot(sub.obj, ndims = 50)
+  
+  sub.obj <- RunUMAP(sub.obj, reduction = "pca", dims = 1:20, 
+                     n.neighbors = 30, min.dist = 0.1)
+  
+  p1 = DimPlot(sub.obj, reduction = 'umap', group.by = 'celltype', 
+               label = TRUE, repel = TRUE,
+               raster=FALSE)
+  p2 = DimPlot(sub.obj, reduction = 'umap', group.by = 'condition', 
+               label = TRUE, repel = TRUE,
+               raster=FALSE)
+  
+  p1 + p2
+  
+  ggsave(filename = paste0(outDir, '/umap_subsetting_celltypes_stages_3rdRound.pdf'), width = 25, height = 8)
+  
+  FeaturePlot(sub.obj, features = c('Pax6', 'Foxa2'), blend = TRUE, raster = TRUE, order = TRUE)
+  ggsave(filename = paste0(outDir, '/Featureplots_Pax6_Foxa2_blended_ordered_subsetting_3rdRound.pdf'), 
+         width = 20, height = 8)
+  
+  FeaturePlot(sub.obj, features = c('Foxi3','Tbx1', 'Foxi2', 
+                                    'Tfap2a', 'Tfap2c', 'Gata3'))
+  
+  
+  ggsave(filename = paste0(outDir, '/Featureplots_preplacodal_ectoderm_3rdRound.pdf'), 
+         width = 12, height = 16)
+  
+  
+}
+
+Search_FoxA2_Pax6_doublePositive_Marioni2019 = FALSE
+if(Search_FoxA2_Pax6_doublePositive_Marioni2019){
+  srat = readRDS(file = paste0(RdataDir,
+                'seuratObject_MouseGastrulation_Marioni2019_all36sample_RNAassay_all.celltypes.rds'))
+  
+  p1 = VlnPlot(srat, features = c('Pax6'), group.by = 'celltype', raster = FALSE) + NoLegend()
+  p2 = VlnPlot(srat, features = 'Foxa2', group.by = 'celltype', raster = FALSE) + NoLegend()
   
   p1 / p2
   
@@ -1023,8 +1194,8 @@ if(Search_FoxA2_Pax6_doublePositive){
   
   
   
-   
 }
+
 
 ########################################################
 ########################################################
@@ -1067,9 +1238,3 @@ rm(list = c('xx', 'yy'))
 
 saveRDS(refs, file = paste0(RdataDir, 
                             'seuratObject_mouseGastrulationAtlasData_Marioni2019_Chan2019_mnn.rds'))
-
-
-##########################################
-# benchmark different integration methods
-##########################################
-
