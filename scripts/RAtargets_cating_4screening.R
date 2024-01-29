@@ -55,8 +55,21 @@ ggs = unique(xx)
 
 saveRDS(ggs, file = paste0(RdataDir, 'RAR_targets_chip_chiapet.rds'))
 
-write.table(ggs, file = paste0(resDir, '/RAtargets_chipseq.peak.assignment_chiapet.closestTSS.txt'), 
-            sep = '\t', col.names = FALSE, row.names = FALSE, quote = FALSE)
+write.csv2(ggs, file = paste0(resDir, '/RAtargets_chipseq.peak.assignment_chiapet.closestTSS.csv'), 
+            row.names = FALSE, quote = FALSE)
+
+
+########################################################
+########################################################
+# Section I : Upregulated genes by RA 
+# 
+########################################################
+########################################################
+
+##########################################
+# 
+##########################################
+
 
 
 
