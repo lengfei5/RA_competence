@@ -12,12 +12,11 @@ rm(list = ls())
 version.analysis = '_R16597_mNT_10xmultiome_20240206'
 
 resDir = paste0("../results/scRNAseq", version.analysis)
-RdataDir = paste0('../results/Rdata/')
+RdataDir = paste0(resDir, '/Rdata/')
 
 if(!dir.exists(resDir)) dir.create(resDir)
 if(!dir.exists(RdataDir)) dir.create(RdataDir)
 
-dataDir = '../R13547_10x'
 functionDir = '/groups/tanaka/People/current/jiwang/projects/heart_regeneration/scripts/'
 
 source(paste0(functionDir,  'functions_scATAC.R'))
@@ -116,69 +115,42 @@ for(n in 1:length(cc))
   
 }
 
+saveRDS(meta, file = paste0(RdataDir, 'meta_data.rds'))
 
 ########################################################
 ########################################################
-# Section I : 
+# Section I : merge all cellranger peaks as peak consensus
+# and quantify the count tables 
+# 
 # 
 ########################################################
 ########################################################
 library(EnsDb.Mmusculus.v79)
+library(BSgenome.Mmusculus.UCSC.mm10)
+
+# get gene annotations for mm10
+annotation <- GetGRangesFromEnsDb(ensdb = EnsDb.Mmusculus.v79)
+
+seqlevels(annotation) <- paste0('chr', seqlevels(annotation))
+
+meta = readRDS(paste0(RdataDir, 'meta_data.rds'))
+dataDir = '../mNT_scmultiome_R16597'
 
 ##########################################
-# axoltol genome and annotation (fragmented version) 
+## first merge called peaks from different samples
 ##########################################
-# this (bespoke) package hosts the axolotl genome (comments from Tomas)
-# package is very large, cannot be installed in home directory and should be in a fast disk
-#install.packages("/groups/tanaka/People/current/jiwang/scripts/axolotl_multiome
-# /r_package/BSgenome.Amexicanum.axolotlomics.AmexGv6cut500M_1.0.0.tar.gz",
-#                 repos = NULL, type = "source")
-library(BSgenome.Amexicanum.axolotlomics.AmexGv6cut500M)
+design = meta[which(meta$modality == 'ATAC'), ]
 
-library(ballgown)
-gtf_axolotl = paste0("/groups/tanaka/People/current/jiwang/scripts/axolotl_multiome/r_package/", 
-                     "AmexT_v47.FULL_corr_chr_cut.gtf")
-
-granges_axolotl = ballgown::gffReadGR(gtf_axolotl)
-# adding a gene biotype, as that's necessary for TSS metaprofile
-granges_axolotl$gene_biotype = "protein_coding"
-
-# with need to add the "proper" gene name
-# basedir = "/links/groups/treutlein/USERS/tomasgomes/gene_refs/axolotl/Amex_T_v47/"
-# gene_name_match = read.table(paste0(basedir, "AmexT_v47.FULL_t2g_note.txt"), sep = "\t")[,2:3]
-# gene_name_match = gene_name_match[!duplicated(gene_name_match$V2), ]
-# rownames(gene_name_match) = gene_name_match$V2
-# newgenenames = gene_name_match[granges_axolotl$gene_id,2]
-# granges_axolotl$gene_name = newgenenames
-
-species = 'axloltl_scATAC'
-
-#design = data.frame(sampleID = seq(197254, 197258), 
-#                    condition = c(paste0('Amex_scATAC_d', c(0, 1, 4, 7, 14))), stringsAsFactors = FALSE)
-#design$timepoint = gsub('Amex_scATAC_', '', design$condition) 
-
-
-########################################################
-########################################################
-# Section I: merge all cellranger peaks as peak consensus
-# and quantify the count tables 
-# 
-########################################################
-########################################################
-## import scRNA seq data as reference to select cells
-scRNA_file = '/groups/tanaka/Collaborations/Jingkui-Elad/scMultiome/aa_annotated_no_doublets_20221004_2.rds'
-refs = readRDS(file = scRNA_file)
-table(refs$subtypes)
-
-# merge the peak first 
 for(n in 1:nrow(design))
 {
   # n = 1
   cat('----------- : ', n, ':',  design$condition[n], '-------------\n')
-  topdir = paste0(dataDir, '/multiome_', design$timepoint[n], '/outs')
+  
+  topdir = paste0(dataDir, '/multiome_', design$condition[n], '/outs')
   
   p = read.table(paste0(topdir, "/atac_peaks.bed"), 
                  col.names = c("chr", "start", "end"))
+  
   p = makeGRangesFromDataFrame(p)
   cat('---', length(p), ' peaks \n')
   
@@ -193,12 +165,12 @@ length(peaks)
 combined.peaks = peaks
 rm(peaks)
 
-
 ##########################################
-# combine peaks filtering
+# filtering the combined peaks 
 ##########################################
 peakwidths = width(combined.peaks)
 combined.peaks = combined.peaks[peakwidths > 50]
+
 # there is a problem with coordinates starting at 0 for some reason...
 combined.peaks = restrict(combined.peaks, start = 1)
 cat(length(combined.peaks), ' combined peaks \n')
@@ -206,7 +178,7 @@ cat(length(combined.peaks), ' combined peaks \n')
 srat_cr = list()
 
 for(n in 1:nrow(design))
-  #for(n in 2:nrow(design))
+#for(n in 2:nrow(design))
 {
   # n = 1
   cat('----------- : ', n, ':',  design$condition[n], '-------------\n')
@@ -225,6 +197,7 @@ for(n in 1:nrow(design))
   cat(length(cells_peak), ' cells from atac \n')
   cat(length(cells_rna), ' cell from rna \n')
   sum(!is.na(match(cells_rna, cells_peak)))
+  
   
   #frags_l = CreateFragmentObject(path = fragpath, cells = colnames(counts$Peaks))
   frags_l = CreateFragmentObject(path = fragpath, cells = cells_rna)
