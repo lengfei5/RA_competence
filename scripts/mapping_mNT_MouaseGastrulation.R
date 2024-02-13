@@ -59,14 +59,13 @@ cols[grep('_RA', names(cols))] = colorRampPalette((brewer.pal(n = 7, name ="OrRd
 
 ## subset our scRNA-seq data 
 levels_sels = c("day2_beforeRA",  
-                "day2.5_RA", "day3_RA.rep1", "day3.5_RA",   "day4_RA", "day5_RA",
-                "day2.5_noRA", "day3_noRA",  "day3.5_noRA", "day4_noRA", "day5_noRA")
+                "day2.5_RA", "day3_RA.rep1", "day3.5_RA",   "day4_RA", "day5_RA", "day6_RA",
+                "day2.5_noRA", "day3_noRA",  "day3.5_noRA", "day4_noRA", "day5_noRA", "day6_noRA")
 
 #levels_sels = c("day2_beforeRA",  "day2.5_RA", "day3_RA.rep1", "day3.5_RA",
 #                "day4_RA", "day5_RA", "day6_RA")
 
 cols_sel = cols[match(levels_sels, names(cols))]
-
 
 col_mouse = readRDS(file = paste0(RdataDir, 'cols_mouse_gastrulation_celltypes.rds'))
 
@@ -91,9 +90,11 @@ Idents(aa) = factor(aa$condition)
 aa = subset(aa, idents = levels_sels)
 
 # downsample for each condition
-aa = subset(x = aa, downsample = 1000)
+Idents(aa) = factor(aa$condition)
+aa = subset(x = aa, downsample = 2000)
 
-saveRDS(aa, file = paste0(RdataDir, 'seuratObject_mNT_selectedCondition_downsampled.1k.perCondition.rds'))
+saveRDS(aa, file = paste0(RdataDir, 
+                          'seuratObject_mNT_selectedCondition_includeDay6_downsampled.2k.perCondition.rds'))
 
 ########################################################
 ########################################################
@@ -104,12 +105,8 @@ saveRDS(aa, file = paste0(RdataDir, 'seuratObject_mNT_selectedCondition_downsamp
 # Methods choices: seurat_CCA, seurat_RPCA, harmony, fastMNN, scanorama, scVI
 ########################################################
 ########################################################
-
-##########################################
-# import the mNT data and reference
-##########################################
 aa = readRDS(file = paste0(RdataDir, 
-                           'seuratObject_mNT_selectedCondition_downsampled.1k.perCondition_reclustered.rds'))
+                           'seuratObject_mNT_selectedCondition_includeDay6_downsampled.2k.perCondition.rds'))
 
 ## check the markers of anterior primitive streak, node, and endoderm, gut  
 FeaturePlot(aa, features = c('Shh', 'Foxa2', 'Arx', 'Nkx6-1', 'Sox17', 'Pax6', 
@@ -118,13 +115,17 @@ FeaturePlot(aa, features = c('Shh', 'Foxa2', 'Arx', 'Nkx6-1', 'Sox17', 'Pax6',
                              'Aifm2', 'Nodal', 'Foxa3',
                              "Hhex", 'Cdx1', 'Foxa1', 'Ctnnb1', 'Gata4', 'Gata6', 'Cdx1', 'Ihh', 'Hesx1'))
 
-FeaturePlot(aa, features = c('Foxi3','Tbx1', 'Foxi2', 
+FeaturePlot(aa, features = c('Foxi3','Tbx1', 'Foxi2', 'Apoa2',
                              'Tfap2a', 'Tfap2c', 'Gata3', 'Gata6'))
 
 ggsave(paste0(outDir, '/test_APS_Endoderm_Gut_markers.pdf'), 
        width = 16, height = 32)
 
-ref = readRDS(file = paste0(RdataDir,  
+
+##########################################
+# import reference and specify the output folder
+##########################################
+ref = readRDS(file = paste0(RdataDir,
                              'seuratObject_EmbryoAtlasData_all36sample_RNAassay_keep.relevant.celltypes_v2.rds'))
 
 cols_mouse = sapply(ref$colour, function(x) {paste0('#', x, collapse = '')})
