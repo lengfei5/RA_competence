@@ -38,6 +38,8 @@ library(data.table)
 library(DropletUtils)
 library(edgeR)
 library(future)
+library(tictoc)
+
 options(future.globals.maxSize = 160 * 1024^3)
 set.seed(1234)
 mem_used()
@@ -150,9 +152,10 @@ for(n in 1:nrow(design))
   
   p = read.table(paste0(topdir, "/atac_peaks.bed"), 
                  col.names = c("chr", "start", "end"))
-  
   p = makeGRangesFromDataFrame(p)
   cat('---', length(p), ' peaks \n')
+  ## atac_peaks.bed have the same peaks as in filtered_feature_bc_matrix.h5
+  #counts <- Read10X_h5(paste0(topdir, "/filtered_feature_bc_matrix.h5"))
   
   if(n == 1){
     peaks = p
@@ -165,9 +168,7 @@ length(peaks)
 combined.peaks = peaks
 rm(peaks)
 
-##########################################
-# filtering the combined peaks 
-##########################################
+## a quick filtering the combined peaks
 peakwidths = width(combined.peaks)
 combined.peaks = combined.peaks[peakwidths > 50]
 
@@ -175,6 +176,9 @@ combined.peaks = combined.peaks[peakwidths > 50]
 combined.peaks = restrict(combined.peaks, start = 1)
 cat(length(combined.peaks), ' combined peaks \n')
 
+##########################################
+# creat seurat object with combined peaks
+##########################################
 srat_cr = list()
 
 for(n in 1:nrow(design))
@@ -184,84 +188,94 @@ for(n in 1:nrow(design))
   cat('----------- : ', n, ':',  design$condition[n], '-------------\n')
   
   # load nf output and process
-  topdir = paste0(dataDir, '/multiome_', design$timepoint[n], '/outs')
-  #counts <- Read10X_h5(filename = paste0(topdir, "/filtered_feature_bc_matrix.h5"))
-  counts <- Read10X_h5(filename = paste0(topdir, "/raw_feature_bc_matrix.h5"))
-  fragpath <- paste0(topdir, "/atac_fragments.tsv.gz")
+  topdir = paste0(dataDir, '/multiome_', design$condition[n], '/outs')
   
-  bc_rna = colnames(refs)[which(refs$condition == paste0("Amex_scRNA_", design$timepoint[n]))]
-  cells_rna = sapply(bc_rna, function(x) {test = unlist(strsplit(as.character(x), '-'))[1]; paste0(test, '-1')})
-  cells_rna = as.character(cells_rna)
+  tic()
+  counts <- Read10X_h5(filename = paste0(topdir, "/filtered_feature_bc_matrix.h5"))
+  #counts <- Read10X_h5(filename = paste0(topdir, "/raw_feature_bc_matrix.h5"))
+  fragpath <- paste0(topdir, "/atac_fragments.tsv.gz")
+  toc()
+  
+  bb <- CreateSeuratObject(
+    counts = counts$`Gene Expression`,
+    assay = "RNA"
+  )
   
   cells_peak = colnames(counts$Peaks)
+  cells_rna = colnames(counts$Peaks)
   cat(length(cells_peak), ' cells from atac \n')
-  cat(length(cells_rna), ' cell from rna \n')
+  cat(ncol(bb), ' cell from rna \n')
   sum(!is.na(match(cells_rna, cells_peak)))
   
-  
   #frags_l = CreateFragmentObject(path = fragpath, cells = colnames(counts$Peaks))
-  frags_l = CreateFragmentObject(path = fragpath, cells = cells_rna)
+  frags_l = CreateFragmentObject(path = fragpath, cells = cells_peak)
   
-  # slow step takes 16 mins without parall computation
+  # slow step  mins without parall computation
   tic()
-  feat = FeatureMatrix(fragments = frags_l, features = combined.peaks, cells = cells_rna)
+  feat = FeatureMatrix(fragments = frags_l, 
+                       features = combined.peaks, 
+                       cells = cells_peak,
+                       process_n = 80000)
+  
   saveRDS(feat, file = paste0(RdataDir, 'snATAC_FeatureMatrix_', design$condition[n], '.rds'))
   toc()
   
-  # Do not change the atac-seq barcode names, because fragment file is still connected with the cell bc;
-  # so it is easier to change the cell barcodes of RNA assay
-  # colnames(feat) = bc_rna 
-  
-  chrom_assay <- CreateChromatinAssay(
+  # create ATAC assay and add it to the object
+  bb[["ATAC"]] <- CreateChromatinAssay(
     counts = feat,
     sep = c(":", "-"),
     fragments = frags_l,
-    annotation = granges_axolotl,
-    min.cells = 0,
-    min.features = 0 
+    annotation = annotation
   )
   
-  bb <- CreateSeuratObject(
-    counts = chrom_assay,
-    assay = "ATAC",
-    
-  )
+  # further subset the peaks to just focus on those at the standard chromosomes. 
+  # This step is not a must but recommended as it makes some following analysis 
+  # that requires calculation of local background GC content much easier.
+  standard_chroms <- standardChromosomes(BSgenome.Mmusculus.UCSC.mm10)
+  idx_standard_chroms <- which(as.character(seqnames(granges(bb[['ATAC']]))) %in% standard_chroms)
   
-  rm(chrom_assay)
+  bb[["ATAC"]] <- subset(bb[["ATAC"]],
+                             features = rownames(bb[["ATAC"]])[idx_standard_chroms])
+  
+  seqlevels(bb[['ATAC']]@ranges) <- intersect(seqlevels(granges(bb[['ATAC']])),
+                                                  unique(seqnames(granges(bb[['ATAC']]))))
+  
+  bb$condition = design$condition[n]
+  bb$time = design$time[n]
+  bb$sampleID = design$sample_id[n]
   
   metadata <- read.csv(
     file = paste0(topdir, '/per_barcode_metrics.csv'),
     header = TRUE,
     row.names = 1
   )
-  
-  bb$cell_bc = colnames(bb)
-  bb$condition = gsub('_scATAC', '', design$condition[n])
-  
-  mm = match(bb$cell_bc, metadata$gex_barcode)
+  mm = match(colnames(bb), metadata$gex_barcode)
   metadata = metadata[mm, c(1,2, 3, 21:30)]
-  #rownames(metadata) = colnames(bb)
-  
   bb = AddMetaData(bb, metadata = metadata)
   
   bb$pct_reads_in_peaks <- bb$atac_peak_region_fragments / bb$atac_fragments * 100
   bb$pct_usable_fragments = bb$atac_fragments/bb$atac_raw_reads
   
+  bb = PercentageFeatureSet(bb, pattern = "^mt-",
+                            col.name = "percent.mt", assay = "RNA")
+  
   DefaultAssay(bb) <- "ATAC"
   
   bb = NucleosomeSignal(bb)
-  bb = TSSEnrichment(bb, fast = FALSE)
+  bb = TSSEnrichment(bb, fast = TRUE)
   
   srat_cr[[n]] = bb
   
+  
 }
 
-saveRDS(srat_cr, file = (paste0(RdataDir, 'seuratObj_scATAC_beforeMerged.peaks.cellranger.584K_v1.rds')))
+saveRDS(srat_cr, file = (paste0(RdataDir, 'seuratObj_scATAC_beforeMerged.peaks.cellranger_v1.rds')))
 
-srat_cr = readRDS(file = paste0(RdataDir, 'seuratObj_scATAC_beforeMerged.peaks.cellranger.584K_v1.rds'))
+srat_cr = readRDS(file = paste0(RdataDir, 'seuratObj_scATAC_beforeMerged.peaks.cellranger_v1.rds'))
 srat_reduced = Reduce(merge, srat_cr)
 
-saveRDS(srat_reduced, file = (paste0(RdataDir, 'seuratObj_scATAC_merged.peaks.cellranger.584K_v1.rds')))
+saveRDS(srat_reduced, file = (paste0(RdataDir, 'seuratObj_scATAC_merged.peaks.cellranger_v1.rds')))
+
 
 ########################################################
 ########################################################
