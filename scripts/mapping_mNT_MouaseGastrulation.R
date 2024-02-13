@@ -118,26 +118,31 @@ FeaturePlot(aa, features = c('Shh', 'Foxa2', 'Arx', 'Nkx6-1', 'Sox17', 'Pax6',
 FeaturePlot(aa, features = c('Foxi3','Tbx1', 'Foxi2', 'Apoa2',
                              'Tfap2a', 'Tfap2c', 'Gata3', 'Gata6'))
 
-ggsave(paste0(outDir, '/test_APS_Endoderm_Gut_markers.pdf'), 
-       width = 16, height = 32)
-
 
 ##########################################
 # import reference and specify the output folder
 ##########################################
 ref = readRDS(file = paste0(RdataDir,
-                             'seuratObject_EmbryoAtlasData_all36sample_RNAassay_keep.relevant.celltypes_v2.rds'))
+                             'seuratObject_EmbryoAtlasData_all36sample_RNAassay_keep.relevant.celltypes_v3.rds'))
+
+xx = readRDS('../results/Rdata/mouseGastrulation_Marioni2019_FPcells.annotated.rds')
+
+DimPlot(ref, group.by = 'celltype', label = TRUE, repel = TRUE)
+
+ref$celltype[match(xx, colnames(ref))] = 'FloorPlate'
+
+DimPlot(ref, group.by = 'celltype', label = TRUE, repel = TRUE)
 
 cols_mouse = sapply(ref$colour, function(x) {paste0('#', x, collapse = '')})
 names(cols_mouse) =ref$celltype
 cols_mouse = cols_mouse[match(unique(names(cols_mouse)), names(cols_mouse))]
 
-
 mapping_method = "seurat_rpca"
-data_version = 'mapping_mNT.noRA.RA.d2_d5_Marioni2019_selectedCelltypes'
+data_version = 'mapping_mNT.noRA.RA.d2_d6_Marioni2019_selectedCelltypes'
 
 outDir = paste0(resDir, mapping_method, '/',  data_version, '/')
 system(paste0('mkdir -p ', outDir))
+
 
 ##########################################
 # test Seurat data integration
@@ -153,51 +158,6 @@ aa$sequencing.batch = 'mNT'
 ref$dataset = 'ref'
 
 aa$celltype = paste0('mNT_', aa$condition)
-
-##########################################
-# calculate similarity before data integration
-# 
-##########################################
-Test_cal_similarity_beforeIntegration = FALSE
-if(Test_cal_similarity_beforeIntegration){
-    
-  p1 = DimPlot(aa, group.by = 'condition', label = TRUE, repel = TRUE)
-  p2 = DimPlot(aa, group.by = 'seurat_clusters', label = TRUE, repel = TRUE)
-  p1 + p2
-  
-  ggsave(paste0(outDir, '/umap_query_conditions_clusters.pdf'), 
-         width = 16, height = 6)
-  
-  FeaturePlot(aa, features = 'Foxa2')
-  
-  source(paste0(functionDir, '/functions_dataIntegration.R'))
-  
-  ref = FindVariableFeatures(ref, selection.method = 'vst', nfeatures = 1000)
-  
-  cc = c(3, 6, 5, 1, 7, 4, 11, 10)
-  
-  for(n in 1:length(cc))
-  {
-    # n = 4
-    cat(n, ' -- ', cc[n], '\n')
-    
-    subs = subset(aa, cells = colnames(aa)[which(aa$clusters == cc[n])]);
-    px = calculate_similarity_query_ref(query = subs, 
-                                        ref = ref, 
-                                        nHVGs = 1000, 
-                                        method = c("spearman"),
-                                        group.by = 'celltype')
-    
-    pdfname = paste0(outDir, '/spearman_similarity_withRefCelltypes_', cc[n], '.pdf')
-    
-    pdf(pdfname, width=16, height = 8)
-    plot(px)
-    
-    dev.off()
-    
-  }
-  
-}
 
 ##########################################
 # test integration method before data integration
@@ -237,7 +197,7 @@ rm(ref.list)
 
 # this command creates an 'integrated' data assay
 ref.combined <- IntegrateData(anchorset = ref.anchors, features.to.integrate = features.common, 
-                              dims = 1:50) ## take ~100G memory
+                              dims = 1:50) ## take ~80G memory
 
 rm(ref.anchors)
 
