@@ -40,7 +40,7 @@ library(edgeR)
 library(future)
 library(tictoc)
 
-options(future.globals.maxSize = 160 * 1024^3)
+options(future.globals.maxSize = 200 * 1024^3)
 set.seed(1234)
 mem_used()
 
@@ -277,202 +277,140 @@ saveRDS(srat_reduced, file = (paste0(RdataDir, 'seuratObj_scATAC_merged.peaks.ce
 
 ########################################################
 ########################################################
-# Section II : combine snRNA-seq and scATAC-seq
-# - continue scATAC-seq analysis
+# Section II : QCs of scATAC and snRNA
 ########################################################
 ########################################################
+## subset the mutliome conditions
+levels_sels = c("day2_beforeRA",  
+                "day2.5_RA", "day3_RA", "day3.5_RA",  "day4_RA", "day5_RA", 
+                "day2.5_noRA", "day3_noRA",  "day3.5_noRA", "day4_noRA")
+
+cc = names(cols)
+cc[which(cc == 'day3_RA.rep1')] = 'day3_RA'
+names(cols) = cc
+
+cols_sel = cols[match(levels_sels, names(cols))]
+
+
 srat_cr = readRDS(file = paste0(RdataDir, 'seuratObj_scATAC_merged.peaks.cellranger_v1.rds'))
+
 meta = readRDS(paste0(RdataDir, 'meta_data.rds'))
+design = meta[which(meta$modality == 'ATAC'), ]
+#design$condition = gsub('_12h_', '.5_', design$condition)
+#design$condition = gsub('^d', 'day', design$condition)
 
-design$condition = gsub('_scATAC', '', design$condition)
+srat_cr$condition = gsub('_12h_', '.5_', srat_cr$condition)
+srat_cr$condition = gsub('^d', 'day', srat_cr$condition)
 
-levels = design$condition
-srat_cr$condition = factor(srat_cr$condition, levels = levels)
+table(srat_cr$condition)
+
+
+srat_cr$condition = factor(srat_cr$condition, levels = levels_sels)
 Idents(srat_cr) = srat_cr$condition
-
-##########################################
-# merge snRNA and scATAC data 
-##########################################
-Merge_scATAC_snRNA = FALSE
-if(Merge_scATAC_snRNA){
-  
-  # import the snRNA-seq data to merge multiome
-  cat('snRNA-seq --', basename(scRNA_file), '\n')
-  refs = readRDS(file = scRNA_file)
-  
-  table(refs$subtypes)
-  
-  xx <- RenameCells(
-    refs,
-    new.names = colnames(x = srat_cr[["ATAC"]])
-  )
-  
-  srat_cr[['RNA']] = xx[['RNA']]
-  
-  # refs[['ATAC']] = srat_cr[['ATAC']]
-  # refs = AddMetaData(refs, metadata = srat_cr@meta.data)
-  # saveRDS(refs, file = (paste0(RdataDir, 'seuratObj_snRNA_annotated_scATAC_merged.peaks.cellranger.441K_v0.rds')))
-  # refs = readRDS(file = (paste0(RdataDir, 'seuratObj_snRNA_annotated_scATAC_merged.peaks.cellranger.441K_v0.rds')))
-  
-  metadata = refs@meta.data
-  metadata = metadata[, grep('DF.classifications|pANN_', colnames(metadata), invert = TRUE)]
-  metadata = metadata[, -1]
-  colnames(metadata)[-c(1:2)] = paste0(colnames(metadata)[-c(1,2)], '_RNA')
-  
-  srat_cr = AddMetaData(srat_cr, metadata = metadata)
-  saveRDS(srat_cr, 
-          file = paste0(RdataDir, 
-                        'seuratObj_multiome_snRNA.annotated_scATAC.merged.peaks.cellranger.584K_38280cells.rds'))
-  
-  rm(xx, refs)
-  ##########################################
-  # modify the gene names in the ATAC-seq annotation to have the same as RNA assay
-  ##########################################
-  Run.annotation.motification = FALSE
-  if(Run.annotation.motification){
-    annotation = srat_cr@assays$ATAC@annotation
-    
-    DefaultAssay(srat_cr) <- "RNA"
-    ggs = rownames(srat_cr)
-    
-    get_geneID = function(srat_cr)
-    {
-      return(sapply(srat_cr, function(x) {test = unlist(strsplit(as.character(x), '-')); return(test[length(test)])}))
-      
-    }
-    
-    ######
-    geneids = get_geneID(ggs)
-    ggs = data.frame(ggs, geneids)
-    
-    mm = match(annotation$gene_id, ggs$geneids)
-    ii = which(!is.na(mm))
-    jj = mm[ii]
-    annotation$gene_name[ii] = ggs$ggs[jj]
-    
-    # for(n in 1:length(geneids))
-    # {
-    #   cat(n, '\n')
-    #   annotation$gene_name[which(annotation$gene_id == geneids[n])] = ggs[n]
-    #   
-    # }
-    
-    # tx_id required for the annotation plot in CoveragePlot
-    # https://github.com/stuart-lab/signac/issues/1159
-    annotation$tx_id = annotation$transcript_id
-    
-    # save the modified annotation
-    #saveRDS(annotation , "/groups/tanaka/Collaborations/Jingkui-Elad/scMultiome/snATACseq/Annotation_atac.rds")
-    
-  }
-  
-  srat_cr@assays$ATAC@annotation <- annotation
-  
-  saveRDS(srat_cr, 
-          file = paste0(RdataDir, 
-                        'seuratObj_multiome_snRNA.annotated_scATAC.merged.peaks.cr.584K.annot_38280cells.rds'))
-  
-  
-}
-
-########################################################
-########################################################
-# Section III : analyze the scATAC and scRNA
-########################################################
-########################################################
-srat_cr = readRDS(file = paste0(RdataDir, 
-                                'seuratObj_multiome_snRNA.annotated_scATAC.merged.peaks.cr.',
-                                '584K.annot_38280cells.rds'))
-
-#srat_cr <- NucleosomeSignal(srat_cr)
-#srat_cr <- TSSEnrichment(srat_cr, fast = FALSE)
-srat_cr$high.tss <- ifelse(srat_cr$TSS.enrichment > 5, 'High', 'Low')
-#saveRDS(srat_cr, file = (paste0(RdataDir, 'seuratObj_scATAC_merged.peaks.cellranger_QCs.rds')))
-
 
 make.QC.plots = FALSE
 if(make.QC.plots){
+  
+  outDir = paste0(resDir, '/QCs_multiome')
+  if(!dir.exists(outDir)) dir.create(outDir)
+  
   #TSSPlot(srat_cr, group.by = 'high.tss') + NoLegend()
   
-  VlnPlot(srat_cr, features = "nCount_ATAC", ncol = 1, y.max = 10000, group.by = 'condition', pt.size = 0., log = TRUE) +
-    geom_hline(yintercept = c(1000, 1500, 2000))
+  VlnPlot(srat_cr, features = "nCount_RNA", ncol = 1, y.max = 10000, group.by = 'condition', pt.size = 0., 
+          log = FALSE, raster=FALSE) +
+    geom_hline(yintercept = c(1000, 3000, 5000))
   
-  ggsave(filename = paste0(resDir, '/QCs_nCount_ATAC_cellRangerPeaks.pdf'), height =8, width = 12)
+  ggsave(filename = paste0(outDir, '/QCs_nCount_RNA_cellRanger.pdf'), height =8, width = 12)
   
-  VlnPlot(srat_cr, features = c("atac_fragments"), y.max = 10^6, group.by = 'condition', pt.size = 0, log = TRUE) +
-    geom_hline(yintercept = c(10000, 20000))
-  ggsave(filename = paste0(resDir, '/QCs_atac_fragments_cellRangerPeaks_20k.pdf'), height =8, width = 12)
+  VlnPlot(srat_cr, features = "nFeature_RNA", ncol = 1, y.max = 7000, group.by = 'condition', pt.size = 0., 
+          log = FALSE, raster=FALSE) +
+    geom_hline(yintercept = c(500, 1000, 2000))
   
-  VlnPlot(srat_cr, features = c("atac_raw_reads"), y.max = 10^6, group.by = 'condition', pt.size = 0, log = TRUE) +
-    geom_hline(yintercept = c(10000, 50000))
-  ggsave(filename = paste0(resDir, '/QCs_atac_rawReads_cellRangerPeaks_50k.pdf'), height =8, width = 12)
+  ggsave(filename = paste0(outDir, '/QCs_nFeature_RNA_cellRanger.pdf'), height = 8, width = 12)
+  
+  VlnPlot(srat_cr, features = "nCount_ATAC", ncol = 1, y.max = 100000, group.by = 'condition', pt.size = 0., 
+          log = FALSE, raster=FALSE) +
+    geom_hline(yintercept = c(1000, 5000, 10000))
+  ggsave(filename = paste0(outDir, '/QCs_nCount_ATAC_cellRanger.pdf'), height =8, width = 12)
   
   
-  VlnPlot(srat_cr, features = c("pct_reads_in_peaks"))
-  ggsave(filename = paste0(resDir, '/QCs_pct_readsWithinPeaks_cellRangerPeaks.pdf'), height =8, width = 12 )
+  VlnPlot(srat_cr, features = "nFeature_ATAC", ncol = 1, y.max = 50000, group.by = 'condition', pt.size = 0., 
+          log = FALSE, raster=FALSE) +
+    geom_hline(yintercept = c(1000, 5000, 10000))
+  
+  ggsave(filename = paste0(outDir, '/QCs_nFeature_ATAC_cellRanger.pdf'), height =8, width = 12)
   
   
-  VlnPlot(object = srat_cr, features = c("TSS.enrichment"), pt.size = 0, y.max = 10) +
+  VlnPlot(srat_cr, features = c("pct_reads_in_peaks"), raster=FALSE,  pt.size = 0.1)
+  ggsave(filename = paste0(outDir, '/QCs_pct_readsWithinPeaks_cellRangerPeaks.pdf'), 
+         height =8, width = 12 )
+  
+  VlnPlot(srat_cr, features = "percent.mt", ncol = 1, y.max = 100, group.by = 'condition', 
+          pt.size = 0.0, 
+          log = FALSE, raster=FALSE) +
+    geom_hline(yintercept = c(10, 20, 30))
+  
+  ggsave(filename = paste0(outDir, '/QCs_percent.mt_RNA_cellRanger.pdf'), height =8, width = 12)
+  
+  srat_cr$atac_percent.mt = srat_cr$atac_mitochondrial_reads/srat_cr$nCount_ATAC*100
+  VlnPlot(srat_cr, features = "atac_percent.mt", ncol = 1, group.by = 'condition', 
+          pt.size = 0.0, 
+          log = FALSE, raster=FALSE) +
+    geom_hline(yintercept = c(10, 20, 30))
+  
+  
+  VlnPlot(object = srat_cr, features = c("TSS.enrichment"), pt.size = 0, y.max = 20, raster=FALSE) +
     geom_hline(yintercept = c(1, 2))
-  ggsave(filename = paste0(resDir, '/QCs_TSS.enrichment_cellRangerPeaks.pdf'), height =8, width = 12 )
   
-  VlnPlot(object = srat_cr, features = c("nucleosome_signal"), pt.size = 0)
-  ggsave(filename = paste0(resDir, '/QCs_nucleosome_signal_cellRangerPeaks.pdf'), height =8, width = 12 )
+  ggsave(filename = paste0(outDir, '/QCs_TSS.enrichment_cellRangerPeaks.pdf'), height =8, width = 12)
+  
+  VlnPlot(object = srat_cr, features = c("nucleosome_signal"), pt.size = 0, raster=FALSE) + 
+  geom_hline(yintercept = c(2))
+  
+  ggsave(filename = paste0(outDir, '/QCs_nucleosome_signal_cellRangerPeaks.pdf'), height =8, width = 12)
+  
   
 }
 
+# quick filtering 
+srat_cr <- subset(
+  x = srat_cr,
+  subset = nFeature_RNA < 7500 &
+    nFeature_RNA > 500 &
+    percent.mt < 30 &
+    nFeature_ATAC < 30000 &
+    nFeature_ATAC > 1000 &
+    TSS.enrichment > 1 &
+    nucleosome_signal < 2
+)
+
+table(srat_cr$condition)
+
 ##########################################
-# reprocess snRNÅ-seq data
+# process snRNÅ-seq data
 ##########################################
 DefaultAssay(srat_cr) <- "RNA"
-srat_cr$subtypes = srat_cr$subtypes_RNA
-srat_cr$celltypes = as.character(srat_cr$subtypes)
 
-srat_cr$celltypes[grep('CM_|CMs_|_CM|_CM_', srat_cr$subtypes)] = 'CM'
-srat_cr$celltypes[grep('EC_|_EC', srat_cr$subtypes)] = 'EC'
-srat_cr$celltypes[grep('FB_', srat_cr$subtypes)] = 'FB'
-srat_cr$celltypes[grep('B_cells', srat_cr$subtypes)] = 'Bcell'
+srat_cr <- NormalizeData(srat_cr) %>%
+  FindVariableFeatures(nfeatures = 5000) %>%
+  CellCycleScoring(s.features = firstup(cc.genes.updated.2019$s.genes),
+                   g2m.features = firstup(cc.genes.updated.2019$g2m.genes)) %>%
+  ScaleData() %>%
+  RunPCA(npcs = 50) %>%
+  RunUMAP(dims = 1:20, reduction.name = "umap_rna", reduction.key = "UMAPRNA_")
 
-srat_cr$celltypes[grep('Macrophages|_MF', srat_cr$subtypes)] = 'Macrophages'
-srat_cr$celltypes[grep('Megakeryocytes', srat_cr$subtypes)] = 'Megakeryocytes'
-srat_cr$celltypes[grep('RBC', srat_cr$subtypes)] = 'RBC'
 
-## need to rerun normalizaiton, PCA and UMAP
-DefaultAssay(srat_cr) = 'RNA'
-# renormalize the RNA data
-srat_cr <- NormalizeData(srat_cr, normalization.method = "LogNormalize", scale.factor = 10000)
+srat_cr <- RunUMAP(srat_cr, dims = 1:30, n.neighbors = 100, min.dist = 0.2, 
+                   reduction.name = "umap_rna", reduction.key = "UMAPRNA_")
 
-use.SCT.normalization = FALSE
-if(use.SCT.normalization){
-  library(tictoc)
-  tic()
-  srat_cr <- SCTransform(srat_cr, ncells = 3000, assay = "RNA", verbose = TRUE, 
-                         variable.features.n = 5000, 
-                         return.only.var.genes = TRUE, vst.flavor = "v2")
-  toc()
-  
-  srat_cr <- RunPCA(srat_cr, verbose = FALSE, weight.by.var = TRUE)
-  ElbowPlot(srat_cr, ndims = 30)
-  
-  srat_cr <- RunUMAP(srat_cr, dims = 1:40, n.neighbors = 50, min.dist = 0.3,  reduction.name = "umap_sct")
-  DimPlot(srat_cr, label = TRUE, repel = TRUE, group.by = 'celltypes', reduction = 'umap_sct') + NoLegend()
-  
-  DimPlot(srat_cr, label = TRUE, repel = TRUE, group.by = 'subtypes', reduction = 'umap_sct') + NoLegend()
-  
-  saveRDS(srat_cr, paste0("/groups/tanaka/Collaborations/Jingkui-Elad/scMultiome/snATACseq/",
-                          "seuratObj_multiome_snRNA.annotated_scATAC.merged.peaks.cellranger.441K_v4_testByJK_", 
-                          "logNormal_SCT_umap_lsiUmap_sctUmap.rds"))
-}
+p1 = DimPlot(srat_cr, label = TRUE, repel = TRUE, reduction = 'umap_rna', cols = cols_sel) + 
+  NoLegend()
+p2 <- FeaturePlot(srat_cr,
+                  c("Foxa2","Pax6"),
+                  reduction = "umap_rna") 
+p1 | p2
 
-srat_cr <- FindVariableFeatures(srat_cr, selection.method = "vst", nfeatures = 8000)
-srat_cr <- ScaleData(srat_cr)
-srat_cr <- RunPCA(srat_cr, features = VariableFeatures(object = srat_cr), verbose = FALSE)
-
-ElbowPlot(srat_cr, ndims = 50)
-srat_cr <- RunUMAP(srat_cr, dims = 1:30, n.neighbors = 30, min.dist = 0.1, 
-                   reduction.name = "umap")
-
-DimPlot(srat_cr, label = TRUE, repel = TRUE, reduction = 'umap') + NoLegend()
+ggsave(filename = paste0(outDir, '/QCs_nucleosome_signal_cellRangerPeaks.pdf'), height =8, width = 12)
 
 DimPlot(srat_cr, label = TRUE, group.by = 'celltypes', repel = TRUE, reduction = 'umap') + NoLegend()
 
@@ -491,30 +429,12 @@ srat_cr = readRDS(file = paste0(RdataDir,
 
 # normalize ATAC and UMAP
 DefaultAssay(srat_cr) <- "ATAC"
-
-Filter.cells.with.scATAC = FALSE
-if(Filter.cells.with.scATAC){
-  # quick filtering 
-  srat_cr <- subset(
-    x = srat_cr,
-    subset = nCount_ATAC < 100000 &
-      nCount_RNA < 25000 &
-      nCount_ATAC > 200 &
-      nCount_RNA > 1000 &
-      nucleosome_signal < 6 &
-      TSS.enrichment > 1
-  )
-  
-}
-
-Test_cisTopic = FALSE
-if(Test_cisTopic){
-  
-}
-
+DefaultAssay(seurat) <- "ATAC"
+seurat <- FindTopFeatures(seurat, min.cutoff = 50)
 
 srat_cr <- RunTFIDF(srat_cr)
 srat_cr = FindTopFeatures(srat_cr, min.cutoff = 'q5')
+seurat <- RunTFIDF(seurat, method = 1)
 srat_cr <- RunSVD(srat_cr)
 
 DepthCor(srat_cr, n = 30)
@@ -548,6 +468,13 @@ ggsave(filename = paste0(resDir, '/multiome_snRNA_snATAC_filtered.pdf'), height 
 #ggsave(filename = paste0(resDir, '/cellRangerPeaks_umap_perCondition_v1.pdf'), height =8, width = 30 )
 
 FeaturePlot(srat_cr, features = c('nCount_ATAC', 'nucleosome_signal'), reduction = 'umap_lsi')
+
+########################################################
+########################################################
+# Section IV : further anlaysis of scATAC-seq
+# 
+########################################################
+########################################################
 
 
 ##########################################
