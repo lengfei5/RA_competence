@@ -266,7 +266,6 @@ for(n in 1:nrow(design))
   
   srat_cr[[n]] = bb
   
-  
 }
 
 saveRDS(srat_cr, file = (paste0(RdataDir, 'seuratObj_scATAC_beforeMerged.peaks.cellranger_v1.rds')))
@@ -276,14 +275,15 @@ srat_reduced = Reduce(merge, srat_cr)
 
 saveRDS(srat_reduced, file = (paste0(RdataDir, 'seuratObj_scATAC_merged.peaks.cellranger_v1.rds')))
 
-
 ########################################################
 ########################################################
 # Section II : combine snRNA-seq and scATAC-seq
 # - continue scATAC-seq analysis
 ########################################################
 ########################################################
-srat_cr = readRDS(file = paste0(RdataDir, 'seuratObj_scATAC_merged.peaks.cellranger.584K_v1.rds'))
+srat_cr = readRDS(file = paste0(RdataDir, 'seuratObj_scATAC_merged.peaks.cellranger_v1.rds'))
+meta = readRDS(paste0(RdataDir, 'meta_data.rds'))
+
 design$condition = gsub('_scATAC', '', design$condition)
 
 levels = design$condition
