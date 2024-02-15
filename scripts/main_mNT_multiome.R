@@ -482,7 +482,6 @@ ggsave(filename = paste0(resDir, '/UMAP_ATAC_quickClustering_resolution.1.0.pdf'
 saveRDS(srat_cr, file = paste0(RdataDir, 
                                'seuratObj_multiome_snRNA.normalized.umap_scATAC.normalized.umap.rds'))
 
-
 ##########################################
 # link peaks and coveragePlots
 ##########################################
@@ -537,7 +536,99 @@ ggsave(filename = paste0(resDir, '/Pax6_enhancers_v1.pdf'), height = 12, width =
 
 ########################################################
 ########################################################
-# Section III : symmetry breaking by subsetting only RA treatment
+# Section III : Integrate the scRNA-seq data and multiome
+# 
+########################################################
+########################################################
+Integrate_scRNAseq_Multiome = FALSE
+if(Integrate_scRNAseq_Multiome){
+  ## multiome
+  srat_cr = readRDS(file = paste0(RdataDir, 
+                'seuratObj_multiome_snRNA.normalized.umap_scATAC.normalized.umap.rds'))
+  
+  DefaultAssay(srat_cr) = 'RNA'
+  srat_cr[['ATAC']] = NULL
+  
+  srat_cr$chemistry = 'multiome'
+  
+  ## scRNA-seq
+  aa =  readRDS(file = paste0('../results/Rdata/',  
+                              'seuratObject_merged_cellFiltered_doublet.rm_mt.ribo.geneFiltered_regressout.nCounts_',
+                              'cellCycleScoring_annot.v1_', 'mNT_scRNAseq',
+                              '_R13547_10x_mNT_20220813', '.rds'))
+  
+  aa$chemistry = 'scRNA'
+  
+  outDir = paste0(resDir, '/Integration_scRNAseq_multiome/')
+  system(paste0('mkdir -p ', outDir))
+  
+  features.common = intersect(rownames(aa), rownames(srat_cr))
+  
+  aa = subset(aa, features = features.common)
+  srat_cr = subset(srat_cr, features = features.common)
+  
+  multi_combine = merge(aa, y = srat_cr, add.cell.ids = c("scRNA", ""), project = "RA_competence")
+  
+  library(harmony)
+  multi_combine <- RunHarmony(multi_combine, "chem")
+  
+  table(multi_combine$chem)
+  ```
+  
+  Normalize, find variable features and scale data (highly var. genes)
+  ```{r}
+  multi_combine <- NormalizeData(multi_combine)
+  multi_combine <- FindVariableFeatures(multi_combine, nfeatures = 10000)
+  multi_combine <- ScaleData(multi_combine, vars.to.regress = c("nCount_RNA", "percent.mt"))
+  ```
+  
+  Plot highly variable genes (found by 'vst' method)
+  ```{r}
+  VariableFeaturePlot(object = multi_combine)
+  ```
+  
+  Run PCA
+  ```{r}
+  multi_combine <- RunPCA(multi_combine, features = VariableFeatures(object = multi_combine))
+  ```
+  
+  Plot chemistry and genes of interest on PCA 1 vs 2
+  ```{r}
+  main_pc_chem <- DimPlot(object = multi_combine, reduction = 'pca', group.by = 'chem', cols = c("turquoise4", "gray"))
+  main_pc <- FeaturePlot(object = multi_combine, reduction = 'pca', features = c('PTPRC', 'PDGFRA', 'COL4A2', 'GLI2'))
+  main_pc1 <- FeaturePlot(object = multi_combine, reduction = 'pca', features = c('SLC17A6', 'GAD1'))
+  
+  ggsave(plot = main_pc_chem, filename = "/links/groups/treutlein/USERS/Ashley/projects/axolotl/nucseq_axolotl/multiRNA_and_pallium/multiRNA_and_pallium/main_pc_chem.png", device = "png", width = 6, height = 4)
+  ggsave(plot = main_pc, filename = "/links/groups/treutlein/USERS/Ashley/projects/axolotl/nucseq_axolotl/multiRNA_and_pallium/multiRNA_and_pallium/main_pc.png", device = "png", width = 6, height = 4)
+  ggsave(plot = main_pc1, filename = "/links/groups/treutlein/USERS/Ashley/projects/axolotl/nucseq_axolotl/multiRNA_and_pallium/multiRNA_and_pallium/main_pc1.png", device = "png", width = 6, height = 4)
+  
+  main_pc_chem
+  main_pc
+  main_pc1
+  ```
+  
+  Run harmony to correct for chemistry
+  ```{r}
+  library(harmony)
+  multi_combine <- RunHarmony(multi_combine, "chem")
+  ```
+  
+  Identify the highest contributing PCs
+  ```{r}
+  ElbowPlot(multi_combine, ndims = 50)
+  
+  res = 0.7
+  multi_combine <- FindClusters(multi_combine, resolution = res)
+  multi_combine <- RunUMAP(multi_combine, reduction = 'harmony', dims = 1:npcs, reduction.name = 'umap_harmony')
+  ```
+  
+  
+  
+}
+
+########################################################
+########################################################
+# Section IV : symmetry breaking by subsetting only RA treatment
 # 
 ########################################################
 ########################################################
@@ -693,5 +784,6 @@ if(Subset_RAtreated){
   ggsave(filename = paste0(outDir, '/Pax6_enhancers_v1.pdf'), height = 10, width = 18)
   
 }
+
 
 
