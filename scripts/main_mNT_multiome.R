@@ -64,6 +64,18 @@ cols[grep('_noRA', names(cols))] = colorRampPalette((brewer.pal(n = 6, name ="Bl
 cols[grep('_RA', names(cols))] = colorRampPalette((brewer.pal(n = 7, name ="OrRd")))(7)
 
 
+## subset the mutliome conditions
+levels_sels = c("day2_beforeRA",  
+                "day2.5_RA", "day3_RA", "day3.5_RA",  "day4_RA", "day5_RA", 
+                "day2.5_noRA", "day3_noRA",  "day3.5_noRA", "day4_noRA")
+
+cc = names(cols)
+cc[which(cc == 'day3_RA.rep1')] = 'day3_RA'
+names(cols) = cc
+
+cols_sel = cols[match(levels_sels, names(cols))]
+
+
 ########################################################
 ########################################################
 # Section I : process the sample information and prepare for 10x cellranger
@@ -280,18 +292,6 @@ saveRDS(srat_reduced, file = (paste0(RdataDir, 'seuratObj_scATAC_merged.peaks.ce
 # Section II : QCs of scATAC and snRNA
 ########################################################
 ########################################################
-## subset the mutliome conditions
-levels_sels = c("day2_beforeRA",  
-                "day2.5_RA", "day3_RA", "day3.5_RA",  "day4_RA", "day5_RA", 
-                "day2.5_noRA", "day3_noRA",  "day3.5_noRA", "day4_noRA")
-
-cc = names(cols)
-cc[which(cc == 'day3_RA.rep1')] = 'day3_RA'
-names(cols) = cc
-
-cols_sel = cols[match(levels_sels, names(cols))]
-
-
 srat_cr = readRDS(file = paste0(RdataDir, 'seuratObj_scATAC_merged.peaks.cellranger_v1.rds'))
 
 meta = readRDS(paste0(RdataDir, 'meta_data.rds'))
@@ -396,136 +396,302 @@ srat_cr <- NormalizeData(srat_cr) %>%
   CellCycleScoring(s.features = firstup(cc.genes.updated.2019$s.genes),
                    g2m.features = firstup(cc.genes.updated.2019$g2m.genes)) %>%
   ScaleData() %>%
-  RunPCA(npcs = 50) %>%
-  RunUMAP(dims = 1:20, reduction.name = "umap_rna", reduction.key = "UMAPRNA_")
+  RunPCA(npcs = 50)
 
+ElbowPlot(srat_cr, ndims = 30)
 
-srat_cr <- RunUMAP(srat_cr, dims = 1:30, n.neighbors = 100, min.dist = 0.2, 
+srat_cr <- RunUMAP(srat_cr, dims = 1:20, n.neighbors = 20, min.dist = 0.05, 
                    reduction.name = "umap_rna", reduction.key = "UMAPRNA_")
+
+DimPlot(srat_cr, label = TRUE, repel = TRUE, reduction = 'umap_rna', cols = cols_sel) + 
+  NoLegend()
 
 p1 = DimPlot(srat_cr, label = TRUE, repel = TRUE, reduction = 'umap_rna', cols = cols_sel) + 
   NoLegend()
 p2 <- FeaturePlot(srat_cr,
                   c("Foxa2","Pax6"),
-                  reduction = "umap_rna") 
+                  reduction = "umap_rna", ncol = 1) 
 p1 | p2
 
-ggsave(filename = paste0(outDir, '/QCs_nucleosome_signal_cellRangerPeaks.pdf'), height =8, width = 12)
+ggsave(filename = paste0(resDir, '/UMAP_RNA_20pcs_20neighbors_0.05dist_v1.pdf'), height =8, width = 12)
 
-DimPlot(srat_cr, label = TRUE, group.by = 'celltypes', repel = TRUE, reduction = 'umap') + NoLegend()
+#DimPlot(srat_cr, label = TRUE, group.by = 'celltypes', repel = TRUE, reduction = 'umap') + NoLegend()
 
 saveRDS(srat_cr, file = paste0(RdataDir, 
-                               'seuratObj_multiome_snRNA.annotated.normalized.umap_',
-                               'scATAC.merged.peaks.cr.',
-                               '584K.annot_38280cells.rds'))
+                               'seuratObj_multiome_snRNA.normalized.umap.rds'))
 
 ##########################################
 # process and normalize the ATAC-seq data 
 ##########################################
 srat_cr = readRDS(file = paste0(RdataDir, 
-                                'seuratObj_multiome_snRNA.annotated.normalized.umap_',
-                                'scATAC.merged.peaks.cr.',
-                                '584K.annot_38280cells.rds'))
+                                'seuratObj_multiome_snRNA.normalized.umap.rds'))
 
 # normalize ATAC and UMAP
 DefaultAssay(srat_cr) <- "ATAC"
-DefaultAssay(seurat) <- "ATAC"
-seurat <- FindTopFeatures(seurat, min.cutoff = 50)
+srat_cr <- FindTopFeatures(srat_cr, min.cutoff = 'q5')
+srat_cr <- FindTopFeatures(srat_cr, min.cutoff = 'q10')
 
-srat_cr <- RunTFIDF(srat_cr)
-srat_cr = FindTopFeatures(srat_cr, min.cutoff = 'q5')
-seurat <- RunTFIDF(seurat, method = 1)
+srat_cr <- RunTFIDF(srat_cr, method = 1)
 srat_cr <- RunSVD(srat_cr)
 
-DepthCor(srat_cr, n = 30)
+saveRDS(srat_cr, file = paste0(RdataDir,
+                               'seuratObj_multiome_snRNA.normalized.umap_scATAC.normalized.rds'))
 
-#cordat = DepthCor(srat_cr, reduction = "lsi", n = 30)$data
-#dims_use = cordat$Component[abs(cordat$counts)<0.3]
+p1 <- ElbowPlot(srat_cr, ndims = 30, reduction="lsi")
+p2 <- DepthCor(srat_cr, n = 30)
+p1 | p2
 
-srat_cr = FindNeighbors(object = srat_cr, reduction = 'lsi', dims = dims_use, 
+ggsave(filename = paste0(resDir, '/lsi_Elbowplot_depthcor.pdf'), height =8, width = 12)
+
+srat_cr <- RunUMAP(object = srat_cr, reduction = 'lsi', 
+                   dims = 2:30, 
+                   n.neighbors = 50, 
+                   min.dist = 0.1, 
+                   reduction.name = "umap_atac",
+                   reduction.key = "UMAPATAC_"
+                   )
+
+DimPlot(object = srat_cr, label = TRUE, reduction = 'umap_atac', cols = cols_sel) + NoLegend()
+
+p1 <- DimPlot(object = srat_cr, label = TRUE, reduction = 'umap_atac', cols = cols_sel) + NoLegend()
+p2 <- FeaturePlot(srat_cr,
+                  c("Foxa2","Pax6"),
+                  reduction = "umap_atac", ncol = 1) 
+p1 | p2
+
+ggsave(filename = paste0(resDir, '/UMAP_ATAC_30pcs_50neighbors_0.1dist_v1.pdf'), height =8, width = 12)
+
+srat_cr = FindNeighbors(object = srat_cr, reduction = 'lsi', dims = 2:30, 
                         force.recalc = T, graph.name = "thegraph")
+
 srat_cr = FindClusters(object = srat_cr, verbose = FALSE, algorithm = 3, 
-                       graph.name = "thegraph", resolution = 1)
+                       graph.name = "thegraph", resolution = 0.7)
 
-dims_use = c(2:30)
-print(dims_use)
+DimPlot(object = srat_cr, label = TRUE, reduction = 'umap_atac') + NoLegend()
 
-srat_cr <- RunUMAP(object = srat_cr, reduction = 'lsi', dims = 2:30, n.neighbors = 30, min.dist = 0.1, 
-                   reduction.name = "umap_lsi")
+ggsave(filename = paste0(resDir, '/UMAP_ATAC_quickClustering.pdf'), height =8, width = 12)
 
 
-DimPlot(object = srat_cr, label = TRUE, reduction = 'umap_lsi') + NoLegend()
+srat_cr = FindClusters(object = srat_cr, verbose = FALSE, algorithm = 3, 
+                       graph.name = "thegraph", resolution = 1.0)
 
-p1 = DimPlot(srat_cr, label = TRUE, repel = TRUE, reduction = 'umap', group.by = 'subtypes') + 
-  NoLegend() + ggtitle('snRNA-seq')
-p2 = DimPlot(object = srat_cr, label = TRUE, repel = TRUE, group.by = 'subtypes') + 
-  NoLegend() + ggtitle('scATAC-seq')
+DimPlot(object = srat_cr, label = TRUE, reduction = 'umap_atac') + NoLegend()
 
-p1 + p2
-ggsave(filename = paste0(resDir, '/multiome_snRNA_snATAC_filtered.pdf'), height = 8, width = 20)
+ggsave(filename = paste0(resDir, '/UMAP_ATAC_quickClustering_resolution.1.0.pdf'), height =8, width = 12)
 
-#DimPlot(object = srat_cr, label = TRUE, repel = TRUE, split.by = 'condition') + NoLegend()
-#ggsave(filename = paste0(resDir, '/cellRangerPeaks_umap_perCondition_v1.pdf'), height =8, width = 30 )
-
-FeaturePlot(srat_cr, features = c('nCount_ATAC', 'nucleosome_signal'), reduction = 'umap_lsi')
-
-########################################################
-########################################################
-# Section IV : further anlaysis of scATAC-seq
-# 
-########################################################
-########################################################
+saveRDS(srat_cr, file = paste0(RdataDir, 
+                               'seuratObj_multiome_snRNA.normalized.umap_scATAC.normalized.umap.rds'))
 
 
 ##########################################
 # link peaks and coveragePlots
-# 
 ##########################################
+library(BSgenome.Mmusculus.UCSC.mm10)
+library(presto)
+
 DefaultAssay(srat_cr) = 'ATAC'
-srat_cr <- RegionStats(srat_cr, genome = BSgenome.Amexicanum.axolotlomics.AmexGv6cut500M)
 
-# srat_cr <- LinkPeaks(
-#   object = srat_cr,
-#   peak.assay = "ATAC",
-#   expression.assay = "RNA",
-#   
-#   genes.use = c("CD68-AMEX60DD012740")
-#   
-# )
+tic()
+srat_cr <- RegionStats(srat_cr, genome = BSgenome.Mmusculus.UCSC.mm10)
+toc()
 
-features = rownames(srat_cr@assays$RNA)[grep('ITGAM', rownames(srat_cr@assays$RNA))]
-
-DefaultAssay(srat_cr) <- "RNA"
-FeaturePlot(srat_cr, features = features[1], order = TRUE, cols = c('gray', 'red'))
-
-features = features[1]
-
-## SCT normalization doesn't seem to be as good as lognormal normalizaiton, so use the 'RNA' rather 'SCT'
-DefaultAssay(srat_cr) <- "ATAC"
+# link peaks to genes
+tic()
 srat_cr <- LinkPeaks(
   object = srat_cr,
   peak.assay = "ATAC",
   expression.assay = "RNA",
-  genes.use = features
+  genes.use = c("Foxa2", "Pax6")
 )
+toc()
 
-srat_cr$subtypes = srat_cr$subtypes_RNA
-Idents(srat_cr) = as.factor(srat_cr$subtypes)
-idents.plot <- c("Proliferating_CM",'CM_Atria', 'CM_OFT', "Mono_Macrophages", "B_cells", "EC")
+idents.plot <- c('0', '3', '2', '13', '1', '12', '9', '11', '6', '5', '10', '4', '7', '8')
 
-p1 <- CoveragePlot(
+CoveragePlot(
   object = srat_cr,
-  region = features,
-  features = features,
+  region = "Foxa2",
+  features = "Foxa2",
   expression.assay = "RNA",
-  idents = idents.plot ,
-  extend.upstream = 500,
-  extend.downstream = 10000
+  idents = idents.plot,
+  #group.by = "celltype",
+  extend.upstream = 20000,
+  extend.downstream = 30000
 )
 
+ggsave(filename = paste0(resDir, '/FoxA2_enhancers_v1.pdf'), height = 12, width = 12)
 
-patchwork::wrap_plots(p1)
 
-ggsave(filename = paste0(resDir, '/LinkPeaks_test.example.ITGAM.pdf'), height =8, width = 12)
+CoveragePlot(
+  object = srat_cr,
+  region = "Pax6",
+  features = "Pax6",
+  expression.assay = "RNA",
+  idents = idents.plot,
+  #group.by = "celltype",
+  extend.upstream = 20000,
+  extend.downstream = 20000
+)
+
+ggsave(filename = paste0(resDir, '/Pax6_enhancers_v1.pdf'), height = 12, width = 12)
+
+
+########################################################
+########################################################
+# Section III : symmetry breaking by subsetting only RA treatment
+# 
+########################################################
+########################################################
+Subset_RAtreated = FALSE
+if(Subset_RAtreated){
+  srat_cr = readRDS(file = paste0(RdataDir, 
+                                  'seuratObj_multiome_snRNA.normalized.umap_scATAC.normalized.umap.rds'))
+  
+  Idents(srat_cr) = factor(srat_cr$condition)
+  levels_sels = c('day2_beforeRA', 'day2.5_RA', 'day3_RA', 'day3.5_RA', 'day4_RA', 'day5_RA')
+  srat_cr = subset(srat_cr, idents = levels_sels)
+  
+  outDir = paste0(resDir, '/RA_treated')
+  if(!dir.exists(outDir)) dir.create(outDir)
+  
+  
+  ## process RNA
+  DefaultAssay(srat_cr) <- "RNA"
+  
+  srat_cr <- NormalizeData(srat_cr) %>%
+    FindVariableFeatures(nfeatures = 5000) %>%
+    CellCycleScoring(s.features = firstup(cc.genes.updated.2019$s.genes),
+                     g2m.features = firstup(cc.genes.updated.2019$g2m.genes)) %>%
+    ScaleData() %>%
+    RunPCA(npcs = 50)
+  
+  ElbowPlot(srat_cr, ndims = 30)
+  
+  srat_cr <- RunUMAP(srat_cr, dims = 1:20, n.neighbors = 50, min.dist = 0.1, 
+                     reduction.name = "umap_rna", reduction.key = "UMAPRNA_")
+  
+  DimPlot(srat_cr, label = TRUE, repel = TRUE, reduction = 'umap_rna', cols = cols_sel) + 
+    NoLegend()
+  
+  p1 = DimPlot(srat_cr, label = TRUE, repel = TRUE, reduction = 'umap_rna', cols = cols_sel) + 
+    NoLegend()
+  p2 <- FeaturePlot(srat_cr,
+                    c("Foxa2","Pax6"),
+                    reduction = "umap_rna", ncol = 1) 
+  p1 | p2
+  
+  ggsave(filename = paste0(outDir, '/UMAP_RNA_20pcs_50neighbors_0.1dist.pdf'), height = 8, width = 16)
+  
+  
+  # normalize ATAC and UMAP
+  DefaultAssay(srat_cr) <- "ATAC"
+  #srat_cr <- FindTopFeatures(srat_cr, min.cutoff = 'q5')
+  srat_cr <- FindTopFeatures(srat_cr, min.cutoff = 'q10')
+  
+  tic()
+  srat_cr <- RunTFIDF(srat_cr, method = 1)
+  toc()
+  tic()
+  srat_cr <- RunSVD(srat_cr)
+  toc()
+  
+  
+  p1 <- ElbowPlot(srat_cr, ndims = 30, reduction="lsi")
+  p2 <- DepthCor(srat_cr, n = 30)
+  p1 | p2
+  
+  ggsave(filename = paste0(outDir, '/lsi_Elbowplot_depthcor.pdf'), height =8, width = 12)
+  
+  srat_cr <- RunUMAP(object = srat_cr, reduction = 'lsi', 
+                     dims = 2:20, 
+                     n.neighbors = 50, 
+                     min.dist = 0.1, 
+                     reduction.name = "umap_atac",
+                     reduction.key = "UMAPATAC_"
+  )
+  
+  DimPlot(object = srat_cr, label = TRUE, reduction = 'umap_atac', cols = cols_sel) + NoLegend()
+  
+  p1 <- DimPlot(object = srat_cr, label = TRUE, reduction = 'umap_atac', group.by = 'condition',
+                cols = cols_sel) + NoLegend()
+  p2 <- FeaturePlot(srat_cr,
+                    c("Foxa2","Pax6"),
+                    reduction = "umap_atac", ncol = 1) 
+  p1 | p2
+  
+  ggsave(filename = paste0(outDir, '/UMAP_ATAC_20pcs_50neighbors_0.1dist_v1.pdf'), height =8, width = 16)
+  
+  
+  srat_cr = FindNeighbors(object = srat_cr, reduction = 'lsi', dims = 2:20, 
+                          force.recalc = T, graph.name = "thegraph")
+  
+  srat_cr = FindClusters(object = srat_cr, verbose = FALSE, algorithm = 3, 
+                         graph.name = "thegraph", resolution = 0.5)
+  
+  p3 = DimPlot(object = srat_cr, label = TRUE, reduction = 'umap_atac') + NoLegend()
+  
+  p1|p2|p3
+  
+  ggsave(filename = paste0(outDir, '/UMAP_ATAC_quickClustering_resolution.0.5_FoxA2.Pax6.pdf'), 
+         height =8, width = 24)
+  
+  
+  saveRDS(srat_cr, file = paste0(outDir,
+                                 '/seuratObj_multiome_snRNA.normalized.umap_scATAC.normalized.rds'))
+  
+  ##########################################
+  # link peaks and coveragePlots
+  ##########################################
+  library(BSgenome.Mmusculus.UCSC.mm10)
+  library(presto)
+  
+  DefaultAssay(srat_cr) = 'ATAC'
+  
+  tic()
+  srat_cr <- RegionStats(srat_cr, genome = BSgenome.Mmusculus.UCSC.mm10)
+  toc()
+  
+  # link peaks to genes
+  tic()
+  srat_cr <- LinkPeaks(
+    object = srat_cr,
+    peak.assay = "ATAC",
+    expression.assay = "RNA",
+    genes.use = c("Foxa2", "Pax6")
+  )
+  toc()
+  
+  
+  idents.plot <- c('1', '3', '2', '7', '0', '6', '4', '5', '8')
+  
+  Idents(srat_cr) = factor(srat_cr$seurat_clusters, levels = idents.plot)
+  
+  CoveragePlot(
+    object = srat_cr,
+    region = "Foxa2",
+    features = "Foxa2",
+    expression.assay = "RNA",
+    idents = idents.plot,
+    #group.by = "celltype",
+    extend.upstream = 50000,
+    extend.downstream = 20000
+  )
+  
+  ggsave(filename = paste0(outDir, '/FoxA2_enhancers_v1.pdf'), height = 10, width = 18)
+  
+  
+  CoveragePlot(
+    object = srat_cr,
+    region = "Pax6",
+    features = "Pax6",
+    expression.assay = "RNA",
+    idents = idents.plot,
+    #group.by = "celltype",
+    extend.upstream = 20000,
+    extend.downstream = 20000
+  )
+  
+  ggsave(filename = paste0(outDir, '/Pax6_enhancers_v1.pdf'), height = 10, width = 18)
+  
+}
 
 
