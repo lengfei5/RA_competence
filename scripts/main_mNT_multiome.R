@@ -588,41 +588,82 @@ if(Integrate_scRNAseq_Multiome){
   multi_combine <- ScaleData(multi_combine, vars.to.regress = c("nCount_RNA"))
   toc()
   
-  multi_combine <- RunPCA(multi_combine, features = VariableFeatures(object = multi_combine))
-  
   saveRDS(multi_combine, file = paste0(outDir, 
                                        'seuratObj_multiome_scRNAseq_combined_regress.nCountRNA_pca.rds'))
   
   
+  ## select only the overlapping conditions
+  Idents(multi_combine) = multi_combine$condition
+  multi_combine = subset(multi_combine, idents = c("day0_beforeRA", "day1_beforeRA", "day3_RA.rep2", 
+                                          "day6_noRA", "day6_RA", "day5_noRA"), invert = TRUE)
+  
+  multi_combine$chem = multi_combine$chemistry
+  
+  multi_combine <- FindVariableFeatures(multi_combine, nfeatures = 5000)
+  multi_combine <- RunPCA(multi_combine, features = VariableFeatures(object = multi_combine))
+  
   main_pc_chem <- DimPlot(object = multi_combine, reduction = 'pca', group.by = 'chem', 
-                          cols = c("turquoise4", "gray"))
-  main_pc <- FeaturePlot(object = multi_combine, reduction = 'pca', features = c('PTPRC', 'PDGFRA', 'COL4A2', 'GLI2'))
-  main_pc1 <- FeaturePlot(object = multi_combine, reduction = 'pca', features = c('SLC17A6', 'GAD1'))
+                          cols = c("turquoise4", "gray"), raster=FALSE)
   
-  ggsave(plot = main_pc_chem, filename = "/links/groups/treutlein/USERS/Ashley/projects/axolotl/nucseq_axolotl/multiRNA_and_pallium/multiRNA_and_pallium/main_pc_chem.png", device = "png", width = 6, height = 4)
-  ggsave(plot = main_pc, filename = "/links/groups/treutlein/USERS/Ashley/projects/axolotl/nucseq_axolotl/multiRNA_and_pallium/multiRNA_and_pallium/main_pc.png", device = "png", width = 6, height = 4)
-  ggsave(plot = main_pc1, filename = "/links/groups/treutlein/USERS/Ashley/projects/axolotl/nucseq_axolotl/multiRNA_and_pallium/multiRNA_and_pallium/main_pc1.png", device = "png", width = 6, height = 4)
-  
+  main_pc <- FeaturePlot(object = multi_combine, reduction = 'pca', 
+                         features = c('Foxa2', 'Pax6', 'Shh', 'Sox17'))
+  #main_pc1 <- FeaturePlot(object = multi_combine, reduction = 'pca', 
+  #                        features = c('SLC17A6', 'GAD1'))
   main_pc_chem
-  main_pc
-  main_pc1
-  ```
   
-  Run harmony to correct for chemistry
-  ```{r}
+  #Run harmony to correct for chemistry
   library(harmony)
-  multi_combine <- RunHarmony(multi_combine, "chem")
-  ```
+  tic()
+  multi_combine <- RunHarmony(multi_combine, 
+                              "chem",
+                              #nclust = 10, 
+                              max.iter.harmony = 10, 
+                              epsilon.harmony = -Inf,
+                              verbose = TRUE,
+                              reference_values = 'scRNA',
+                              plot_convergence = TRUE)
+  toc()
   
-  Identify the highest contributing PCs
-  ```{r}
+  #Identify the highest contributing PCs
   ElbowPlot(multi_combine, ndims = 50)
   
-  res = 0.7
-  multi_combine <- FindClusters(multi_combine, resolution = res)
-  multi_combine <- RunUMAP(multi_combine, reduction = 'harmony', dims = 1:npcs, reduction.name = 'umap_harmony')
-  ```
   
+  #multi_combine <- FindNeighbors(multi_combine, dims = 1:npcs, reduction = 'harmony')
+  
+  #Use clustree to find stability of res for clustering
+  # Set different resolutions 
+  
+  #res.used <- seq(0.1,1,by=0.2)
+  # Loop over and perform clustering of different resolutions 
+  #for(i in res.used){
+  #  multi_combine <- FindClusters(multi_combine, resolution = i)}
+  # Make Plot
+  #clustree(multi_combine, layout="sugiyama") + theme(legend.position = "bottom") + scale_color_brewer(palette = "Set1") + scale_edge_color_continuous(low = "grey80", high = "red")
+  
+  #Find clusters 
+  #res = 0.7
+  #multi_combine <- FindClusters(multi_combine, resolution = res)
+  npcs = 30
+  multi_combine <- RunUMAP(multi_combine, reduction = 'harmony', dims = 1:npcs, 
+                           reduction.name = 'umap_harmony')
+  
+  DimPlot(multi_combine, reduction = "umap_harmony", label = TRUE, group.by = 'condition', cols = cols_sel)
+  
+  DimPlot(multi_combine, reduction = "umap_harmony", label = TRUE, group.by = 'chem')
+  
+  
+  
+  #Make UMAPs
+  dimplot_main_clus <- DimPlot(multi_combine, reduction = "umap_harmony", label = T, group.by = 'seurat_clusters') +
+    NoLegend()
+  dimplot_main_sample <- DimPlot(multi_combine, reduction = "umap_harmony", label = F, group.by = 'condition')
+  
+  dimplot_main_chem <- DimPlot(multi_combine, reduction = "umap_harmony", label = F, group.by = 'sample', 
+                               cols = c("turquoise4", "turquoise3", "gray", "gray", "gray", "gray", "gray", "gray"), 
+                               shuffle = T)
+  dimplot_main_clus
+  dimplot_main_sample
+  dimplot_main_chem
   
   
 }
