@@ -542,6 +542,10 @@ ggsave(filename = paste0(resDir, '/Pax6_enhancers_v1.pdf'), height = 12, width =
 ########################################################
 Integrate_scRNAseq_Multiome = FALSE
 if(Integrate_scRNAseq_Multiome){
+  outDir = paste0(resDir, '/Integration_scRNAseq_multiome/')
+  system(paste0('mkdir -p ', outDir))
+  
+  
   ## multiome
   srat_cr = readRDS(file = paste0(RdataDir, 
                 'seuratObj_multiome_snRNA.normalized.umap_scATAC.normalized.umap.rds'))
@@ -559,9 +563,6 @@ if(Integrate_scRNAseq_Multiome){
   
   aa$chemistry = 'scRNA'
   
-  outDir = paste0(resDir, '/Integration_scRNAseq_multiome/')
-  system(paste0('mkdir -p ', outDir))
-  
   features.common = intersect(rownames(aa), rownames(srat_cr))
   
   aa = subset(aa, features = features.common)
@@ -569,32 +570,32 @@ if(Integrate_scRNAseq_Multiome){
   
   multi_combine = merge(aa, y = srat_cr, add.cell.ids = c("scRNA", ""), project = "RA_competence")
   
-  library(harmony)
-  multi_combine <- RunHarmony(multi_combine, "chem")
+  saveRDS(multi_combine, file = paste0(outDir, 
+                                 'seuratObj_multiome_scRNAseq_combined.rds'))
   
-  table(multi_combine$chem)
-  ```
+  ## test the harmony for integration
+  multi_combine = readRDS(file = paste0(outDir, 
+                                        'seuratObj_multiome_scRNAseq_combined.rds'))
   
-  Normalize, find variable features and scale data (highly var. genes)
-  ```{r}
+  table(multi_combine$chemistry)
+  
   multi_combine <- NormalizeData(multi_combine)
-  multi_combine <- FindVariableFeatures(multi_combine, nfeatures = 10000)
-  multi_combine <- ScaleData(multi_combine, vars.to.regress = c("nCount_RNA", "percent.mt"))
-  ```
+  multi_combine <- FindVariableFeatures(multi_combine, nfeatures = 5000)
   
-  Plot highly variable genes (found by 'vst' method)
-  ```{r}
   VariableFeaturePlot(object = multi_combine)
-  ```
   
-  Run PCA
-  ```{r}
+  tic()
+  multi_combine <- ScaleData(multi_combine, vars.to.regress = c("nCount_RNA"))
+  toc()
+  
   multi_combine <- RunPCA(multi_combine, features = VariableFeatures(object = multi_combine))
-  ```
   
-  Plot chemistry and genes of interest on PCA 1 vs 2
-  ```{r}
-  main_pc_chem <- DimPlot(object = multi_combine, reduction = 'pca', group.by = 'chem', cols = c("turquoise4", "gray"))
+  saveRDS(multi_combine, file = paste0(outDir, 
+                                       'seuratObj_multiome_scRNAseq_combined_regress.nCountRNA_pca.rds'))
+  
+  
+  main_pc_chem <- DimPlot(object = multi_combine, reduction = 'pca', group.by = 'chem', 
+                          cols = c("turquoise4", "gray"))
   main_pc <- FeaturePlot(object = multi_combine, reduction = 'pca', features = c('PTPRC', 'PDGFRA', 'COL4A2', 'GLI2'))
   main_pc1 <- FeaturePlot(object = multi_combine, reduction = 'pca', features = c('SLC17A6', 'GAD1'))
   
