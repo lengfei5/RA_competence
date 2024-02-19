@@ -328,10 +328,11 @@ if(make.QC.plots){
   
   ggsave(filename = paste0(outDir, '/QCs_nFeature_RNA_cellRanger.pdf'), height = 8, width = 12)
   
-  VlnPlot(srat_cr, features = "nCount_ATAC", ncol = 1, y.max = 100000, group.by = 'condition', pt.size = 0., 
+  VlnPlot(srat_cr, features = "nCount_ATAC", ncol = 1, y.max = 60000, group.by = 'condition', pt.size = 0., 
           log = FALSE, raster=FALSE) +
-    geom_hline(yintercept = c(1000, 5000, 10000))
-  ggsave(filename = paste0(outDir, '/QCs_nCount_ATAC_cellRanger.pdf'), height =8, width = 12)
+    geom_hline(yintercept = c(1000, 10000, 20000))
+  
+  ggsave(filename = paste0(outDir, '/QCs_nCount_ATAC_cellRanger_toCompareFernando.pdf'), height =8, width = 12)
   
   
   VlnPlot(srat_cr, features = "nFeature_ATAC", ncol = 1, y.max = 50000, group.by = 'condition', pt.size = 0., 
