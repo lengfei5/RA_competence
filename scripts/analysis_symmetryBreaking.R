@@ -53,7 +53,8 @@ aa = readRDS(file = paste0(RdataDir,
                            'seuratObject_merged_cellFiltered_doublet.rm_mt.ribo.geneFiltered_regressout.nCounts_',
                            'cellCycleScoring_annot.v1_savedUMAP.subs.v2_', species, version.analysis, '.rds'))
 
-DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'condition', raster=FALSE)
+DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'condition', raster=FALSE, pt.size = 1, 
+        label.size = 20)
 
 ggsave(filename = paste0(outDir, '/UMAP_conditions.pdf'), 
        width = 10, height = 6)
@@ -61,6 +62,11 @@ ggsave(filename = paste0(outDir, '/UMAP_conditions.pdf'),
 FeaturePlot(aa, features = c('Zfp42', 'Tcf15', 'Skil', 'Lef1'))
 ggsave(filename = paste0(outDir, '/asymmetric_feature_expression.pdf'), 
        width = 14, height = 10)
+
+FeaturePlot(aa, features = c('Pax6', 'Foxa2', 'Sox1'))
+ggsave(filename = paste0(outDir, '/asymmetric_feature_expression_v2.pdf'), 
+       width = 14, height = 10)
+
 
 # aa <- RunUMAP(aa, 
 #               dims = NULL, features = c('Pax6', 'Foxa2', 'Sox2', 'Pou5f1', 'Sox1'),
