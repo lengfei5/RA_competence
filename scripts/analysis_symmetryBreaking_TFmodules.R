@@ -88,6 +88,10 @@ if(Clean_Subset_for_scFates){
   aa = subset(aa, cells = colnames(aa)[which(aa$celltypes != '8' & aa$celltypes != '9' & 
                                                aa$condition != 'day6_RA')])
   
+  aa = subset(aa, cells = colnames(aa)[which(aa$celltypes != '8' & aa$celltypes != '9')])
+  
+  aa = subset(aa, cells = colnames(aa)[which(aa$celltypes != '8' & aa$celltypes != '9' & 
+                                               aa$condition != 'day2_beforeRA')])
   
   # rerun the umap 
   aa <- FindVariableFeatures(aa, selection.method = "vst", nfeatures = 3000) # find subset-specific HVGs
@@ -98,10 +102,10 @@ if(Clean_Subset_for_scFates){
   
   Idents(aa) = aa$condition
   
-  aa <- RunUMAP(aa, dims = 1:30, n.neighbors = 30, min.dist = 0.1)
+  aa <- RunUMAP(aa, dims = 1:20, n.neighbors = 100, min.dist = 0.1)
   DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'condition', cols = cols_sel, raster=FALSE)
   
-  ggsave(filename = paste0(outDir, 'UMAP_RAtreatment_d2.to.d5.noMatureNeurons.pdf'), 
+  ggsave(filename = paste0(outDir, 'UMAP_RAtreatment_d2.to.d6.noMatureNeurons.pdf'), 
          width = 10, height = 6)
   
   
@@ -137,12 +141,20 @@ if(Clean_Subset_for_scFates){
   aa <- RunPCA(aa, features = VariableFeatures(object = aa), verbose = FALSE, weight.by.var = FALSE)
   ElbowPlot(aa, ndims = 50)
   Idents(aa) = aa$condition
-  aa <- RunUMAP(aa, dims = 1:30, n.neighbors = 30, min.dist = 0.1)
+  aa <- RunUMAP(aa, dims = 1:20, n.neighbors = 100, min.dist = 0.2)
   DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'condition', cols = cols_sel, raster=FALSE)
   
   saveRDS(aa, file = paste0(outDir, 
                             'seuratObject_RA.symmetry.breaking_doublet.rm_mt.ribo.filtered_regressout.nCounts_',
-                            'cellCycleScoring_annot.v2_newUMAP_clusters_time_d2.to.d5.noNeurons.rds'))
+                            'cellCycleScoring_annot.v2_newUMAP_clusters_time_d2.to.d6.noNeurons.rds'))
+  
+  
+  ##########################################
+  # select the time point to test 
+  ##########################################
+  aa = readRDS(file = paste0(outDir, 
+                             'seuratObject_RA.symmetry.breaking_doublet.rm_mt.ribo.filtered_regressout.nCounts_',
+                             'cellCycleScoring_annot.v2_newUMAP_clusters_time_d2.to.d5.noNeurons.rds'))
   
   
   DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'condition', cols = cols_sel, raster=FALSE)
@@ -154,18 +166,22 @@ if(Clean_Subset_for_scFates){
   ## test first the day3, day3.5, day4 and day5
   Select_timePoints_for_scFates = FALSE
   if(Select_timePoints_for_scFates){
+    
     Idents(aa) = as.factor(aa$condition)
     
-    aa = subset(aa, idents = c('day3_RA.rep1', 'day3.5_RA', 'day4_RA', 'day5_RA'))
+    aa = subset(aa, idents = c('day2.5_RA', 'day3_RA.rep1', 'day3.5_RA', 'day4_RA', 'day5_RA', 'day6_RA'))
+    
     aa = FindVariableFeatures(aa, selection.method = "vst", nfeatures = 2000)
     
     aa <- RunPCA(aa, features = VariableFeatures(object = aa), verbose = FALSE, weight.by.var = FALSE)
     ElbowPlot(aa, ndims = 50)
+    
     Idents(aa) = aa$condition
-    aa <- RunUMAP(aa, dims = 1:30, n.neighbors = 30, min.dist = 0.1)
+    aa <- RunUMAP(aa, dims = 1:20, n.neighbors = 50, min.dist = 0.1)
     DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'condition', cols = cols_sel, raster=FALSE)
     
-    ggsave(filename = paste0(outDir, 'UMAP_RAtreatment_d3.to.d5.noMatureNeurons_rmCellCycle.correlatedGenes.pdf'), 
+    ggsave(filename = paste0(outDir, 
+                             'UMAP_RAtreatment_d2.5.to.d6_no.mautreNeurons_filtered.cellCycleGenes.pdf'), 
            width = 10, height = 6)
     
     library(SeuratDisk)
@@ -195,9 +211,9 @@ if(Clean_Subset_for_scFates){
     #saveRDS(mnt, file = paste0(outDir, '/SeuratObj_splice.unspliced_RA_day2_to_day6_all.rds'))
     Idents(mnt) = mnt$condition
     
-    mnt = subset(mnt, downsample = 3000)
+    mnt = subset(mnt, downsample = 2000)
         
-    saveFile = '/RNAmatrix_RA_d3_d5.h5Seurat'
+    saveFile = '/RNAmatrix_RA_d2.5_d6_all.h5Seurat'
     
     SaveH5Seurat(mnt, filename = paste0(outDir, saveFile), 
                  overwrite = TRUE)
