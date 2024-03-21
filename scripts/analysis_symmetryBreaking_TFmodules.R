@@ -26,7 +26,6 @@ outDir = paste0(resDir, '/RA_symetryBreaking/TF_modules/')
 system(paste0('mkdir -p ', outDir))
 
 levels_sels = c("day2_beforeRA", "day2.5_RA", "day3_RA.rep1", "day3.5_RA", "day4_RA", "day5_RA")
-data_version = "_d2_d2.5_d3_d3.5_d4_d5"
 
 names(cols) = levels
 cols_sel = cols[match(levels_sels, names(cols))]
@@ -82,6 +81,10 @@ FeatureScatter(aa, feature1 = "Pax6", feature2 = "Sox1", group.by = 'condition')
 ##########################################
 # clean and subset the samples for scFates test 
 ##########################################
+data_version = 'd3_d6_noMatureNeuron_filteredCellCycleGenes'
+
+system(paste0('mkdir -p ', outDir, data_version))
+
 Clean_Subset_for_scFates = FALSE
 if(Clean_Subset_for_scFates){
   ## remove the cluster 8 and 9 mainly mature neurons and also day6_RA
@@ -92,6 +95,10 @@ if(Clean_Subset_for_scFates){
   
   aa = subset(aa, cells = colnames(aa)[which(aa$celltypes != '8' & aa$celltypes != '9' & 
                                                aa$condition != 'day2_beforeRA')])
+  
+  aa = subset(aa, cells = colnames(aa)[which(aa$celltypes != '8' & aa$celltypes != '9' & 
+                                               aa$condition != 'day2_beforeRA' & 
+                                               aa$condition != 'day2.5_RA')])
   
   # rerun the umap 
   aa <- FindVariableFeatures(aa, selection.method = "vst", nfeatures = 3000) # find subset-specific HVGs
@@ -105,9 +112,8 @@ if(Clean_Subset_for_scFates){
   aa <- RunUMAP(aa, dims = 1:20, n.neighbors = 100, min.dist = 0.1)
   DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'condition', cols = cols_sel, raster=FALSE)
   
-  ggsave(filename = paste0(outDir, 'UMAP_RAtreatment_d2.to.d6.noMatureNeurons.pdf'), 
+  ggsave(filename = paste0(outDir, data_version, '/UMAP_RAtreatment', data_version, '.pdf'), 
          width = 10, height = 6)
-  
   
   Discard_cellCycle.corrrelatedGenes = TRUE
   if(Discard_cellCycle.corrrelatedGenes){
@@ -130,7 +136,13 @@ if(Clean_Subset_for_scFates){
     genes_discard = diff$gene[which(diff$phase>5)]
     cat(length(genes_discard), 'genes to discard \n')
     
-    print(intersect(genes_discard, gene_examples))
+    tfs_sels = intersect(genes_discard, gene_examples)
+    print(tfs_sels)
+    
+    if(length(tfs_sels)>0) genes_discard = setdiff(genes_discard, tfs_sels)
+    
+    tfs_sels = intersect(genes_discard, gene_examples)
+    print(tfs_sels)
     
     aa = subset(aa, features = setdiff(rownames(aa), genes_discard))
     
@@ -141,86 +153,52 @@ if(Clean_Subset_for_scFates){
   aa <- RunPCA(aa, features = VariableFeatures(object = aa), verbose = FALSE, weight.by.var = FALSE)
   ElbowPlot(aa, ndims = 50)
   Idents(aa) = aa$condition
-  aa <- RunUMAP(aa, dims = 1:20, n.neighbors = 100, min.dist = 0.2)
+  
+  aa <- RunUMAP(aa, dims = 1:20, n.neighbors = 100, min.dist = 0.1)
   DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'condition', cols = cols_sel, raster=FALSE)
   
-  saveRDS(aa, file = paste0(outDir, 
-                            'seuratObject_RA.symmetry.breaking_doublet.rm_mt.ribo.filtered_regressout.nCounts_',
-                            'cellCycleScoring_annot.v2_newUMAP_clusters_time_d2.to.d6.noNeurons.rds'))
-  
-  
-  ##########################################
-  # select the time point to test 
-  ##########################################
-  aa = readRDS(file = paste0(outDir, 
-                             'seuratObject_RA.symmetry.breaking_doublet.rm_mt.ribo.filtered_regressout.nCounts_',
-                             'cellCycleScoring_annot.v2_newUMAP_clusters_time_d2.to.d5.noNeurons.rds'))
-  
-  
-  DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'condition', cols = cols_sel, raster=FALSE)
-  
+    
   aa$dataset = 'afterRA'
   aa$dataset[which(aa$condition == 'day2.5_RA')] = 'RA'
   aa$dataset[which(aa$condition == 'day2_beforeRA')] = 'beforeRA'
   
-  ## test first the day3, day3.5, day4 and day5
-  Select_timePoints_for_scFates = FALSE
-  if(Select_timePoints_for_scFates){
-    
-    Idents(aa) = as.factor(aa$condition)
-    
-    aa = subset(aa, idents = c('day2.5_RA', 'day3_RA.rep1', 'day3.5_RA', 'day4_RA', 'day5_RA', 'day6_RA'))
-    
-    aa = FindVariableFeatures(aa, selection.method = "vst", nfeatures = 2000)
-    
-    aa <- RunPCA(aa, features = VariableFeatures(object = aa), verbose = FALSE, weight.by.var = FALSE)
-    ElbowPlot(aa, ndims = 50)
-    
-    Idents(aa) = aa$condition
-    aa <- RunUMAP(aa, dims = 1:20, n.neighbors = 50, min.dist = 0.1)
-    DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'condition', cols = cols_sel, raster=FALSE)
-    
-    ggsave(filename = paste0(outDir, 
-                             'UMAP_RAtreatment_d2.5.to.d6_no.mautreNeurons_filtered.cellCycleGenes.pdf'), 
-           width = 10, height = 6)
-    
-    library(SeuratDisk)
-    mnt = aa
-    
-    VariableFeatures(mnt) = NULL
-    #mnt@assays$RNA@scale.data = NULL
-    #mnt@assays$RNA@data = NULL
-    
-    DefaultAssay(mnt) = 'RNA'
-    
-    mnt = DietSeurat(mnt, 
-                     counts = TRUE, 
-                     data = TRUE,
-                     scale.data = FALSE,
-                     features = rownames(mnt), 
-                     assays = c('RNA'), 
-                     dimreducs = c('umap', 'pca'), graphs = NULL, 
-                     misc = TRUE
-    )
-    
-    
-    DefaultAssay(mnt) = 'RNA'
-    VariableFeatures(mnt)
-    
-    
-    #saveRDS(mnt, file = paste0(outDir, '/SeuratObj_splice.unspliced_RA_day2_to_day6_all.rds'))
-    Idents(mnt) = mnt$condition
-    
-    mnt = subset(mnt, downsample = 2000)
-        
-    saveFile = '/RNAmatrix_RA_d2.5_d6_all.h5Seurat'
-    
-    SaveH5Seurat(mnt, filename = paste0(outDir, saveFile), 
-                 overwrite = TRUE)
-    Convert(paste0(outDir, saveFile), 
-            dest = "h5ad", overwrite = TRUE)
-    
-  }
+  library(SeuratDisk)
+  mnt = aa
+  
+  VariableFeatures(mnt) = NULL
+  #mnt@assays$RNA@scale.data = NULL
+  #mnt@assays$RNA@data = NULL
+  
+  DefaultAssay(mnt) = 'RNA'
+  
+  mnt = DietSeurat(mnt, 
+                   counts = TRUE, 
+                   data = TRUE,
+                   scale.data = FALSE,
+                   features = rownames(mnt), 
+                   assays = c('RNA'), 
+                   dimreducs = c('umap', 'pca'), graphs = NULL, 
+                   misc = TRUE
+  )
+  
+  DefaultAssay(mnt) = 'RNA'
+  VariableFeatures(mnt)
+  
+  Idents(mnt) = mnt$condition
+  
+  mnt = subset(mnt, downsample = 2000)
+  
+  saveFile = paste0('/RNAmatrix_RA', data_version, '.h5Seurat')
+  
+  SaveH5Seurat(mnt, filename = paste0(outDir, data_version,  saveFile), 
+               overwrite = TRUE)
+  Convert(paste0(outDir, data_version,  saveFile), 
+          dest = "h5ad", overwrite = TRUE)
+  
+  saveRDS(aa, file = paste0(outDir, data_version,
+                            '/seuratObject_RA.symmetry.breaking_doublet.rm_mt.ribo.filtered_regressout.nCounts_',
+                            'cellCycleScoring_annot.v2_newUMAP_clusters_time_',
+                            data_version, '.rds'))
   
   
 }
