@@ -54,6 +54,7 @@ cols[grep('_beforeRA', names(cols))] = colorRampPalette((brewer.pal(n = 3, name 
 cols[grep('_noRA', names(cols))] = colorRampPalette((brewer.pal(n = 6, name ="Blues")))(6)
 cols[grep('_RA', names(cols))] = colorRampPalette((brewer.pal(n = 7, name ="OrRd")))(7)
 
+
 ##########################################
 # features  
 ##########################################

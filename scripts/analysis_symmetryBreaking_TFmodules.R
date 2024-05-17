@@ -47,6 +47,7 @@ DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'condition', raster=FALSE, pt
 ggsave(filename = paste0(outDir, '/UMAP_conditions.pdf'), 
        width = 10, height = 6)
 
+
 Idents(aa) = aa$condition
 p1 = DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'condition', raster=FALSE)
 p2 = DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'celltypes', raster=FALSE)
@@ -81,7 +82,7 @@ FeatureScatter(aa, feature1 = "Pax6", feature2 = "Sox1", group.by = 'condition')
 ##########################################
 # clean and subset the samples for scFates test 
 ##########################################
-data_version = 'd3_d6_noMatureNeuron_filteredCellCycleGenes'
+data_version = 'd3_d5_TFs_SPs_regressingCellCycle_v1'
 
 system(paste0('mkdir -p ', outDir, data_version))
 
@@ -100,8 +101,30 @@ if(Clean_Subset_for_scFates){
                                                aa$condition != 'day2_beforeRA' & 
                                                aa$condition != 'day2.5_RA')])
   
+  aa = subset(aa, cells = colnames(aa)[which(aa$celltypes != '8' & aa$celltypes != '9' & 
+                                               aa$condition != 'day2_beforeRA' & 
+                                               aa$condition != 'day6_RA')])
+  
+  aa = subset(aa, cells = colnames(aa)[which(aa$celltypes != '8' & aa$celltypes != '9' & 
+                                               aa$condition != 'day2_beforeRA' &
+                                               aa$condition != 'day2.5_RA' &
+                                               aa$condition != 'day6_RA')])
+  
+  
+  # aa = subset(aa, cells = colnames(aa)[which(aa$celltypes != '8' & aa$celltypes != '9' & 
+  #                                              aa$condition != 'day2_beforeRA' & 
+  #                                              aa$condition != 'day6_RA' & 
+  #                                              aa$condition != 'day5_RA')])
+  # 
+  # first subset the cells 
+  table(aa$condition)
+  Idents(aa) = aa$condition
+  aa = subset(aa, downsample = 2000)
+  
+  table(aa$condition)
+  
   # rerun the umap 
-  aa <- FindVariableFeatures(aa, selection.method = "vst", nfeatures = 3000) # find subset-specific HVGs
+  aa <- FindVariableFeatures(aa, selection.method = "vst", nfeatures = 2000) # find subset-specific HVGs
   
   ## because the data was regressed and scaled already, only the HVGs were used to calculate PCA
   aa <- RunPCA(aa, features = VariableFeatures(object = aa), verbose = FALSE, weight.by.var = FALSE)
@@ -109,7 +132,7 @@ if(Clean_Subset_for_scFates){
   
   Idents(aa) = aa$condition
   
-  aa <- RunUMAP(aa, dims = 1:20, n.neighbors = 100, min.dist = 0.1)
+  aa <- RunUMAP(aa, dims = 1:20, n.neighbors = 30, min.dist = 0.1)
   DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'condition', cols = cols_sel, raster=FALSE)
   
   ggsave(filename = paste0(outDir, data_version, '/UMAP_RAtreatment', data_version, '.pdf'), 
@@ -119,6 +142,8 @@ if(Clean_Subset_for_scFates){
   if(Discard_cellCycle.corrrelatedGenes){
     library(scater)
     Idents(aa) = aa$condition
+    
+    DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'Phase', raster=FALSE)
     
     # Identifying the likely cell cycle genes between phases,
     # using an arbitrary threshold of 5%.
@@ -146,24 +171,48 @@ if(Clean_Subset_for_scFates){
     
     aa = subset(aa, features = setdiff(rownames(aa), genes_discard))
     
+  }else{
+    
+    DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'Phase',  raster=FALSE)
+    
+    # subset first maybe
+    Idents(aa) = aa$condition
+    #aa = subset(aa, downsample = 2000)
+    
+    aa <- ScaleData(aa, vars.to.regress = c("nCount_RNA", "S.Score", "G2M.Score"), 
+                    features = rownames(aa))
+    
+    saveRDS(aa, file = paste0(outDir, data_version,
+                          '/seuratObject_RA.symmetry.breaking_doublet.rm_mt.ribo.filtered_regressout.nCounts_',
+                              'cellCycleScoring_annot.v2_newUMAP_clusters_time_cellCycole.regression_',
+                              data_version, '.rds'))
+    
+    aa = readRDS(file = paste0(outDir, data_version,
+                               '/seuratObject_RA.symmetry.breaking_doublet.rm_mt.ribo.filtered_regressout.nCounts_',
+                               'cellCycleScoring_annot.v2_newUMAP_clusters_time_cellCycole.regression_',
+                               data_version, '.rds'))
+    
+    
   }
   
-  aa = FindVariableFeatures(aa, selection.method = "vst", nfeatures = 3000)
-  
+  aa = FindVariableFeatures(aa, selection.method = "vst", nfeatures = 2000)
   aa <- RunPCA(aa, features = VariableFeatures(object = aa), verbose = FALSE, weight.by.var = FALSE)
   ElbowPlot(aa, ndims = 50)
   Idents(aa) = aa$condition
   
-  aa <- RunUMAP(aa, dims = 1:20, n.neighbors = 100, min.dist = 0.1)
+  aa <- RunUMAP(aa, dims = 1:20, n.neighbors = 30, min.dist = 0.1)
+  #aa <- RunUMAP(aa, dims = 1:20, n.neighbors = 30, min.dist = 0.1)
   DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'condition', cols = cols_sel, raster=FALSE)
   
-    
+  
   aa$dataset = 'afterRA'
   aa$dataset[which(aa$condition == 'day2.5_RA')] = 'RA'
   aa$dataset[which(aa$condition == 'day2_beforeRA')] = 'beforeRA'
   
+  mm = match(rownames(aa), c(tfs, sps, gene_examples))
+  mnt = subset(aa, features = rownames(aa)[which(!is.na(mm))])
+  
   library(SeuratDisk)
-  mnt = aa
   
   VariableFeatures(mnt) = NULL
   #mnt@assays$RNA@scale.data = NULL
@@ -186,9 +235,9 @@ if(Clean_Subset_for_scFates){
   
   Idents(mnt) = mnt$condition
   
-  mnt = subset(mnt, downsample = 2000)
+  #mnt = subset(mnt, downsample = 1000)
   
-  saveFile = paste0('/RNAmatrix_RA', data_version, '.h5Seurat')
+  saveFile = paste0('/RNAmatrix_RA_allGenes_', data_version, '.h5Seurat')
   
   SaveH5Seurat(mnt, filename = paste0(outDir, data_version,  saveFile), 
                overwrite = TRUE)
@@ -197,7 +246,7 @@ if(Clean_Subset_for_scFates){
   
   saveRDS(aa, file = paste0(outDir, data_version,
                             '/seuratObject_RA.symmetry.breaking_doublet.rm_mt.ribo.filtered_regressout.nCounts_',
-                            'cellCycleScoring_annot.v2_newUMAP_clusters_time_',
+                            'cellCycleScoring_annot.v2_newUMAP_clusters_time_allGenes_',
                             data_version, '.rds'))
   
   

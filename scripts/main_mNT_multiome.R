@@ -9,7 +9,7 @@
 ##########################################################################
 rm(list = ls())
 
-version.analysis = '_R16597_mNT_10xmultiome_20240206'
+version.analysis = '_R16597_mNT_10xmultiome_reseq_20240517'
 
 resDir = paste0("../results/scRNAseq", version.analysis)
 RdataDir = paste0(resDir, '/Rdata/')
@@ -82,7 +82,7 @@ cols_sel = cols[match(levels_sels, names(cols))]
 # 
 ########################################################
 ########################################################
-dataDir = '/scratch/jiwang/Hannah_multiome/'
+dataDir = '../mNT_scmultiome_R16597/'
 
 ## process the sample info csv file
 meta = read.csv2(file = paste0(dataDir, '/sample_info_parsed.csv'))
@@ -102,7 +102,7 @@ meta$treatment[grep('beforeRA', meta$sample_description)] = 'beforeRA'
 meta$treatment[grep('noRA', meta$sample_description)] = 'noRA'
 meta$condition = paste0(meta$time, '_', meta$treatment)
 
-write.csv2(meta, file = paste0(dataDir, 'sampleInfos.csv'), row.names = FALSE)
+write.csv2(meta, file = paste0(resDir, '/sampleInfos.csv'), row.names = FALSE)
 
 ## save library file for each RNA+ATAC pair
 meta$modality = 'RNA'
@@ -148,7 +148,7 @@ annotation <- GetGRangesFromEnsDb(ensdb = EnsDb.Mmusculus.v79)
 seqlevels(annotation) <- paste0('chr', seqlevels(annotation))
 
 meta = readRDS(paste0(RdataDir, 'meta_data.rds'))
-dataDir = '../mNT_scmultiome_R16597'
+dataDir = '../mNT_scmultiome_R16984'
 
 ##########################################
 ## first merge called peaks from different samples
