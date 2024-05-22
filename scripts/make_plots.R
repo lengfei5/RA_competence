@@ -1,7 +1,7 @@
 ##########################################################################
 ##########################################################################
 # Project: RA competence
-# Script purpose: make plots
+# Script purpose: make plots for figures 
 # Usage example: 
 # Author: Jingkui Wang (jingkui.wang@imp.ac.at)
 # Date of creation: Thu Jan 19 10:59:56 2023
@@ -11,7 +11,7 @@
 
 ########################################################
 ########################################################
-# Section : make plots for Hannah's Monday seminar
+# Section I: overview of scRNA-seq data and feature highlight
 # 
 ########################################################
 ########################################################

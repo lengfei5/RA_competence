@@ -192,7 +192,6 @@ cat(length(combined.peaks), ' combined peaks \n')
 ##########################################
 # creat seurat object with combined peaks
 ##########################################
-
 srat_cr = list()
 reload_processed = TRUE
 
@@ -239,6 +238,7 @@ for(n in 1:nrow(design))
     
     saveRDS(feat, file = paste0(RdataDir, 'snATAC_FeatureMatrix_', design$condition[n], '.rds'))
     toc()
+    
   }
  
   
@@ -288,15 +288,30 @@ for(n in 1:nrow(design))
   
   saveRDS(bb, file = paste0(RdataDir, 'seuratObj_snATAC_', design$condition[n], '.rds'))
   
-  srat_cr[[n]] = bb
+ 
   
 }
 
+Merge_allSamples = FALSE
+if(Merge_allSamples){
+  srat_cr = list()
+    
+  for(n in 1:nrow(design))
+  {
+    cat('----------- : ', n, ':',  design$condition[n], '-------------\n')
+    bb = readRDS(file = paste0(RdataDir, 'seuratObj_snATAC_', design$condition[n], '.rds'))
+    
+    srat_cr[[n]] = bb
+    
+  }
+  
+}
 
-#saveRDS(srat_cr, file = (paste0(RdataDir, 'seuratObj_scATAC_beforeMerged.peaks.cellranger_v1.rds')))
+saveRDS(srat_cr, file = (paste0(RdataDir, 'seuratObj_scATAC_beforeMerged.peaks.cellranger_v1.rds')))
+
 #srat_cr = readRDS(file = paste0(RdataDir, 'seuratObj_scATAC_beforeMerged.peaks.cellranger_v1.rds'))
-srat_reduced = Reduce(merge, srat_cr)
-saveRDS(srat_reduced, file = (paste0(RdataDir, 'seuratObj_scATAC_merged.peaks.cellranger_v1.rds')))
+srat_cr = Reduce(merge, srat_cr)
+saveRDS(srat_cr, file = (paste0(RdataDir, 'seuratObj_scATAC_merged.peaks.cellranger_v1.rds')))
 
 ########################################################
 ########################################################
