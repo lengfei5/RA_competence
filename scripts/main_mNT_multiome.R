@@ -150,10 +150,11 @@ seqlevels(annotation) <- paste0('chr', seqlevels(annotation))
 meta = readRDS(paste0(RdataDir, 'meta_data.rds'))
 dataDir = '../mNT_scmultiome_R16984'
 
+design = meta[which(meta$modality == 'ATAC'), ]
+
 ##########################################
 ## first merge called peaks from different samples
 ##########################################
-design = meta[which(meta$modality == 'ATAC'), ]
 
 for(n in 1:nrow(design))
 {
@@ -191,7 +192,9 @@ cat(length(combined.peaks), ' combined peaks \n')
 ##########################################
 # creat seurat object with combined peaks
 ##########################################
+
 srat_cr = list()
+reload_processed = TRUE
 
 for(n in 1:nrow(design))
 #for(n in 2:nrow(design))
@@ -223,14 +226,21 @@ for(n in 1:nrow(design))
   frags_l = CreateFragmentObject(path = fragpath, cells = cells_peak)
   
   # slow step  mins without parall computation
-  tic()
-  feat = FeatureMatrix(fragments = frags_l, 
-                       features = combined.peaks, 
-                       cells = cells_peak,
-                       process_n = 80000)
+  if(reload_processed){
+    
+    feat = readRDS(file = paste0(RdataDir, 'snATAC_FeatureMatrix_', design$condition[n], '.rds'))
   
-  saveRDS(feat, file = paste0(RdataDir, 'snATAC_FeatureMatrix_', design$condition[n], '.rds'))
-  toc()
+  }else{
+    tic()
+    feat = FeatureMatrix(fragments = frags_l, 
+                         features = combined.peaks, 
+                         cells = cells_peak,
+                         process_n = 80000)
+    
+    saveRDS(feat, file = paste0(RdataDir, 'snATAC_FeatureMatrix_', design$condition[n], '.rds'))
+    toc()
+  }
+ 
   
   # create ATAC assay and add it to the object
   bb[["ATAC"]] <- CreateChromatinAssay(
@@ -276,15 +286,16 @@ for(n in 1:nrow(design))
   bb = NucleosomeSignal(bb)
   bb = TSSEnrichment(bb, fast = TRUE)
   
+  saveRDS(bb, file = paste0(RdataDir, 'seuratObj_snATAC_', design$condition[n], '.rds'))
+  
   srat_cr[[n]] = bb
   
 }
 
-saveRDS(srat_cr, file = (paste0(RdataDir, 'seuratObj_scATAC_beforeMerged.peaks.cellranger_v1.rds')))
 
-srat_cr = readRDS(file = paste0(RdataDir, 'seuratObj_scATAC_beforeMerged.peaks.cellranger_v1.rds'))
+#saveRDS(srat_cr, file = (paste0(RdataDir, 'seuratObj_scATAC_beforeMerged.peaks.cellranger_v1.rds')))
+#srat_cr = readRDS(file = paste0(RdataDir, 'seuratObj_scATAC_beforeMerged.peaks.cellranger_v1.rds'))
 srat_reduced = Reduce(merge, srat_cr)
-
 saveRDS(srat_reduced, file = (paste0(RdataDir, 'seuratObj_scATAC_merged.peaks.cellranger_v1.rds')))
 
 ########################################################
