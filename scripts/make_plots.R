@@ -13,10 +13,11 @@ version.analysis = '_R13547_10x_mNT_20240522'
 species = 'mNT_scRNAseq'
 
 resDir = paste0("../results/figures_talbes", version.analysis)
-RdataDir = paste0(resDir, '/Rdata')
+RdataDir = '../results/Rdata/'
 if(!dir.exists(resDir)) dir.create(resDir)
 if(!dir.exists(RdataDir)) dir.create(RdataDir)
 
+functionDir = '/groups/tanaka/People/current/jiwang/projects/heart_regeneration/scripts'
 source('/groups/tanaka/People/current/jiwang/projects/heart_regeneration/scripts/functions_scRNAseq.R')
 source('/groups/tanaka/People/current/jiwang/projects/heart_regeneration/scripts/functions_Visium.R')
 
@@ -32,6 +33,14 @@ library(future)
 options(future.globals.maxSize = 160000 * 1024^2)
 mem_used()
 
+levels = c("day0_beforeRA", "day1_beforeRA", 
+           "day2_beforeRA",
+           "day2.5_RA", "day3_RA.rep1", "day3_RA.rep2", 'day3.5_RA',
+           "day4_RA", "day5_RA", "day6_RA",
+           "day2.5_noRA", "day3_noRA", 'day3.5_noRA', "day4_noRA", "day5_noRA", "day6_noRA")
+
+cols = readRDS(file = '../results/Rdata/color_scheme_4scRNAseq.rds')
+load(file = '../results/Rdata/tfs_sps_geneExamples_4scRNAseq.Rdata')
 
 ########################################################
 ########################################################
@@ -39,41 +48,97 @@ mem_used()
 # 
 ########################################################
 ########################################################
+Save_weirdClusters = FALSE
+if(Save_weirdClusters){
+  bb = readRDS(file = paste0('../results/Rdata/', 
+                             'seuratObject_RA.symmetry.breaking_doublet.rm_mt.ribo.filtered_regressout.nCounts_',
+                             'cellCycleScoring_annot.v2_newUMAP_clusters_time_',
+                             species, '_R13547_10x_mNT_20220813', '.rds'))
+  
+  p1 = DimPlot(bb, label = TRUE, repel = TRUE, group.by = 'condition', raster=FALSE)
+  p2 = DimPlot(bb, label = TRUE, repel = TRUE, group.by = 'clusters', raster=FALSE)
+  p1 + p2
+  
+  clusters_weird = colnames(bb)[which(bb$clusters == '7'|bb$clusters == '8')]
+  saveRDS(clusters_weird, file = paste0(RdataDir, 'cellNames_weirdClusters_7_8.rds'))
+  
+}
+
 ##########################################
 # all samples 
 ##########################################
+outDir = paste0(resDir, '/UMAP_allSamples/')
+if(!dir.exists(outDir)) dir.create(outDir)
+
 aa =  readRDS(file = paste0('../results/Rdata/', 
                             'seuratObject_merged_cellFiltered_doublet.rm_mt.ribo.geneFiltered_regressout.nCounts_',
                             'cellCycleScoring_annot.v1_', 
                             species, '_R13547_10x_mNT_20220813', '.rds'))
-
-levels_sels = c("day2_beforeRA", 
-                "day2.5_RA", "day3_RA.rep1", "day3.5_RA", "day4_RA", "day5_RA", "day6_RA")
-cols_sel = cols[match(levels_sels, names(cols))]
-
-aa = readRDS(file = paste0(RdataDir, 
-                           'seuratObject_RA.symmetry.breaking_doublet.rm_mt.ribo.filtered_regressout.nCounts_',
-                           'cellCycleScoring_annot.v2_newUMAP_clusters_time_',
-                           species, version.analysis, '.rds'))
-
-
-
-
-aa =  readRDS(file = paste0(RdataDir, 
-                            'seuratObject_merged_cellFiltered_doublet.rm_mt.ribo.geneFiltered_',
-                            'regressout.nCounts_',
-                            'cellCycleScoring_annot.v1_', species, version.analysis, '.rds'))
-
 Idents(aa) = factor(aa$condition, levels = levels)
-
 table(aa$condition)
 
 DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'condition', cols = cols, raster=FALSE)
 
-ggsave(filename = paste0(outDir, 'UMAP_rmDoublet_rmRiboMT_regressed.nCounts_annot.v1_',
-                         'beforeSubsetting_RAsymmetryBreaking.pdf'), width = 10, height = 8)
+ggsave(filename = paste0(resDir, '/UMAP_overview_initial_beforeFiltering.pdf'), 
+       width = 12, height = 8)
 
-aa = subset(aa, idents = levels_sels)
+
+Filter_weirdCluster_7_8 = FALSE
+if(Filter_weirdCluster_7_8){
+  cells_2filter = readRDS(paste0(RdataDir, 'cellNames_weirdClusters_7_8.rds'))
+  mm = match(colnames(aa), cells_2filter)
+  aa = subset(aa, cells = colnames(aa)[which(is.na(mm))])
+  
+}
+
+source(paste0(functionDir, '/functions_scRNAseq.R'))
+
+explore.umap.params.combination(sub.obj = aa, resDir = outDir, 
+                                pdfname = 'UMAP_test_allSamples.pdf',
+                                use.parallelization = FALSE,
+                                group.by = 'condition',
+                                cols = cols, 
+                                weight.by.var = TRUE,
+                                nfeatures.sampling = c(3000, 5000),
+                                nb.pcs.sampling = c(30, 50), 
+                                n.neighbors.sampling = c(30, 50, 100),
+                                min.dist.sampling = c(0.1, 0.3)
+)
+
+p1 = DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'condition', raster=FALSE)
+p2 = DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'clusters', raster=FALSE)
+p1 + p2
+
+
+##########################################
+# no early time points
+##########################################
+outDir = paste0(resDir, '/UMAP_overview_allSamples_fromDay2/')
+if(!dir.exists(outDir)) dir.create(outDir)
+
+levels_sels = levels[which(levels != 'day0_beforeRA' & levels != 'day1_beforeRA')]
+cols_sel = cols[match(levels_sels, names(cols))]
+
+bb = subset(aa, idents = levels_sels)
+
+source(paste0(functionDir, '/functions_scRNAseq.R'))
+
+explore.umap.params.combination(sub.obj = bb, resDir = outDir, 
+                                pdfname = 'UMAP_test_allSamples_no.day0.day1.pdf',
+                                use.parallelization = FALSE,
+                                group.by = 'condition',
+                                cols = cols_sel, 
+                                weight.by.var = TRUE,
+                                nfeatures.sampling = c(3000, 5000),
+                                nb.pcs.sampling = c(30, 50), 
+                                n.neighbors.sampling = c(30, 50, 100),
+                                min.dist.sampling = c(0.1, 0.3)
+)
+
+
+
+
+
 
 aa <- FindVariableFeatures(aa, selection.method = "vst", nfeatures = 5000) # find subset-specific HVGs
 
@@ -155,7 +220,6 @@ ggsave(paste0("../results/plots_MondaySeminar",
 saveRDS(aa, file = paste0(RdataDir, 
                           'seuratObject_merged_cellFiltered_doublet.rm_mt.ribo.geneFiltered_regressout.nCounts_',
                           'cellCycleScoring_annot.v1_savedUMAP.v1_', species, version.analysis, '.rds'))
-
 
 ##########################################
 # features and TF activity overlaying UMAP 
