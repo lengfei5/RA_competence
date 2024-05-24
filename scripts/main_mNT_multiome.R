@@ -144,7 +144,6 @@ library(BSgenome.Mmusculus.UCSC.mm10)
 
 # get gene annotations for mm10
 annotation <- GetGRangesFromEnsDb(ensdb = EnsDb.Mmusculus.v79)
-
 seqlevels(annotation) <- paste0('chr', seqlevels(annotation))
 
 meta = readRDS(paste0(RdataDir, 'meta_data.rds'))
@@ -271,6 +270,7 @@ for(n in 1:nrow(design))
     header = TRUE,
     row.names = 1
   )
+  
   mm = match(colnames(bb), metadata$gex_barcode)
   metadata = metadata[mm, c(1,2, 3, 21:30)]
   bb = AddMetaData(bb, metadata = metadata)
@@ -309,7 +309,7 @@ if(Merge_allSamples){
 
 saveRDS(srat_cr, file = (paste0(RdataDir, 'seuratObj_scATAC_beforeMerged.peaks.cellranger_v1.rds')))
 
-#srat_cr = readRDS(file = paste0(RdataDir, 'seuratObj_scATAC_beforeMerged.peaks.cellranger_v1.rds'))
+srat_cr = readRDS(file = paste0(RdataDir, 'seuratObj_scATAC_beforeMerged.peaks.cellranger_v1.rds'))
 srat_cr = Reduce(merge, srat_cr)
 saveRDS(srat_cr, file = (paste0(RdataDir, 'seuratObj_scATAC_merged.peaks.cellranger_v1.rds')))
 
@@ -322,6 +322,9 @@ srat_cr = readRDS(file = paste0(RdataDir, 'seuratObj_scATAC_merged.peaks.cellran
 
 meta = readRDS(paste0(RdataDir, 'meta_data.rds'))
 design = meta[which(meta$modality == 'ATAC'), ]
+
+srat_cr$condition = design$condition[match(srat_cr$sampleID, design$sample_id)]
+table(srat_cr$condition)
 #design$condition = gsub('_12h_', '.5_', design$condition)
 #design$condition = gsub('^d', 'day', design$condition)
 
@@ -330,11 +333,11 @@ srat_cr$condition = gsub('^d', 'day', srat_cr$condition)
 
 table(srat_cr$condition)
 
-
 srat_cr$condition = factor(srat_cr$condition, levels = levels_sels)
 Idents(srat_cr) = srat_cr$condition
 
-make.QC.plots = FALSE
+
+make.QC.plots = TRUE
 if(make.QC.plots){
   
   outDir = paste0(resDir, '/QCs_multiome')
@@ -359,6 +362,12 @@ if(make.QC.plots){
     geom_hline(yintercept = c(1000, 10000, 20000))
   
   ggsave(filename = paste0(outDir, '/QCs_nCount_ATAC_cellRanger_toCompareFernando.pdf'), height =8, width = 12)
+  
+  VlnPlot(srat_cr, features = "nCount_ATAC", ncol = 1, y.max = 100000, group.by = 'condition', pt.size = 0., 
+          log = FALSE, raster=FALSE) +
+    geom_hline(yintercept = c(1000, 5000, 10000))
+  
+  ggsave(filename = paste0(outDir, '/QCs_nCount_ATAC_cellRanger_to1stBatch.pdf'), height =8, width = 12)
   
   
   VlnPlot(srat_cr, features = "nFeature_ATAC", ncol = 1, y.max = 50000, group.by = 'condition', pt.size = 0., 
@@ -508,6 +517,7 @@ ggsave(filename = paste0(resDir, '/UMAP_ATAC_quickClustering_resolution.1.0.pdf'
 
 saveRDS(srat_cr, file = paste0(RdataDir, 
                                'seuratObj_multiome_snRNA.normalized.umap_scATAC.normalized.umap.rds'))
+
 
 ##########################################
 # link peaks and coveragePlots

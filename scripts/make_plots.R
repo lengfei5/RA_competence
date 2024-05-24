@@ -7,6 +7,30 @@
 # Date of creation: Thu Jan 19 10:59:56 2023
 ##########################################################################
 ##########################################################################
+rm(list = ls())
+
+version.analysis = '_R13547_10x_mNT_20240522'
+species = 'mNT_scRNAseq'
+
+resDir = paste0("../results/figures_talbes", version.analysis)
+RdataDir = paste0(resDir, '/Rdata')
+if(!dir.exists(resDir)) dir.create(resDir)
+if(!dir.exists(RdataDir)) dir.create(RdataDir)
+
+source('/groups/tanaka/People/current/jiwang/projects/heart_regeneration/scripts/functions_scRNAseq.R')
+source('/groups/tanaka/People/current/jiwang/projects/heart_regeneration/scripts/functions_Visium.R')
+
+library(pryr) # monitor the memory usage
+require(ggplot2)
+
+require(dplyr)
+require(stringr)
+require(tidyr)
+library(Seurat)
+#library(DropletUtils)
+library(future)
+options(future.globals.maxSize = 160000 * 1024^2)
+mem_used()
 
 
 ########################################################
@@ -15,6 +39,69 @@
 # 
 ########################################################
 ########################################################
+##########################################
+# all samples 
+##########################################
+aa =  readRDS(file = paste0('../results/Rdata/', 
+                            'seuratObject_merged_cellFiltered_doublet.rm_mt.ribo.geneFiltered_regressout.nCounts_',
+                            'cellCycleScoring_annot.v1_', 
+                            species, '_R13547_10x_mNT_20220813', '.rds'))
+
+levels_sels = c("day2_beforeRA", 
+                "day2.5_RA", "day3_RA.rep1", "day3.5_RA", "day4_RA", "day5_RA", "day6_RA")
+cols_sel = cols[match(levels_sels, names(cols))]
+
+aa = readRDS(file = paste0(RdataDir, 
+                           'seuratObject_RA.symmetry.breaking_doublet.rm_mt.ribo.filtered_regressout.nCounts_',
+                           'cellCycleScoring_annot.v2_newUMAP_clusters_time_',
+                           species, version.analysis, '.rds'))
+
+
+
+
+aa =  readRDS(file = paste0(RdataDir, 
+                            'seuratObject_merged_cellFiltered_doublet.rm_mt.ribo.geneFiltered_',
+                            'regressout.nCounts_',
+                            'cellCycleScoring_annot.v1_', species, version.analysis, '.rds'))
+
+Idents(aa) = factor(aa$condition, levels = levels)
+
+table(aa$condition)
+
+DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'condition', cols = cols, raster=FALSE)
+
+ggsave(filename = paste0(outDir, 'UMAP_rmDoublet_rmRiboMT_regressed.nCounts_annot.v1_',
+                         'beforeSubsetting_RAsymmetryBreaking.pdf'), width = 10, height = 8)
+
+aa = subset(aa, idents = levels_sels)
+
+aa <- FindVariableFeatures(aa, selection.method = "vst", nfeatures = 5000) # find subset-specific HVGs
+
+## because the data was regressed and scaled already, only the HVGs were used to calculate PCA
+aa <- RunPCA(aa, features = VariableFeatures(object = aa), verbose = FALSE, weight.by.var = FALSE)
+ElbowPlot(aa, ndims = 50)
+
+Idents(aa) = aa$condition
+
+aa <- RunUMAP(aa, dims = 1:30, n.neighbors = 30, min.dist = 0.1)
+DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'condition', cols = cols_sel, raster=FALSE)
+
+ggsave(filename = paste0(outDir, 'UMAP_rmDoublet_rmRiboMT_regressed.nCounts_annot.v1_',
+                         'subsetting.RAsymmetryBreaking.onlyday3rep1',
+                         version.analysis, '.pdf'), 
+       width = 10, height = 8)
+
+saveRDS(aa, file = paste0(RdataDir, 
+                          'seuratObject_RA.symmetry.breaking_doublet.rm_mt.ribo.filtered_regressout.nCounts_',
+                          'cellCycleScoring_annot.v2_',
+                          species, version.analysis, '.rds'))
+
+
+
+Idents(aa) = factor(aa$condition, levels = levels)
+aa$condition = factor(aa$condition, levels = levels)
+
+
 aa =  readRDS(file = paste0(RdataDir, 
                             'seuratObject_merged_cellFiltered_doublet.rm_mt.ribo.geneFiltered_regressout.nCounts_',
                             'cellCycleScoring_annot.v1_', species, version.analysis, '.rds'))

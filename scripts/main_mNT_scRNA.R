@@ -97,6 +97,8 @@ gene_examples = unique(c('Foxa2', 'Pax6', c('Zfp42', 'Tcf15', 'Skil', 'Lef1',
                          
 ))
 
+saveRDS(cols, file = '../results/Rdata/color_scheme_4scRNAseq.rds')
+save(tfs, sps, gene_examples, file = '../results/Rdata/tfs_sps_geneExamples_4scRNAseq.Rdata')
 
 ########################################################
 ########################################################
