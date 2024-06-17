@@ -146,6 +146,11 @@ aa = readRDS(file = paste0(RdataDir,
                            species, version.analysis, '.rds'))
 
 
+## filter the weird clusters identified in make_plots_v0.R
+cells_2filter = readRDS(file = paste0(RdataDir, 'subObj_clusters_to_filter.rds'))
+mm = match(colnames(aa), colnames(cells_2filter))
+aa = subset(aa, cells = colnames(aa)[which(is.na(mm))])
+
 ##########################################
 # define clusters as slingshot and outlier detection because the principle curves are sensitive to the outliers
 # manually correction of clusters 
@@ -169,15 +174,15 @@ centers <- res_kmean$centers[res_kmean$cluster, ]
 distances <- sqrt(rowSums((rd2 - centers)^2))
 
 hist(distances, breaks = 100)
-abline(v = 0.0015, col = 'red')
-outliers <- which(distances>0.0015)
+abline(v = 0.003, col = 'red')
+outliers <- which(distances>0.003)
 
 cols = c(brewer.pal(9,"Set1"), brewer.pal(8,"Set2"))[res_kmean$cluster]
 
 pdfname = paste0(outDir, 'DMcomponents_clustering_outliersDetection_slingshot.pdf')
 pdf(pdfname, width=16, height = 8)
 
-plot(rd2, pch=19, col=cols, cex=0.2)
+plot(rd2, pch=19, col=cols, cex=0.1)
 points(res_kmean$centers, col='darkred', pch=15, cex=1)
 points(rd2[outliers, ], pch="+", col = 'darkgray', cex=0.8)
 
@@ -192,23 +197,25 @@ aa$dc_clusters = cl2
 aa$dc_clusters[!is.na(aa$dc_clusters_outliers)] = NA
 
 
-DimPlot(aa, reduction = 'DC', group.by = 'dc_clusters')
-ggsave(filename = paste0(outDir, 'DMcomponents_clustering_for_trajectory_slingshot_outliers.pdf'), 
+DimPlot(aa, reduction = 'DC', group.by = 'condition', cols = cols_sel)
+ggsave(filename = paste0(outDir, 'DMcomponents_clustering_for_trajectory.pdf'), 
        width = 16, height = 8)
 
 table(aa$condition, aa$dc_clusters)
 
-### manually change the cluster labels
-cl2[which(cl2 == 10 | cl2 == 14)] = 10 # day4_noRA 
-cl2[which(cl2== 1 | cl2 == 2 | cl2==11)] = 1 # day4_RA
+### manually change the cluster labels if necessary
+DimPlot(aa, reduction = 'DC', group.by = 'dc_clusters', label = TRUE)
+
+cl2[which(cl2 == 9 | cl2 == 14)] = 9 # day4_noRA 
+cl2[which(cl2== 2 | cl2 == 13 | cl2==11)] = 2 # day4_RA
 colData(sce)$kmeans <- cl2
 
 aa$dc_clusters = cl2
 aa$dc_clusters[!is.na(aa$dc_clusters_outliers)] = NA
-DimPlot(aa, reduction = 'DC', group.by = 'dc_clusters')
+DimPlot(aa, reduction = 'DC', group.by = 'dc_clusters',  label = TRUE)
 
 ggsave(filename = paste0(outDir, 
-                         'DMcomponents_clustering.manaulCorrection_for_trajectory_slingshot_outliers.pdf'), 
+                         'DMcomponents_clustering.manaulCorrection_for_trajectory_slingshot_outliers_v2.pdf'), 
        width = 16, height = 8)
 
 
@@ -218,9 +225,7 @@ ggsave(filename = paste0(outDir,
 #colors <- colorRampPalette(brewer.pal(11,'Spectral')[-6])(100)
 #plot(reducedDims(sce)$DC, col = colors[cut(sce$slingPseudotime_1,breaks=100)], pch=16, asp = 1)
 #lines(SlingshotDataSet(sce), lwd=2)
-
 table(aa$condition, aa$dc_clusters)
-
 
 if(trajectory_pseudotime_method == 'slingshot'){ #
   
@@ -282,7 +287,6 @@ if(trajectory_pseudotime_method == 'principleCurve'){
   
   DimPlot(aa, reduction = 'DC', group.by = 'dc_clusters')
   table(aa$condition, aa$dc_clusters)
-  
   
   dcs_all = data.frame(aa[['DC']]@cell.embeddings[, c(1,2)])
   

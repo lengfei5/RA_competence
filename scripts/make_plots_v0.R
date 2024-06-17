@@ -49,6 +49,10 @@ load(file = '../results/Rdata/tfs_sps_geneExamples_4scRNAseq.Rdata')
 # 
 ########################################################
 ########################################################
+outDir = paste0(resDir, '/UMAP_allSamples/')
+if(!dir.exists(outDir)) dir.create(outDir)
+
+
 Save_weirdClusters = FALSE
 if(Save_weirdClusters){
   bb = readRDS(file = paste0('../results/Rdata/', 
@@ -65,12 +69,10 @@ if(Save_weirdClusters){
   
 }
 
-##########################################
-# all samples 
-##########################################
-outDir = paste0(resDir, '/UMAP_allSamples/')
-if(!dir.exists(outDir)) dir.create(outDir)
 
+##########################################
+# Identify clusters to discard from all samples 
+##########################################
 aa =  readRDS(file = paste0('../results/Rdata/', 
                             'seuratObject_merged_cellFiltered_doublet.rm_mt.ribo.geneFiltered_regressout.nCounts_',
                             'cellCycleScoring_annot.v1_', 
@@ -91,35 +93,111 @@ ElbowPlot(aa, ndims = 50)
 
 Idents(aa) = aa$condition
 
-#aa <- RunUMAP(aa, dims = 1:50, n.neighbors = 50, min.dist = 0.1)
-#aa <- RunUMAP(aa, dims = 1:30, n.neighbors = 100, min.dist = 0.1)
-# aa <- RunUMAP(aa, dims = 1:50, n.neighbors = 50, min.dist = 0.2)
-# aa <- RunUMAP(aa, dims = 1:50, n.neighbors = 50, min.dist = 0.3)
-#aa <- RunUMAP(aa, dims = 1:50, n.neighbors = 100, min.dist = 0.2)
 aa <- RunUMAP(aa, dims = 1:30, n.neighbors = 50, min.dist = 0.1)
 DimPlot(aa, cols = cols, group.by = 'condition', label = TRUE, repel = TRUE, raster = FALSE)
 
 # quickly run clustering
-aa <- FindNeighbors(aa, dims = 1:20)
-aa <- FindClusters(aa, verbose = FALSE, algorithm = 3, resolution = 0.5)
+aa <- FindNeighbors(aa, dims = 1:30)
 
+aa <- FindClusters(aa, verbose = FALSE, algorithm = 3, resolution = 1.0)
 p1 = DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'condition', cols = cols, raster=FALSE)
 p2 = DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'seurat_clusters', raster=FALSE)
 p1 + p2
 
-
-ggsave(filename = paste0(outDir, '/UMAP_RA_condition_clusters.pdf'), 
+ggsave(filename = paste0(outDir, '/UMAP_RA_condition_clusters_res2.0.pdf'), 
        width = 14, height = 6)
 
+table(aa$seurat_clusters)
+
+jj = match(cells_2filter, colnames(aa))
+xx = table(aa$seurat_clusters[jj])
+yy = xx/table(aa$seurat_clusters)
+xx[order(-xx)]
+yy[order(-yy)]
+
+cells =  colnames(aa)[which(!is.na(match(aa$seurat_clusters, c(15))))]
+
+mm = match(cells, cells_2filter)
+length(which(!is.na(mm)))
+
+DimPlot(aa, label = TRUE, repel = TRUE,  raster=FALSE,
+        cells.highlight = cells,
+        sizes.highlight = 0.2)
+
+clusters_sel = c(15, 8, 19, 0, 9, 21, 3)
+cells = colnames(aa)[which(!is.na(match(aa$seurat_clusters, clusters_sel)))]
+
+# discard first the cells in cluster 23
+aa = subset(aa, cells = cells)                               
+DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'seurat_clusters', raster=FALSE)
 
 
-Filter_weirdCluster_7_8 = FALSE
-if(Filter_weirdCluster_7_8){
-  cells_2filter = readRDS(paste0(RdataDir, 'cellNames_weirdClusters_7_8.rds'))
-  mm = match(colnames(aa), cells_2filter)
+aa <- FindVariableFeatures(aa, selection.method = "vst", nfeatures = 3000) # find subset-specific HVGs
+## because the data was regressed and scaled already, only the HVGs were used to calculate PCA
+aa <- RunPCA(aa, features = VariableFeatures(object = aa), verbose = FALSE, weight.by.var = TRUE)
+ElbowPlot(aa, ndims = 50)
+
+Idents(aa) = aa$condition
+
+aa <- RunUMAP(aa, dims = 1:30, n.neighbors = 50, min.dist = 0.1)
+DimPlot(aa, cols = cols, group.by = 'condition', label = TRUE, repel = TRUE, raster = FALSE)
+
+# quickly run clustering
+aa <- FindNeighbors(aa, dims = 1:30)
+
+aa <- FindClusters(aa, verbose = FALSE, algorithm = 3, resolution = 2.0)
+p1 = DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'condition', cols = cols, raster=FALSE)
+p2 = DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'seurat_clusters', raster=FALSE)
+p1 + p2
+
+ggsave(filename = paste0(outDir, '/UMAP_subset_condition_clusters_res2.0.pdf'), 
+       width = 14, height = 6)
+
+clusters_sel = c(13, 18, 25, 30)
+cells = colnames(aa)[which(!is.na(match(aa$seurat_clusters, clusters_sel)))]
+
+jj = match(cells_2filter, colnames(aa))
+xx = table(aa$seurat_clusters[jj])
+yy = xx/table(aa$seurat_clusters)
+xx[order(-xx)]
+yy[order(-yy)]
+
+xx = subset(aa, cells = cells)
+saveRDS(xx, file = paste0(RdataDir, 'subObj_clusters_to_filter.rds'))
+
+##########################################
+# filter the clusters and explore UMAP parameters 
+##########################################
+aa =  readRDS(file = paste0('../results/Rdata/', 
+                            'seuratObject_merged_cellFiltered_doublet.rm_mt.ribo.geneFiltered_regressout.nCounts_',
+                            'cellCycleScoring_annot.v1_', 
+                            species, '_R13547_10x_mNT_20220813', '.rds'))
+Idents(aa) = factor(aa$condition, levels = levels)
+table(aa$condition)
+
+Filter_weirdCluster = FALSE
+if(Filter_weirdCluster){
+  cells_2filter = readRDS(file = paste0(RdataDir, 'subObj_clusters_to_filter.rds'))
+  mm = match(colnames(aa), colnames(cells_2filter))
+  
   aa = subset(aa, cells = colnames(aa)[which(is.na(mm))])
   
+  aa <- FindVariableFeatures(aa, selection.method = "vst", nfeatures = 3000) # find subset-specific HVGs
+  ## because the data was regressed and scaled already, only the HVGs were used to calculate PCA
+  aa <- RunPCA(aa, features = VariableFeatures(object = aa), verbose = FALSE, weight.by.var = TRUE)
+  ElbowPlot(aa, ndims = 50)
+  
+  Idents(aa) = aa$condition
+  
+  aa <- RunUMAP(aa, dims = 1:30, n.neighbors = 50, min.dist = 0.1)
+  DimPlot(aa, cols = cols, group.by = 'condition', label = TRUE, repel = TRUE, raster = FALSE)
+  
+  saveRDS(aa, file = paste0(RdataDir, 'seuratObj_clustersFiltered_umapOverview.rds'))
+  
 }
+
+aa = readRDS(file = paste0(RdataDir, 'seuratObj_clustersFiltered_umapOverview.rds'))
+
 
 source(paste0(functionDir, '/functions_scRNAseq.R'))
 
@@ -135,11 +213,10 @@ explore.umap.params.combination(sub.obj = aa, resDir = outDir,
                                 min.dist.sampling = c(0.1, 0.3)
 )
 
+
 p1 = DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'condition', raster=FALSE)
 p2 = DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'seurat_clusters', raster=FALSE)
 p1 + p2
-
-
 
 
 aa <- FindVariableFeatures(aa, selection.method = "vst", nfeatures = 5000) # find subset-specific HVGs
