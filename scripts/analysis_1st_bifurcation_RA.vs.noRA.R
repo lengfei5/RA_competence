@@ -145,7 +145,6 @@ aa = readRDS(file = paste0(RdataDir,
                            'cellCycleScoring_annot.v1_reduction.DM.globalSignal.nfeature3000.neighbor200_',
                            species, version.analysis, '.rds'))
 
-
 ## filter the weird clusters identified in make_plots_v0.R
 cells_2filter = readRDS(file = paste0(RdataDir, 'subObj_clusters_to_filter.rds'))
 mm = match(colnames(aa), colnames(cells_2filter))
@@ -218,6 +217,16 @@ ggsave(filename = paste0(outDir,
                          'DMcomponents_clustering.manaulCorrection_for_trajectory_slingshot_outliers_v2.pdf'), 
        width = 16, height = 8)
 
+p1 = DimPlot(aa, reduction = 'DC', group.by = 'dc_clusters', label = TRUE)
+p2 = DimPlot(aa, reduction = 'DC', group.by = 'condition', label = TRUE)
+p1 + p2
+
+ggsave(filename = paste0(outDir, 
+                         'DMcomponents_clustering.manaulCorrection_for_trajectory_outliers',
+                         '_clusters_condition_v2.pdf'), 
+       width = 20, height = 8)
+
+
 
 # default singshot 
 #sce <- slingshot(sce, clusterLabels = 'kmeans', reducedDim = 'DC')
@@ -234,14 +243,23 @@ if(trajectory_pseudotime_method == 'slingshot'){ #
   rd3 = rd2[-outliers, ]
   cl3 = cl2[-outliers]
   
-  pdf(paste0(outDir, "Slingshot_getLineage_withStarting.cluster.pdf"),
+ 
+    
+  plot(rd, col = brewer.pal(9,"Set1")[cl], asp = 1, pch = 16)
+  lines(SlingshotDataSet(lin1), lwd = 3, col = 'black')
+  
+  
+  pdf(paste0(outDir, "Slingshot_getLineage_withStarting.cluster_v2.pdf"),
       height = 6, width =10, useDingbats = FALSE)
-  times = c('12' = 3, 
-            '4' = 1, '6' = 1, 
-            '8' = 2, '3' = 2, '13' = 2, '5' = 2,
-            '7' = 3, '9' = 3, '1' = 3,
-            '10' = 4) 
-  lin1 <- getLineages(rd3, cl3, start.clus = '12', end.clus = '1', times = times)
+  
+  # times = c('12' = 3, 
+  #           '4' = 1, '6' = 1, 
+  #           '8' = 2, '3' = 2, '13' = 2, '5' = 2,
+  #           '7' = 3, '9' = 3, '1' = 3,
+  #           '10' = 4) 
+  #lin1 <- getLineages(rd3, cl3, start.clus = '12', end.clus = '1', times = times)
+  lin1 <- getLineages(rd3, cl3, start.clus = '4', end.clus = c('2', '9'))
+  lin1
   
   cols = c(brewer.pal(9,"Set1"), brewer.pal(8,"Set2"))[cl3]
   plot(rd3, col = cols, asp = 1, pch = 16, cex = 0.2)
@@ -249,15 +267,17 @@ if(trajectory_pseudotime_method == 'slingshot'){ #
   
   dev.off()
   
-  crv1 <- getCurves(lin1, shrink = TRUE, stretch = 2,  smoother = "smooth.spline")
+  crv1 <- getCurves(lin1, shrink = 1, stretch = 2,  smoother = "smooth.spline")
   #crv1 <- getCurves(lin1, shrink = TRUE, stretch = 2,  smoother = "loess")
   crv1
+  
+  plot(rd3, col = cols, asp = 1, pch = 16, cex = 0.2)
+  lines(SlingshotDataSet(crv1), lwd = 3, col = 'black')
   
   pdf(paste0(outDir, "Slingshot_getCurve_withLineage.pdf"),
       height = 6, width =10, useDingbats = FALSE)
   
-  plot(rd2, col = cols, asp = 1, pch = 16, cex = 0.2)
-  lines(SlingshotDataSet(crv1), lwd = 3, col = 'black')
+  
   
   dev.off()
   
@@ -285,13 +305,13 @@ if(trajectory_pseudotime_method == 'principleCurve'){
   aa$pseudot_noRA = NA
   aa$pseudot_RA = NA 
   
-  DimPlot(aa, reduction = 'DC', group.by = 'dc_clusters')
+  DimPlot(aa, reduction = 'DC', group.by = 'dc_clusters', label = TRUE)
   table(aa$condition, aa$dc_clusters)
   
   dcs_all = data.frame(aa[['DC']]@cell.embeddings[, c(1,2)])
   
   ## no RA conditions
-  cluster_sels = c(12, 4, 8, 7,9,10)
+  cluster_sels = c(4, 6, 12, 7, 5, 9)
   mm = which(!is.na(match(aa$dc_clusters, cluster_sels)))
   dcs = dcs_all[mm, ]
   
@@ -302,9 +322,9 @@ if(trajectory_pseudotime_method == 'principleCurve'){
                               #start = start,
                               smoother = 'smooth_spline', stretch = 2)
   
-  saveRDS(princurve, file = paste0(outDir, 'principle_curve_noRA.rds')) # save the principle curve found
+  saveRDS(princurve, file = paste0(outDir, 'principle_curve_noRA_v2.rds')) # save the principle curve found
   
-  princurve = readRDS(file = paste0(outDir, 'principle_curve_noRA.rds'))
+  princurve = readRDS(file = paste0(outDir, 'principle_curve_noRA_v2.rds'))
   
   plot(dcs[, c(1:2)], cex = 0.1, col = cols)
   #points(start, cex = 0.4, col = 'green')
@@ -317,13 +337,24 @@ if(trajectory_pseudotime_method == 'principleCurve'){
   
   ## RA trajectory: special selection of cells from the border of day2_noRA and day2.5_noRA 
   VlnPlot(aa, features = 'pseudot_noRA', group.by = 'dc_clusters')
-  range(aa$pseudot_noRA[which(aa$dc_clusters == 12)])
   range(aa$pseudot_noRA[which(aa$dc_clusters == 4)])
+  range(aa$pseudot_noRA[which(aa$dc_clusters == 6)])
   
-  length(which(aa$pseudot_noRA > 0.15 & aa$pseudot_noRA < 0.16))
-  index_startCells = which(aa$pseudot_noRA > 0.145 & aa$pseudot_noRA < 0.165)
+  ## select the cells around the cluster 4 centers
+  p1 = DimPlot(aa, reduction = 'DC', group.by = 'dc_clusters', label = TRUE)
+  p2 = DimPlot(aa, reduction = 'DC', group.by = 'condition', label = TRUE)
+  p1 + p2
   
-  cluster_sels = c(6, 5, 13,  3,  1)
+  res_kmean$centers
+  head(dcs)  
+  dd = apply(dcs, 1, function(x){return(sqrt((x[1] + 0.005982639)^2 + (x[2] - 0.0037537778)^2));})
+  dd = dd[order(dd)]
+  
+  ntop = 1000
+  #length(which(aa$pseudot_noRA > 0.18 & aa$pseudot_noRA < 0.219))
+  index_startCells = match(names(dd)[1:ntop], colnames(aa))
+  
+  cluster_sels = c(8, 3, 10,  2,  1)
   #cluster_sels = cluster_sels[!is.na(cluster_sels)]
   mm = which(!is.na(match(aa$dc_clusters, cluster_sels)))
   mm = unique(c(index_startCells, mm))
@@ -341,14 +372,15 @@ if(trajectory_pseudotime_method == 'principleCurve'){
                               maxit = 50
                               )
   
-  saveRDS(princurve, file = paste0(outDir, 'principle_curve_RA_borderCellsSelected.rds'))
-  
-  princurve = readRDS(file = paste0(outDir, 'principle_curve_RA_borderCellsSelected.rds'))
-  
   plot(dcs, cex = 0.1)
   #points(start, cex = 0.4, col = 'green')
   lines(princurve$s[order(princurve$lambda),], lty=1,lwd=4,col="red",type = "l")
   
+  saveRDS(princurve, file = paste0(outDir, 'principle_curve_RA_borderCellsSelected_v3.rds'))
+  
+  princurve = readRDS(file = paste0(outDir, 'principle_curve_RA_borderCellsSelected_v3.rds'))
+  
+ 
   pseudot = pseudotime.scaling(princurve$lambda)
   
   aa$pseudot_RA[match(names(pseudot), colnames(aa))] = pseudot
@@ -372,13 +404,23 @@ if(trajectory_pseudotime_method == 'principleCurve'){
   mm = which(!is.na(match(aa$dc_clusters, cluster_sels)))
   dcs = dcs_all[mm, ]
   
-  pdf(paste0(outDir, "Two_principleCurves_noRA_RA.pdf"),
+  
+  #cols = c(brewer.pal(9,"Set1"), brewer.pal(8,"Set2"))[aa$dc_clusters[mm]]
+  mm = match(rownames(dcs), colnames(aa))
+  cols = cols_sel[match(aa$condition[mm], names(cols_sel))]
+  
+  pdf(paste0(outDir, "Two_principleCurves_noRA_RA_v2.pdf"),
       height = 8, width =10, useDingbats = FALSE)
   
-  cols = c(brewer.pal(9,"Set1"), brewer.pal(8,"Set2"))[aa$dc_clusters[mm]]
-  plot(dcs, col = cols, cex = 0.2)
-  lines(pcurve_noRA$s[order(pcurve_noRA$lambda),], lty=1,lwd=4,col="red",type = "l")
-  lines(pcurve_RA$s[order(pcurve_RA$lambda),], lty=1,lwd=4,col="blue",type = "l")
+  plot(dcs, col = cols, cex = 0.1)
+  
+  xx = pcurve_noRA$s[order(pcurve_noRA$lambda),]
+  pt = pseudotime.scaling(pcurve_noRA$lambda[order(pcurve_noRA$lambda)])
+  jj = which(pt<0.16)
+    
+  lines(xx[jj, ], lty=1,lwd=4,col="black",type = "l")
+  lines(xx[-jj, ], lty=1,lwd=4,col="black",type = "l")
+  lines(pcurve_RA$s[order(pcurve_RA$lambda),], lty=1,lwd=4,col="black",type = "l")
   
   dev.off()
   
