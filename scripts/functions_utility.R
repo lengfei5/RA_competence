@@ -96,7 +96,7 @@ plot_genes_branched_heatmap <- function(seuratObj = aa,
                                         show_rownames = TRUE
                                         ) 
 {
-  # seuratObj = aa;nbCell_condition = 50;scale_max=3; scale_min=-3;hmcols = NULL; Get.Smooth.Curve = TRUE;
+  # seuratObj = aa; nbCell_condition = 100;scale_max=3; scale_min=-3;hmcols = NULL; Get.Smooth.Curve = TRUE;
   # gene_subset = candidates;hclust_method = "ward.D2";num_clusters = 6
   library(VGAM) # an example code from https://online.stat.psu.edu/stat504/lesson/8/8.2/8.2.2
   library(MASS)
@@ -104,13 +104,16 @@ plot_genes_branched_heatmap <- function(seuratObj = aa,
   require(colorRamps)
   require(pheatmap)
   
-  cell_beforeRA = colnames(seuratObj)[which(!is.na(seuratObj$pseudot) & seuratObj$condition == 'day2_beforeRA')]
+  cell_beforeRA = colnames(seuratObj)[which(!is.na(seuratObj$pseudot) & 
+                                              seuratObj$condition == 'day2_beforeRA')]
   cell_noRA = colnames(seuratObj)[which(!is.na(seuratObj$pseudot) & grepl('_noRA', seuratObj$condition))]
   cell_RA = colnames(seuratObj)[which(!is.na(seuratObj$pseudot) & grepl('_RA', seuratObj$condition))]
   
   cat('subsampling ', nbCell_condition, ' cells\n')
   cell.sels = c()
   cc = unique(seuratObj$condition)
+  cc = cc[which(cc != "day3_RA.rep2")]
+  
   for(n in 1:length(cc))
   {
     cell.sels = c(cell.sels, sample(colnames(seuratObj)[which(seuratObj$condition == cc[n] & 
@@ -186,14 +189,13 @@ plot_genes_branched_heatmap <- function(seuratObj = aa,
                           common_ancestor_cells,
                           BranchA_exprs)
   
-  
   indexs = c(kk_BrachB[ncol(BranchB_exprs):1], 
              kk_common[ncol(common_ancestor_cells):1], 
              kk_common,
              kk_BrachA)
   
   heatmap_matrix=heatmap_matrix[!apply(heatmap_matrix, 1, sd)==0,]
-  heatmap_matrix=Matrix::t(scale(Matrix::t(heatmap_matrix),center=TRUE))
+  heatmap_matrix=Matrix::t(scale(Matrix::t(heatmap_matrix), center=TRUE))
   heatmap_matrix=heatmap_matrix[is.na(row.names(heatmap_matrix)) == FALSE, ]
   heatmap_matrix[is.nan(heatmap_matrix)] = 0
   heatmap_matrix[heatmap_matrix>scale_max] = scale_max
@@ -441,7 +443,8 @@ plot_genes_branched_heatmap <- function(seuratObj = aa,
            gaps_col = col_gap_ind,
            treeheight_row = 30, 
            breaks=bks,
-           fontsize = 4,
+           fontsize_row = 4,
+           #fontsize = 4,
            color=hmcols, 
            border_color = NA,
            silent=TRUE, 

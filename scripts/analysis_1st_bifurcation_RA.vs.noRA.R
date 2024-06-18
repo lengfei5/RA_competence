@@ -392,11 +392,14 @@ if(trajectory_pseudotime_method == 'principleCurve'){
                              'cellCycleScoring_annot.v1_reduction.DM_princurves_',
                              species, version.analysis, '.rds'))
   
+  saveRDS(res_kmean, file = paste0(RdataDir, 'DM_princurves_clusterCenter.rds'))
+  
   ##########################################
-  # try to merge two principle curves and 
+  # try to merge two principle curves 
   ##########################################
-  pcurve_noRA = readRDS(file = paste0(outDir, 'principle_curve_noRA.rds'))
-  pcurve_RA = readRDS(file = paste0(outDir, 'principle_curve_RA_borderCellsSelected.rds'))
+  pcurve_noRA = readRDS(file = paste0(outDir, 'principle_curve_noRA_v2.rds'))
+  pcurve_RA = readRDS(file = paste0(outDir, 'principle_curve_RA_borderCellsSelected_v3.rds'))
+  res_kmean = readRDS(file = paste0(RdataDir, 'DM_princurves_clusterCenter.rds'))
   
   dcs_all = data.frame(aa[['DC']]@cell.embeddings[, c(1,2)])
   
@@ -409,18 +412,20 @@ if(trajectory_pseudotime_method == 'principleCurve'){
   mm = match(rownames(dcs), colnames(aa))
   cols = cols_sel[match(aa$condition[mm], names(cols_sel))]
   
-  pdf(paste0(outDir, "Two_principleCurves_noRA_RA_v2.pdf"),
+  pdf(paste0(outDir, "Two_principleCurves_noRA_RA_v3.pdf"),
       height = 8, width =10, useDingbats = FALSE)
+  par(cex = 1.0, las = 1, mgp = c(2,0.2,0), mar = c(3, 4, 2, 1), tcl = -0.1)
   
-  plot(dcs, col = cols, cex = 0.1)
+  plot(dcs, col = cols, cex = 0.1, main = 'RA vs. noRA trajectories')
+  lines(pcurve_RA$s[order(pcurve_RA$lambda),], lty=1,lwd=4,col="red",type = "l")
   
-  xx = pcurve_noRA$s[order(pcurve_noRA$lambda),]
-  pt = pseudotime.scaling(pcurve_noRA$lambda[order(pcurve_noRA$lambda)])
-  jj = which(pt<0.16)
+  xx = pcurve_noRA$s[order(pcurve_noRA$lambda), ]
+  #pt = pseudotime.scaling(pcurve_noRA$lambda[order(pcurve_noRA$lambda)])
+  jj = which(xx[, 1] <  min(pcurve_RA$s))
     
   lines(xx[jj, ], lty=1,lwd=4,col="black",type = "l")
-  lines(xx[-jj, ], lty=1,lwd=4,col="black",type = "l")
-  lines(pcurve_RA$s[order(pcurve_RA$lambda),], lty=1,lwd=4,col="black",type = "l")
+  lines(xx[-jj, ], lty=1,lwd=4,col="blue",type = "l")
+  
   
   dev.off()
   
@@ -431,12 +436,13 @@ if(trajectory_pseudotime_method == 'principleCurve'){
   # pseudo time of RA trajectory will be scaled using no_RA as reference
   ##########################################
   aa = readRDS(file = paste0(RdataDir, 
-                            'seuratObject_RA.vs.noRA.bifurcation_doublet.rm_mt.ribo.filtered_regressout.nCounts_',
-                            'cellCycleScoring_annot.v1_reduction.DM_princurves_',
-                            species, version.analysis, '.rds'))
+                             'seuratObject_RA.vs.noRA.bifurcation_doublet.rm_mt.ribo.filtered_regressout.nCounts_',
+                             'cellCycleScoring_annot.v1_reduction.DM_princurves_',
+                             species, version.analysis, '.rds'))
   
-  pcurve_noRA = readRDS(file = paste0(outDir, 'principle_curve_noRA.rds'))
-  pcurve_RA = readRDS(file = paste0(outDir, 'principle_curve_RA_borderCellsSelected.rds'))
+  pcurve_noRA = readRDS(file = paste0(outDir, 'principle_curve_noRA_v2.rds'))
+  pcurve_RA = readRDS(file = paste0(outDir, 'principle_curve_RA_borderCellsSelected_v3.rds'))
+  
   
   # assign cell weights to two trajectories
   index_cells = which(!is.na(aa$pseudot_noRA) | !is.na(aa$pseudot_RA))
@@ -533,7 +539,6 @@ aa = readRDS(file = paste0(RdataDir,
                            'cellCycleScoring_annot.v1_reduction.DM_princurves_',
                            species, version.analysis, '.rds'))
 
-
 aa$condition[which(aa$condition == 'day3_RA.rep1')] = 'day3_RA'
 Idents(aa) = factor(aa$condition)
 
@@ -584,7 +589,7 @@ for(n in c(1:2))
   
 }
 
-saveRDS(candidates, file = paste0(outDir, 'DElist_1961genes_pairwiseComaprison.rds'))
+saveRDS(candidates, file = paste0(outDir, 'DElist_1932genes_pairwiseComaprison_v2.rds'))
 
 ##########################################
 # Method 2) DE with tradeSeq using pseudotime
@@ -742,8 +747,7 @@ aa = readRDS(file = paste0(RdataDir,
 #aa$condition[which(aa$condition == 'day3_RA.rep1')] = 'day3_RA'
 Idents(aa) = factor(aa$condition)
 
-
-candidates = readRDS(file = paste0(outDir, 'DElist_1961genes_pairwiseComaprison.rds'))
+candidates = readRDS(file = paste0(outDir, 'DElist_1932genes_pairwiseComaprison_v2.rds'))
 
 ### scale the pseudotime of RA trajectory
 aa$pseudot = NA
@@ -782,16 +786,19 @@ aa = readRDS(file = paste0(RdataDir,
                            'cellCycleScoring_annot.v1_reduction.DM_princurves_pseudotime_',
                            species, version.analysis, '.rds'))
 
-candidates = readRDS(file = paste0(outDir, 'DElist_1961genes_pairwiseComaprison.rds'))
+candidates = readRDS(file = paste0(outDir, 'DElist_1932genes_pairwiseComaprison_v2.rds'))
+
 candidates = unique(candidates$gene)
 
 DimPlot(aa, cols = cols_sel, group.by = 'condition', reduction = 'DC')
-FeaturePlot(aa, features = candidates$gene[1])
+FeaturePlot(aa, features = candidates[1])
 
-source('plotting_utility.R')
+source('functions_utility.R')
+
 plot_genes_branched_heatmap(seuratObj = aa, 
                             gene_subset = candidates,
                             nbCell_condition = 50)
+
 
 
 ##########################################
