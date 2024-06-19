@@ -12,7 +12,8 @@ rm(list = ls())
 version.analysis = '_R13547_10x_mNT_20240522'
 species = 'mNT_scRNAseq'
 
-resDir = paste0("../results/figures_talbes", version.analysis)
+resDir = paste0("../results/figures_tables", version.analysis)
+figureDir = '/groups/tanaka/Collaborations/Jingkui-Hannah/RA_competence/plots_manuscript_1/'
 RdataDir = '../results/Rdata/'
 if(!dir.exists(resDir)) dir.create(resDir)
 if(!dir.exists(RdataDir)) dir.create(RdataDir)
@@ -41,7 +42,6 @@ levels = c("day0_beforeRA", "day1_beforeRA",
 
 cols = readRDS(file = '../results/Rdata/color_scheme_4scRNAseq.rds')
 load(file = '../results/Rdata/tfs_sps_geneExamples_4scRNAseq.Rdata')
-
 
 ########################################################
 ########################################################
@@ -607,7 +607,13 @@ pheatmap(heatmap_matrix[sels, ], #ph$tree_row$order
 
 
 
-
+##########################################
+# Quantify the cell hetereogeneity with RA and without RA  
+##########################################
+aa = readRDS(file = paste0(RdataDir, 
+                           'seuratObject_RA.vs.noRA.bifurcation_doublet.rm_mt.ribo.filtered_regressout.nCounts_',
+                           'cellCycleScoring_annot.v1_reduction.DM_princurves_pseudotime_',
+                           species, version.analysis, '.rds'))
 
 
 
