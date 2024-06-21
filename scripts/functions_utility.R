@@ -640,4 +640,91 @@ if(Test_GENIE3){
   
 }
 
+########################################################
+########################################################
+# Section : functions of quantifying cell heterogeneity
+# 
+########################################################
+########################################################
+calc_heterogeneity_RA.noRA = function(aa, method = 'pairwiseDist', subsample.cells = 500)
+{
+  library(scater)
+  library(SingleCellExperiment)
+  library(scran)
+  
+  
+  set.seed(2023)
+  aa = subset(aa, downsample = 500)
+  
+  table(aa$condition)
+  
+  
+  Idents(aa) = factor(aa$condition, levels = levels_sels)
+  #cc = unique(aa$condition)
+  
+  Run_HVGs_perTimePoint = FALSE
+  if(Run_HVGs_perTimePoint){
+    hete = c()
+    nb_features = 1000
+    for(n in 1:length(levels_sels))
+    {
+      # n = 1
+      cat(n, ' -- ', levels_sels[n], '\n')
+      sce = as.SingleCellExperiment(subset(aa, idents = levels_sels[n]))
+      
+      dec <- modelGeneVar(sce)
+      top.hvgs <- getTopHVGs(dec, n=nb_features)
+      sce <- runPCA(sce, subset_row=top.hvgs, ncomponents = 30)
+      # reducedDimNames(sce)
+      #ll.pca = reducedDim(sce, 'PCA')[, c(1:30)]
+      ll.pca = logcounts(sce)
+      ll.pca = as.matrix(ll.pca[match(top.hvgs, rownames(ll.pca)), ])
+      dists = sqrt((1-cor((ll.pca), method = 'pearson'))/2)
+      
+      #dists = dists[which(dists>0)]
+      
+      hete = rbind(hete, data.frame(condition = rep(levels_sels[n], length(dists)), dists))
+      
+    }
+  }else{
+    
+    nb_features = 1000
+    sce = as.SingleCellExperiment(aa)
+    
+    dec <- modelGeneVar(sce)
+    top.hvgs <- getTopHVGs(dec, n=nb_features)
+    sce <- runPCA(sce, subset_row=top.hvgs, ncomponents = 100)
+    
+    # reducedDimNames(sce)
+    
+    ll.pca = reducedDim(sce, 'PCA')[, c(1:30)]
+    
+    hete = c()
+    #ll.pca = logcounts(sce)
+    #ll.pca = as.matrix(ll.pca[match(top.hvgs, rownames(ll.pca)), ])
+    for(n in 1:length(levels_sels))
+    {
+      # n = 1
+      cat(n, ' -- ', levels_sels[n], '\n')
+      kk = match(colnames(sce)[which(sce$condition == levels_sels[n])], rownames(ll.pca))
+      
+      dists =  dist(ll.pca[kk, ], method = "euclidean", diag = FALSE, upper = TRUE) #sqrt((1-cor((ll
+      #dists = dists[which(dists>0)]
+      
+      hete = rbind(hete, data.frame(condition = rep(levels_sels[n], length(dists)), as.numeric(dists)))
+    }
+    
+  }
+  
+  #hete$dists = log10(hete$dists)
+  colnames(hete)[2] = 'dists'
+  hete = as.data.frame(hete)
+  
+  return(hete)
+  
+}
+
+
+
+
 

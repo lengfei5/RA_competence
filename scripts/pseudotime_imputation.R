@@ -22,10 +22,16 @@ suppressPackageStartupMessages({
 
 names(cols) = levels
 
-levels_sels = c("day2_beforeRA", 
-                "day2.5_RA", "day3_RA.rep1", "day3.5_RA", "day4_RA", "day5_RA")
+levels_sels = c("day2_beforeRA",  
+                "day2.5_RA", "day3_RA.rep1", "day3.5_RA",   "day4_RA",  
+                "day2.5_noRA", "day3_noRA",  "day3.5_noRA", "day4_noRA"
+                )
 
 cols_sel = cols[match(levels_sels, names(cols))]
+
+#levels_sels = c("day2_beforeRA", 
+#                "day2.5_RA", "day3_RA.rep1", "day3.5_RA", "day4_RA", "day5_RA")
+#cols_sel = cols[match(levels_sels, names(cols))]
 
 outDir = paste0(resDir, '/RA_symetryBreaking/dataIntegration_timePoints_4pseudotime/')
 system(paste0('mkdir -p ', outDir))
@@ -34,13 +40,23 @@ system(paste0('mkdir -p ', outDir))
 ##########################################
 # import data and select the samples  
 ##########################################
-aa = readRDS(file = paste0(RdataDir, 
-                           'seuratObject_RA.symmetry.breaking_doublet.rm_mt.ribo.filtered_regressout.nCounts_',
-                           'cellCycleScoring_annot.v2_newUMAP_clusters_time_d2.to.d6_',
-                           species, version.analysis, '.rds'))
+aa = readRDS(file = paste0(RdataDir, 'seuratObj_clustersFiltered_umapOverview.rds'))
+Idents(aa) = factor(aa$condition, levels = levels)
+
+aa = subset(aa, idents = levels_sels)
+
+## filter the weird clusters identified in make_plots_v0.R
+cells_2filter = readRDS(file = paste0(RdataDir, 'subObj_clusters_to_filter.rds'))
+mm = match(colnames(aa), colnames(cells_2filter))
+aa = subset(aa, cells = colnames(aa)[which(is.na(mm))])
+
+# aa = readRDS(file = paste0(RdataDir, 
+#                            'seuratObject_RA.symmetry.breaking_doublet.rm_mt.ribo.filtered_regressout.nCounts_',
+#                            'cellCycleScoring_annot.v2_newUMAP_clusters_time_d2.to.d6_',
+#                            species, version.analysis, '.rds'))
 
 Idents(aa) = aa$condition
-p1 = DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'condition', raster=FALSE)
+p1 = DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'condition', cols = cols_sel, raster=FALSE)
 p2 = DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'celltypes', raster=FALSE)
 
 p1 + p2
@@ -49,24 +65,25 @@ ggsave(filename = paste0(outDir, 'UMAP_RAtreatment_d2.to.d6_.pdf'),
        width = 18, height = 8)
 
 ## remove the cluster 8 and 9 mainly mature neurons and also day6_RA
-aa = subset(aa, cells = colnames(aa)[which(aa$celltypes != '8' & aa$celltypes != '9' & 
-                                             aa$condition != 'day6_RA')])
+#aa = subset(aa, cells = colnames(aa)[which(aa$celltypes != '8' & aa$celltypes != '9' & 
+#                                             aa$condition != 'day6_RA')])
 
 
 # rerun the umap 
 aa <- FindVariableFeatures(aa, selection.method = "vst", nfeatures = 5000) # find subset-specific HVGs
+Idents(aa) = aa$condition
 
 ## because the data was regressed and scaled already, only the HVGs were used to calculate PCA
 aa <- RunPCA(aa, features = VariableFeatures(object = aa), verbose = FALSE, weight.by.var = FALSE)
 ElbowPlot(aa, ndims = 50)
 
-Idents(aa) = aa$condition
-
 aa <- RunUMAP(aa, dims = 1:30, n.neighbors = 30, min.dist = 0.1)
 DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'condition', cols = cols_sel, raster=FALSE)
 
-ggsave(filename = paste0(outDir, 'UMAP_RAtreatment_d2.to.d5.noMatureNeurons.pdf'), 
+ggsave(filename = paste0(outDir, 'UMAP_RAtreatment_d2.to.d4.noMatureNeurons.pdf'), 
        width = 10, height = 6)
+
+saveRDS(aa, file = paste0(RdataDir, 'seuratObj_clustersFiltered_RA.noRA_d2_d4_forHeterogeenity.rds'))
 
 
 Discard_cellCycle.corrrelatedGenes = TRUE
@@ -96,7 +113,7 @@ if(Discard_cellCycle.corrrelatedGenes){
   
 }
 
-aa = FindVariableFeatures(aa, selection.method = "vst", nfeatures = 5000)
+aa = FindVariableFeatures(aa, selection.method = "vst", nfeatures = 3000)
 
 aa <- RunPCA(aa, features = VariableFeatures(object = aa), verbose = FALSE, weight.by.var = FALSE)
 ElbowPlot(aa, ndims = 50)
@@ -106,7 +123,11 @@ DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'condition', cols = cols_sel,
 
 saveRDS(aa, file = paste0(outDir, 
                            'seuratObject_RA.symmetry.breaking_doublet.rm_mt.ribo.filtered_regressout.nCounts_',
-                           'cellCycleScoring_annot.v2_newUMAP_clusters_time_d2.to.d5.noNeurons.rds'))
+                           'cellCycleScoring_annot.v2_newUMAP_clusters_time_d2.to.d4.noNeurons.rds'))
+
+aa = readRDS(file = paste0(outDir, 
+                           'seuratObject_RA.symmetry.breaking_doublet.rm_mt.ribo.filtered_regressout.nCounts_',
+                           'cellCycleScoring_annot.v2_newUMAP_clusters_time_d2.to.d4.noNeurons.rds'))
 
 
 ########################################################
@@ -135,13 +156,13 @@ ggsave(filename = paste0(outDir, 'UMAP_RAtreatment_d2.to.d5.noMatureNeurons_rmCe
 ##########################################
 library(simspec)
 
-aa <- RunPCA(aa, npcs = 50, weight.by.var = TRUE, 
+aa <- RunPCA(aa, npcs = 50, weight.by.var = FALSE, 
              features = VariableFeatures(object = aa), verbose = FALSE)
 
 aa <- cluster_sim_spectrum(object = aa, 
                            label_tag = "condition",
                            use_dr = 'pca', 
-                           dims_use = 1:20, 
+                           dims_use = 1:30, 
                            cluster_resolution = 1.
 )
 
@@ -168,7 +189,7 @@ aa <- cluster_sim_spectrum(object = aa,
                            dims_use = 1:10, 
                            corr_method = "pearson",
                            spectrum_type = "corr_kernel",
-                           cluster_resolution = 5
+                           cluster_resolution = 1
                            
 )
 
@@ -177,7 +198,7 @@ aa <- RunUMAP(aa, reduction = "css", dims = 1:ncol(Embeddings(aa, "css")),
 DimPlot(aa, reduction = "umap", label = TRUE, repel = TRUE)
 
 ggsave(filename = paste0(outDir, 
-                         'CSS_integration_kernelProb_condition_test.pdf'), 
+                         'CSS_integration_kernelProb_condition_test_v2.pdf'), 
        width = 10, height = 6)
 
 FeaturePlot(aa, features = c('Zfp42', 'Foxa2', 'Pax6', 'Rarg', 'Dhrs3'))
@@ -214,7 +235,7 @@ mnt = DietSeurat(mnt,
                  scale.data = FALSE,
                  features = rownames(mnt), 
                  assays = c('RNA'), 
-                 dimreducs = c('umap', 'css'), graphs = NULL, 
+                 dimreducs = c('umap'), graphs = NULL, 
                  misc = TRUE
 )
 
@@ -230,7 +251,7 @@ Idents(mnt) = mnt$condition
 #saveDir = paste0("/Volumes/groups/tanaka/People/current/jiwang/projects/RA_competence/",
 #                "results/scRNAseq_R13547_10x_mNT_20220813/RA_symetryBreaking/")
 
-saveFile = '/RNAmatrix_RA_d2_d5_all.h5Seurat'
+saveFile = '/RNAmatrix_RA_noRA_d2_d4_all.h5Seurat'
 
 SaveH5Seurat(mnt, filename = paste0(outDir, saveFile), 
              overwrite = TRUE)

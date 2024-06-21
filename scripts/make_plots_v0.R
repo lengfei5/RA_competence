@@ -606,17 +606,121 @@ pheatmap(heatmap_matrix[sels, ], #ph$tree_row$order
 )
 
 
-
-##########################################
-# Quantify the cell hetereogeneity with RA and without RA  
-##########################################
+########################################################
+########################################################
+# Section :  Quantify the cell hetereogeneity with RA and without RA  
+# 
+########################################################
+########################################################
 aa = readRDS(file = paste0(RdataDir, 
                            'seuratObject_RA.vs.noRA.bifurcation_doublet.rm_mt.ribo.filtered_regressout.nCounts_',
                            'cellCycleScoring_annot.v1_reduction.DM_princurves_pseudotime_',
-                           species, version.analysis, '.rds'))
+                           species, '_R13547_10x_mNT_20220813', '.rds'))
 
+Idents(aa) = factor(aa$condition)
 
+levels_sels = c("day2_beforeRA",
+                "day2.5_RA", "day3_RA.rep1", "day3.5_RA",
+                "day2.5_noRA", "day3_noRA",  "day3.5_noRA",
+                'day4_noRA', 'day4_RA')
 
+cols_sel = cols[match(levels_sels, names(cols))]
+
+#Idents(aa) = aa$condition
+table(aa$condition)
+
+aa = subset(aa, idents = levels_sels)
+aa = subset(aa, cells = colnames(aa)[which(!is.na(aa$pseudot))])
+
+aa <- FindVariableFeatures(aa, selection.method = "vst", nfeatures = 5000) # find subset-specific HVGs
+## because the data was regressed and scaled already, only the HVGs were used to calculate PCA
+aa <- RunPCA(aa, features = VariableFeatures(object = aa), verbose = FALSE, weight.by.var = FALSE)
+ElbowPlot(aa, ndims = 50)
+
+aa <- RunUMAP(aa, dims = 1:30, n.neighbors = 30, min.dist = 0.1)
+DimPlot(aa, group.by = 'condition', label = TRUE, cols = cols_sel)
+
+p1 = DimPlot(aa, group.by = 'condition', label = TRUE, cols = cols_sel)
+p2 = FeaturePlot(aa, features = 'pseudot', cols = c('lightgray', 'blue')) +
+  ggtitle(label = 'pseudo time') +
+  scale_color_viridis_c(direction = -1)
+  
+p1 + p2
+
+DimPlot(aa, reduction = 'DC', dims = c(1,2), group.by = 'condition', label = TRUE, cols = cols_sel)
+
+ggsave(filename = paste0(figureDir, 'RA_noRA_d2_d4_condition_pseudotime.pdf'), width = 16, height = 6) 
+
+saveRDS(aa, file = paste0(RdataDir, 'RA_noRA_d2_d4_condition_pseudotime_saved4heterogeity.rds'))
+
+##########################################
+###### test heterogeneity quantification by binning pseudotime
+##########################################
+aa = readRDS(file = paste0(RdataDir, 'RA_noRA_d2_d4_condition_pseudotime_saved4heterogeity.rds'))
+
+p1 = DimPlot(aa, group.by = 'condition', label = TRUE, cols = cols_sel)
+p2 = FeaturePlot(aa, features = 'pseudot', cols = c('lightgray', 'blue')) +
+  ggtitle(label = 'pseudo time') +
+  scale_color_viridis_c(direction = -1)
+
+p1 + p2
+
+VlnPlot(aa, features = 'pseudot', group.by = 'condition', pt.size = 0.00, cols = cols_sel) +
+  geom_hline(yintercept = c(0.25), col = 'red') +
+  ggtitle(label = 'pseudotime distribution per condition')
+
+ggsave(filename = paste0(resDir, '/RA_noRA_d2_d4_condition_pseudotime_v2.pdf'), width = 10, height = 6) 
+
+## specify the bins manually
+#jj = intersect(which(!is.na(aa$pseudot_RA)))
+
+pdf(paste0(resDir, "/pseudotime_distribution_binning_RA.pdf"),
+    height = 4, width =6, useDingbats = FALSE)
+par(cex = 1.0, las = 1, mgp = c(2,0.2,0), mar = c(3, 4, 2, 1), tcl = -0.1)
+
+hist(aa$pseudot_RA, breaks = 50, main = 'distribution of pseudotime by RA')
+abline(v = seq(0.6, 1, length.out = 10), col = 'red')
+
+dev.off()
+
+pdf(paste0(resDir, "/pseudotime_distribution_binning_noRA.pdf"),
+    height = 4, width =6, useDingbats = FALSE)
+par(cex = 1.0, las = 1, mgp = c(2,0.2,0), mar = c(3, 4, 2, 1), tcl = -0.1)
+
+hist(aa$pseudot_noRA, breaks = 50)
+abline(v = seq(0.25, 1, length.out = 10), col = 'red')
+
+dev.off()
+
+nb_bins = 8
+aa$pst_group = NA
+
+bins = seq(0.6, 1, length.out = (nb_bins + 1))
+for(n in 1:(length(bins)-1))
+{
+  jj = which(aa$pseudot_RA < bins[(n+1)] & aa$pseudot_RA > bins[n])
+  aa$pst_group[jj] = paste0('RA_groupPst_', n)
+}
+
+bins = seq(0.25, 1, length.out = (nb_bins + 1))
+for(n in 1:(length(bins)-1))
+{
+  jj = which(aa$pseudot_noRA < bins[(n+1)] & aa$pseudot_noRA > bins[n])
+  aa$pst_group[jj] = paste0('noRA_groupPst_', n)
+}
+
+hete = calc_heterogeneity_RA.noRA(aa)
+
+ggplot(hete, aes(x=condition, y=dists, fill=condition)) + 
+  geom_violin() + 
+  scale_fill_manual(values = cols_sel) + 
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 60, size = 10, vjust = 0.6),
+        axis.text.y = element_text(angle = 0, size = 10)) +
+  labs( x = '', y = 'pairwise distance' )
+
+ggsave(filename = paste0(outDir, '/pairwise_distance_', nb_features,
+                         'HVGs_allConditions.pdf'), width = 12, height = 8) 
 
 
 
