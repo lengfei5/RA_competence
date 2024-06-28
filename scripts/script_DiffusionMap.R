@@ -31,7 +31,7 @@ library(Seurat)
 library(DropletUtils)
 library(edgeR)
 library(future)
-options(future.globals.maxSize = 80000 * 1024^2)
+options(future.globals.maxSize = 180000 * 1024^2)
 mem_used()
 
 species = 'mNT_scRNAseq'
@@ -68,16 +68,25 @@ library(destiny)
 
 aa =  readRDS(file = paste0(RdataDir, 
                 'seuratObject_merged_cellFiltered_doublet.rm_mt.ribo.geneFiltered_regressout.nCounts_',
-                'cellCycleScoring_annot.v1_', species, version.analysis, '.rds'))
+                'cellCycleScoring_annot.v1_', 
+                species, version.analysis, '.rds'))
+
+## filter the weird clusters identified in make_plots_v0.R
+cells_2filter = readRDS(file = paste0(RdataDir, 'subObj_clusters_to_filter.rds'))
+mm = match(colnames(aa), colnames(cells_2filter))
+aa = subset(aa, cells = colnames(aa)[which(is.na(mm))])
+
 
 Idents(aa) = factor(aa$condition, levels = levels)
 aa$condition = factor(aa$condition, levels = levels)
 
 # DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'condition', cols = cols, raster=FALSE)
 #aa = subset(aa, DF_out == 'Singlet')
+
 levels_sels = c("day2_beforeRA",  
-                "day2.5_RA", "day3_RA.rep1", "day3_RA.rep2", "day3.5_RA",   "day4_RA", 
-                "day2.5_noRA", "day3_noRA",  "day3.5_noRA", "day4_noRA")
+                "day2.5_RA", "day3_RA.rep1", "day3.5_RA",   "day4_RA", "day5_RA",
+                "day2.5_noRA", "day3_noRA",  "day3.5_noRA", "day4_noRA", "day5_noRA")
+
 cols_sel = cols[match(levels(aa$condition), names(cols))]
 
 
@@ -109,9 +118,6 @@ sce = as.SingleCellExperiment(aa)
 #rm(aa)
 dec <- modelGeneVar(sce)
 
-#plot(dec$mean, dec$total, xlab="Mean log-expression", ylab="Variance")
-#curve(metadata(dec)$trend(x), col="blue", add=TRUE)
-
 
 for(nb_features in c(3000, 5000, 8000))
 {
@@ -127,7 +133,7 @@ for(nb_features in c(3000, 5000, 8000))
     dm <- DiffusionMap(ll.pca, sigma = 'local', k = n_neighbors, 
                        n_eigs = 50, distance = 'euclidean')
     
-    saveRDS(dm, file = paste0(RdataDir, 'diffusionMap_firstBifurcation_RA.vs.noRA_with.sce.PCA_euclidean_',
+    saveRDS(dm, file = paste0(RdataDir, 'diffusionMap_firstBifurcation_RA.vs.noRA.d2tod5_sce.PCA_euclidean_',
                               'localSignal_nfeatures.', nb_features, '_nbNeighbors.', n_neighbors,
                               '.rds'))
     
@@ -136,7 +142,7 @@ for(nb_features in c(3000, 5000, 8000))
     tic()
     dm <- DiffusionMap(ll.pca, sigma = 'global', k = n_neighbors, n_eigs = 50, distance = 'euclidean')
     
-    saveRDS(dm, file = paste0(RdataDir, 'diffusionMap_firstBifurcation_RA.vs.noRA_with.sce.PCA_euclidean_',
+    saveRDS(dm, file = paste0(RdataDir, 'diffusionMap_firstBifurcation_RA.vs.noRA.d2tod5_sce.PCA_euclidean_',
                               'globalSignal_nfeatures.', nb_features, '_nbNeighbors.', n_neighbors,
                               '.rds'))
     toc()
@@ -144,51 +150,3 @@ for(nb_features in c(3000, 5000, 8000))
   }
 }
 
-##########################################
-# downstream analysis
-##########################################
-# # plot(dm)
-# cells = names(dm$DC1)
-# xx = data.frame(DC1 = dm$DC1, DC2 = dm$DC2, DC3 = dm$DC3, bc = cells, stringsAsFactors = FALSE)
-# xx$condition = metadata$condition[match(cells, rownames(metadata))]
-# xx$condition = factor(xx$condition)
-# 
-# names(cols) = levels
-# 
-# ggplot(aes(x = DC1, y = DC2, col = condition), data = xx[which(xx$DC2<0.005),]) +
-#   geom_point(size = 0.1) + 
-#   scale_color_manual(values=cols[match(levels(xx$condition), names(cols))])
-# 
-# ggplot(aes(x = DC1, y = DC3, col = condition), data = xx) +
-#   geom_point()
-# 
-# ggplot(aes(x = DC2, y = DC3, col = condition), data = xx) +
-#   geom_point(size = 0.1)
-# 
-# #install.packages("plot3D")
-# #library("plot3D")
-# library("car")
-# 
-# scatter3d(x = xx$DC1, 
-#           y = xx$DC2, 
-#           z = xx$DC3, 
-#           #groups = factor(xx$condition),
-#           col = cols[1:9],
-#           surface=FALSE, ellipsoid = FALSE)
-# 
-# scatter3d(x = sep.l, y = pet.l, z = sep.w, groups = iris$Species, col = 
-#             surface=FALSE, ellipsoid = TRUE)
-# #library(destiny, quietly = TRUE)
-# #dm <- DiffusionMap(sce)
-# #rd2 <- cbind(DC1 = dm$DC1, DC2 = dm$DC2)
-# # plot(rd2, col = topo.colors(100), pch=16, asp = 1)
-# #reducedDims(sim) <- SimpleList(PCA = rd1, DiffMap = rd2)
-# # dm <- DiffusionMap(ll.pca, sigma = 'local', n_eigs = 5)
-# 
-# #plot(dm)
-# #plot(dm$DC1, dm$DC2)
-# dcs = as.matrix(cbind(dm$DC1, dm$DC2))
-# ll.obj[["DP"]] <- CreateDimReducObject(embeddings = as.matrix(dcs), key = "DC_", assay = DefaultAssay(ll.obj))
-# DimPlot(ll.obj, reduction = 'DP', group.by = 'manual.annot.ids')
-# 
-# 

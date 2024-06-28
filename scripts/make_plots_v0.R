@@ -29,6 +29,8 @@ require(dplyr)
 require(stringr)
 require(tidyr)
 library(Seurat)
+library(viridis) 
+
 #library(DropletUtils)
 library(future)
 options(future.globals.maxSize = 160000 * 1024^2)
@@ -612,25 +614,109 @@ pheatmap(heatmap_matrix[sels, ], #ph$tree_row$order
 # 
 ########################################################
 ########################################################
-aa = readRDS(file = paste0(RdataDir, 
-                           'seuratObject_RA.vs.noRA.bifurcation_doublet.rm_mt.ribo.filtered_regressout.nCounts_',
-                           'cellCycleScoring_annot.v1_reduction.DM_princurves_pseudotime_',
-                           species, '_R13547_10x_mNT_20220813', '.rds'))
-
-Idents(aa) = factor(aa$condition)
-
-levels_sels = c("day2_beforeRA",
-                "day2.5_RA", "day3_RA.rep1", "day3.5_RA",
-                "day2.5_noRA", "day3_noRA",  "day3.5_noRA",
-                'day4_noRA', 'day4_RA')
-
-cols_sel = cols[match(levels_sels, names(cols))]
-
-#Idents(aa) = aa$condition
-table(aa$condition)
-
-aa = subset(aa, idents = levels_sels)
-aa = subset(aa, cells = colnames(aa)[which(!is.na(aa$pseudot))])
+Use_pseudotime_palantir = FALSE
+if(Use_pseudotime_palantir){
+  outDir = paste0('../results/scRNAseq_R13547_10x_mNT_20220813/RA_symetryBreaking/',
+                  'dataIntegration_timePoints_4pseudotime/')
+  aa = readRDS(file = paste0(outDir, 
+                             'seuratObject_RA.symmetry.breaking_doublet.rm_mt.ribo.filtered_regressout.nCounts_',
+                             'cellCycleScoring_annot.v2_newUMAP_clusters_time_d2.to.d5.noNeurons.rds'))
+  
+  Idents(aa) = factor(aa$condition)
+  
+  levels_sels = c("day2_beforeRA",  
+                  "day2.5_RA", "day3_RA.rep1", "day3_RA.rep2", "day3.5_RA",   "day4_RA", "day5_RA",
+                  "day2.5_noRA", "day3_noRA",  "day3.5_noRA", "day4_noRA", "day5_noRA")
+  
+  cols_sel = cols[match(levels_sels, names(cols))]
+  
+  #Idents(aa) = aa$condition
+  table(aa$condition)
+  
+  DimPlot(aa, group.by = 'condition', label = TRUE, cols = cols_sel)
+  
+  #aa = subset(aa, idents = levels_sels)
+  
+  pst = read.csv(paste0(outDir, 'palantir_pseudotime_d2_d5.csv'), row.names = c(1))
+  xx = read.csv(paste0(outDir, 'palantir_fate_probabilities_d2_d5.csv'), row.names = c(1))
+  mm = match(rownames(pst), rownames(xx))
+  pst = data.frame(pst, prob_noRA = xx[mm, 1], prob_RA = xx[mm, 2], stringsAsFactors = FALSE)
+  xx = read.csv(paste0(outDir, 'geosketch_N10k_d2_d5.csv'), header = FALSE)
+  pst$sketch = NA
+  pst$sketch[xx[,1]] = 1
+  
+  aa = AddMetaData(aa, metadata =  pst)
+  
+  aa$pseudot_noRA = NA
+  aa$pseudot_RA = NA 
+  aa$pseudot = NA
+  
+  FeaturePlot(aa, features = c('prob_noRA', 'prob_RA', 'palantir_pseudotime'))
+  
+  hist(aa$palantir_pseudotime[which(aa$condition == 'day2_beforeRA'| 
+                                      aa$condition == 'day2.5_noRA')], breaks = 100)
+  abline(v = 0.05, col = 'darkred')
+  
+  jj = which(aa$condition == 'day2_beforeRA' & aa$palantir_pseudotime <0.05)
+  tt = aa$palantir_pseudotime[jj]
+  tt = scales::rescale(tt, to = c(0, max(tt)))
+  aa$pseudot_noRA[jj] = tt
+  aa$pseudot_RA[jj] = tt
+  
+  jj = intersect(grep('_RA', aa$condition), which(aa$prob_RA > 0.6 | aa$condition == 'day2.5_RA'))
+  tt = aa$palantir_pseudotime[jj]
+  aa$pseudot_RA[jj] = scales::rescale(tt, to = c(0.05, 1))
+  
+  jj = intersect(grep('_noRA', aa$condition), which(aa$prob_noRA > 0.6))
+  tt = aa$palantir_pseudotime[jj]
+  aa$pseudot_noRA[jj] = scales::rescale(tt, to = c(0.0, 1))
+  
+  cell_beforeRA = colnames(aa)[which(!is.na(aa$pseudot_noRA) & aa$condition == 'day2_beforeRA')]
+  cell_noRA = colnames(aa)[which(!is.na(aa$pseudot_noRA) & grepl('_noRA', aa$condition))]
+  cell_RA = colnames(aa)[which(!is.na(aa$pseudot_RA) & grepl('_RA', aa$condition))]
+  
+  kk = match(cell_beforeRA, colnames(aa)) # cell before RA shared by two trajectories
+  cat(length(which(is.na(kk))), 'missing cells \n')
+  aa$pseudot[kk] = aa$pseudot_noRA[kk]
+  max_pst_shared = max(aa$pseudot_noRA[kk])
+  
+  kk1 = match(cell_noRA, colnames(aa)) # cell in noRA trajectory
+  cat(length(which(is.na(kk1))), 'missing cells \n')
+  tt = aa$pseudot_noRA[kk1]
+  aa$pseudot[kk1] =  tt
+  
+  kk2 = match(cell_RA, colnames(aa)) # cell in RA trajectory
+  cat(length(which(is.na(kk2))), 'missing cells \n')
+  tt = aa$pseudot_RA[kk2]
+  aa$pseudot[kk2] = tt
+  
+  aa = subset(aa, cells = colnames(aa)[which(!is.na(aa$pseudot))])
+  
+  VlnPlot(aa, features = 'pseudot', group.by = 'condition', cols = cols_sel, pt.size = 0.0)
+  ggsave(filename = paste0(outDir, 'pseudotime_vs_realTime_palantir.pdf'), width = 10, height = 8)
+  
+  
+}else{
+  #aa = readRDS(file = paste0(RdataDir, 
+  #                           'seuratObject_RA.vs.noRA.bifurcation_doublet.rm_mt.ribo.filtered_regressout.nCounts_',
+  #                           'cellCycleScoring_annot.v1_reduction.DM_princurves_pseudotime_',
+  #                           species, '_R13547_10x_mNT_20220813', '.rds'))
+  
+  Idents(aa) = factor(aa$condition)
+  
+  levels_sels = c("day2_beforeRA",  
+                  "day2.5_RA", "day3_RA.rep1", "day3_RA.rep2", "day3.5_RA",   "day4_RA", "day5_RA",
+                  "day2.5_noRA", "day3_noRA",  "day3.5_noRA", "day4_noRA", "day5_noRA")
+  
+  
+  cols_sel = cols[match(levels_sels, names(cols))]
+  
+  Idents(aa) = aa$condition
+  table(aa$condition)
+  aa = subset(aa, idents = levels_sels)
+  aa = subset(aa, cells = colnames(aa)[which(!is.na(aa$pseudot))])
+  
+}
 
 aa <- FindVariableFeatures(aa, selection.method = "vst", nfeatures = 5000) # find subset-specific HVGs
 ## because the data was regressed and scaled already, only the HVGs were used to calculate PCA
@@ -647,16 +733,23 @@ p2 = FeaturePlot(aa, features = 'pseudot', cols = c('lightgray', 'blue')) +
   
 p1 + p2
 
-DimPlot(aa, reduction = 'DC', dims = c(1,2), group.by = 'condition', label = TRUE, cols = cols_sel)
+DimPlot(aa, group.by = 'condition', label = TRUE, cols = cols_sel)
 
-ggsave(filename = paste0(figureDir, 'RA_noRA_d2_d4_condition_pseudotime.pdf'), width = 16, height = 6) 
+ggsave(filename = paste0(figureDir, 'RA_noRA_d2_d5_condition_pseudotime.pdf'), width = 16, height = 6) 
 
-saveRDS(aa, file = paste0(RdataDir, 'RA_noRA_d2_d4_condition_pseudotime_saved4heterogeity.rds'))
+saveRDS(aa, file = paste0(RdataDir, 'RA_noRA_d2_d5_condition_pseudotime_saved4heterogeity.rds'))
 
 ##########################################
 ###### test heterogeneity quantification by binning pseudotime
 ##########################################
-aa = readRDS(file = paste0(RdataDir, 'RA_noRA_d2_d4_condition_pseudotime_saved4heterogeity.rds'))
+aa = readRDS(file = paste0(RdataDir, 'RA_noRA_d2_d5_condition_pseudotime_saved4heterogeity.rds'))
+
+levels_sels = c("day2_beforeRA",  
+                "day2.5_RA", "day3_RA.rep1", "day3.5_RA",   "day4_RA", "day5_RA",
+                "day2.5_noRA", "day3_noRA",  "day3.5_noRA", "day4_noRA", "day5_noRA")
+
+cols_sel = cols[match(levels_sels, names(cols))]
+
 
 p1 = DimPlot(aa, group.by = 'condition', label = TRUE, cols = cols_sel)
 p2 = FeaturePlot(aa, features = 'pseudot', cols = c('lightgray', 'blue')) +
@@ -665,21 +758,26 @@ p2 = FeaturePlot(aa, features = 'pseudot', cols = c('lightgray', 'blue')) +
 
 p1 + p2
 
+ggsave(filename = paste0(resDir, '/RA_noRA_d2_d5_condition_pseudotime_palantir_v2.pdf'), 
+       width = 10, height = 6) 
+
+
 VlnPlot(aa, features = 'pseudot', group.by = 'condition', pt.size = 0.00, cols = cols_sel) +
-  geom_hline(yintercept = c(0.25), col = 'red') +
+  geom_hline(yintercept = c(0.05), col = 'red') +
   ggtitle(label = 'pseudotime distribution per condition')
 
-ggsave(filename = paste0(resDir, '/RA_noRA_d2_d4_condition_pseudotime_v2.pdf'), width = 10, height = 6) 
+ggsave(filename = paste0(resDir, '/RA_noRA_d2_d5_condition_pseudotime_v2.pdf'), width = 10, height = 6) 
 
 ## specify the bins manually
 #jj = intersect(which(!is.na(aa$pseudot_RA)))
 
-pdf(paste0(resDir, "/pseudotime_distribution_binning_RA.pdf"),
+pdf(paste0(resDir, "/pseudotime_distribution_binning_RA_tinyBins.pdf"),
     height = 4, width =6, useDingbats = FALSE)
 par(cex = 1.0, las = 1, mgp = c(2,0.2,0), mar = c(3, 4, 2, 1), tcl = -0.1)
 
 hist(aa$pseudot_RA, breaks = 50, main = 'distribution of pseudotime by RA')
-abline(v = seq(0.6, 1, length.out = 10), col = 'red')
+abline(v = c(seq(0.15, 0.25, by = 0.05), seq(0.5, 0.9, by = 0.05)), col = 'red')
+#abline(v = seq(0.1, 0.9, length.out = 50), col = 'red')
 
 dev.off()
 
@@ -688,73 +786,77 @@ pdf(paste0(resDir, "/pseudotime_distribution_binning_noRA.pdf"),
 par(cex = 1.0, las = 1, mgp = c(2,0.2,0), mar = c(3, 4, 2, 1), tcl = -0.1)
 
 hist(aa$pseudot_noRA, breaks = 50)
-abline(v = seq(0.25, 1, length.out = 10), col = 'red')
+abline(v = c(seq(0.15, 0.45, by = 0.05), seq(0.7, 0.9, by = 0.05)), col = 'red')
+#abline(v = seq(0.1, 0.9, length.out = 50), col = 'red')
 
 dev.off()
 
-nb_bins = 8
 aa$pst_group = NA
+#bins = seq(0.1, 0.9, length.out = 16)
 
-bins = seq(0.6, 1, length.out = (nb_bins + 1))
+bin_interval = 0.01
+bins = c(seq(0.15, 0.25, by = bin_interval), seq(0.5, 0.9, by = bin_interval))
 for(n in 1:(length(bins)-1))
 {
-  jj = which(aa$pseudot_RA < bins[(n+1)] & aa$pseudot_RA > bins[n])
-  aa$pst_group[jj] = paste0('RA_groupPst_', n)
+  if(bins[n+1]<0.3){
+    jj1 = which(aa$pseudot_RA < bins[(n+1)] & aa$pseudot_RA >= bins[n])
+    aa$pst_group[jj1] = paste0('RA_groupPst_', n)
+    cat(n, '-- ', length(jj1), ' RA cells -- pst interval :', bins[n], ' --- ', bins[n+1],  '\n')
+  }
+  if(bins[n] > 0.4){
+    jj1 = which(aa$pseudot_RA < bins[(n+1)] & aa$pseudot_RA >= bins[n])
+    aa$pst_group[jj1] = paste0('RA_groupPst_', (n-1))
+    cat(n, '-- ', length(jj1), ' RA cells -- pst interval :', bins[n], ' --- ', bins[n+1],  '\n')
+  }
 }
 
-bins = seq(0.25, 1, length.out = (nb_bins + 1))
+bins = c(seq(0.15, 0.45, by = bin_interval), seq(0.7, 0.9, by = bin_interval))
 for(n in 1:(length(bins)-1))
 {
-  jj = which(aa$pseudot_noRA < bins[(n+1)] & aa$pseudot_noRA > bins[n])
-  aa$pst_group[jj] = paste0('noRA_groupPst_', n)
+  if(bins[n+1] < 0.5){
+    jj1 =  which(aa$pseudot_noRA < bins[(n+1)] & aa$pseudot_noRA >= bins[n])
+    aa$pst_group[jj1] = paste0('noRA_groupPst_', n)
+    cat(n, '-- ', length(jj1), ' noRA cells -- pst interval :', bins[n], ' --- ', bins[n+1],  '\n')
+  }
+  if(bins[n] > 0.6){
+    jj1 = which(aa$pseudot_noRA < bins[(n+1)] & aa$pseudot_noRA >= bins[n])
+    aa$pst_group[jj1] = paste0('noRA_groupPst_', (n-1))
+    cat(n, '-- ', length(jj1), ' noRA cells -- pst interval :', bins[n], ' --- ', bins[n+1],  '\n')
+  }
+  
+  #jj2 = which(aa$pseudot_noRA < bins[(n+1)] & aa$pseudot_noRA >= bins[n])
+  #aa$pst_group[jj2] = paste0('noRA_groupPst_', n)
+  
+  #cat(n, '-- ', length(jj1), ' RA cells -- ', length(jj2), ' noRA cells \n')
 }
 
-hete = calc_heterogeneity_RA.noRA(aa)
 
-ggplot(hete, aes(x=condition, y=dists, fill=condition)) + 
+DimPlot(aa, group.by = 'pst_group', label = TRUE)
+
+source('functions_utility.R')
+hete = calc_heterogeneity_RA.noRA(seuratObj = aa, method = 'pairwiseDist_pca', 
+                                  subsample.cells = 200, 
+                                  #subsample.sketch = FALSE,
+                                  nb_features = 1000, nb_pcs = 20)
+
+hete$condition = factor(hete$condition, 
+                           levels = paste0(c('noRA', 'RA'), '_groupPst_', rep(c(1:(length(bins)-1)), 
+                                                                              each = 2)))
+                           
+hete$treament = 'RA'
+hete$treament[grep('noRA_', hete$condition)] = 'noRA'
+hete$treament = factor(hete$treament, levels = c('RA', 'noRA'))
+
+ggplot(hete, aes(x= condition, y=dists, fill = treament)) + 
   geom_violin() + 
-  scale_fill_manual(values = cols_sel) + 
+  #scale_fill_manual(values = ) + 
   theme_classic() +
-  theme(axis.text.x = element_text(angle = 60, size = 10, vjust = 0.6),
+  theme(axis.text.x = element_text(angle = 90, size = 10, vjust = 0.4),
         axis.text.y = element_text(angle = 0, size = 10)) +
   labs( x = '', y = 'pairwise distance' )
 
-ggsave(filename = paste0(outDir, '/pairwise_distance_', nb_features,
-                         'HVGs_allConditions.pdf'), width = 12, height = 8) 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ggsave(filename = paste0(resDir, '/pairwise_distance_pst.palantir.Bins_', length(bins), 
+                         '.bins.pdf'), width = 12, height = 8) 
 
 
 

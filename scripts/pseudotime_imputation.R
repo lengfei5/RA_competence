@@ -23,8 +23,8 @@ suppressPackageStartupMessages({
 names(cols) = levels
 
 levels_sels = c("day2_beforeRA",  
-                "day2.5_RA", "day3_RA.rep1", "day3.5_RA",   "day4_RA",  
-                "day2.5_noRA", "day3_noRA",  "day3.5_noRA", "day4_noRA"
+                "day2.5_RA", "day3_RA.rep1", "day3.5_RA",   "day4_RA",  "day5_RA",
+                "day2.5_noRA", "day3_noRA",  "day3.5_noRA", "day4_noRA", "day5_noRA"
                 )
 
 cols_sel = cols[match(levels_sels, names(cols))]
@@ -61,12 +61,17 @@ p2 = DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'celltypes', raster=FALS
 
 p1 + p2
 
-ggsave(filename = paste0(outDir, 'UMAP_RAtreatment_d2.to.d6_.pdf'), 
-       width = 18, height = 8)
+## remove mature neurons 
+aa = subset(aa, cells = colnames(aa)[which(is.na(aa$celltypes) | aa$celltypes != "Neurons")])
 
-## remove the cluster 8 and 9 mainly mature neurons and also day6_RA
-#aa = subset(aa, cells = colnames(aa)[which(aa$celltypes != '8' & aa$celltypes != '9' & 
-#                                             aa$condition != 'day6_RA')])
+
+p1 = DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'condition', cols = cols_sel, raster=FALSE)
+p2 = DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'celltypes', raster=FALSE)
+
+p1 + p2
+
+ggsave(filename = paste0(outDir, 'UMAP_RAtreatment_d2.to.d5_noNeurons.pdf'), 
+       width = 18, height = 8)
 
 
 # rerun the umap 
@@ -80,10 +85,10 @@ ElbowPlot(aa, ndims = 50)
 aa <- RunUMAP(aa, dims = 1:30, n.neighbors = 30, min.dist = 0.1)
 DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'condition', cols = cols_sel, raster=FALSE)
 
-ggsave(filename = paste0(outDir, 'UMAP_RAtreatment_d2.to.d4.noMatureNeurons.pdf'), 
+ggsave(filename = paste0(outDir, 'UMAP_RAtreatment_d2.to.d5.noMatureNeurons.pdf'), 
        width = 10, height = 6)
 
-saveRDS(aa, file = paste0(RdataDir, 'seuratObj_clustersFiltered_RA.noRA_d2_d4_forHeterogeenity.rds'))
+saveRDS(aa, file = paste0(RdataDir, 'seuratObj_clustersFiltered_RA.noRA_d2_d5_forHeterogeenity.rds'))
 
 
 Discard_cellCycle.corrrelatedGenes = TRUE
@@ -123,11 +128,11 @@ DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'condition', cols = cols_sel,
 
 saveRDS(aa, file = paste0(outDir, 
                            'seuratObject_RA.symmetry.breaking_doublet.rm_mt.ribo.filtered_regressout.nCounts_',
-                           'cellCycleScoring_annot.v2_newUMAP_clusters_time_d2.to.d4.noNeurons.rds'))
+                           'cellCycleScoring_annot.v2_newUMAP_clusters_time_d2.to.d5.noNeurons.rds'))
 
 aa = readRDS(file = paste0(outDir, 
                            'seuratObject_RA.symmetry.breaking_doublet.rm_mt.ribo.filtered_regressout.nCounts_',
-                           'cellCycleScoring_annot.v2_newUMAP_clusters_time_d2.to.d4.noNeurons.rds'))
+                           'cellCycleScoring_annot.v2_newUMAP_clusters_time_d2.to.d5.noNeurons.rds'))
 
 
 ########################################################
@@ -136,86 +141,77 @@ aa = readRDS(file = paste0(outDir,
 # 
 ########################################################
 ########################################################
-aa = readRDS(file = paste0(outDir, 
-              'seuratObject_RA.symmetry.breaking_doublet.rm_mt.ribo.filtered_regressout.nCounts_',
-              'cellCycleScoring_annot.v2_newUMAP_clusters_time_d2.to.d5.noNeurons.rds'))
-
-DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'condition', cols = cols_sel, raster=FALSE)
-
-aa$dataset = 'afterRA'
-aa$dataset[which(aa$condition == 'day2.5_RA')] = 'RA'
-aa$dataset[which(aa$condition == 'day2_beforeRA')] = 'beforeRA'
-
-aa = FindVariableFeatures(aa, selection.method = "vst", nfeatures = 5000)
-
-ggsave(filename = paste0(outDir, 'UMAP_RAtreatment_d2.to.d5.noMatureNeurons_rmCellCycle.correlatedGenes.pdf'), 
-       width = 10, height = 6)
-
-##########################################
-# test CSS
-##########################################
-library(simspec)
-
-aa <- RunPCA(aa, npcs = 50, weight.by.var = FALSE, 
-             features = VariableFeatures(object = aa), verbose = FALSE)
-
-aa <- cluster_sim_spectrum(object = aa, 
-                           label_tag = "condition",
-                           use_dr = 'pca', 
-                           dims_use = 1:30, 
-                           cluster_resolution = 1.
-)
-
-aa <- RunUMAP(aa, reduction = "css", dims = 1:ncol(Embeddings(aa, "css")),
-              n.neighbors = 30, min.dist = 0.3)
-
-DimPlot(aa, reduction = "umap", label = TRUE, repel = TRUE)
-
-FeaturePlot(aa, features = c('Zfp42', 'Foxa2', 'Pax6', 'Rarg', 'Dhrs3'))
-
-ggsave(filename = paste0(outDir, 
-                         'CSS_integration_beforeRA_RA_afterRA.pdf'), 
-       width = 10, height = 6)
-
-
-#aa <- FindNeighbors(aa, reduction = "css", dims = 1:ncol(Embeddings(aa, "css")))
-#aa <- FindClusters(aa, resolution = 1)
-#UMAPPlot(aa, group.by = "batch") + UMAPPlot(aa, group.by = "celltype_RSS") + UMAPPlot(aa)
-
-aa <- cluster_sim_spectrum(object = aa, 
-                           label_tag = "condition",
-                           #cluster_col = 'condition',
-                           use_dr = 'pca', 
-                           dims_use = 1:10, 
-                           corr_method = "pearson",
-                           spectrum_type = "corr_kernel",
-                           cluster_resolution = 1
-                           
-)
-
-aa <- RunUMAP(aa, reduction = "css", dims = 1:ncol(Embeddings(aa, "css")),
-              n.neighbors = 30, min.dist = 0.3)
-DimPlot(aa, reduction = "umap", label = TRUE, repel = TRUE)
-
-ggsave(filename = paste0(outDir, 
-                         'CSS_integration_kernelProb_condition_test_v2.pdf'), 
-       width = 10, height = 6)
-
-FeaturePlot(aa, features = c('Zfp42', 'Foxa2', 'Pax6', 'Rarg', 'Dhrs3'))
-
-
-DimPlot(aa, reduction = "umap", label = TRUE, repel = TRUE)
-
-FeaturePlot(aa, features = c('Nanog', 'Pou5f1', 'Foxa2', 'Pax6'))
-xx = Embeddings(aa, reduction = 'umap')
-
-kk = which(xx[,1]> (7) & xx[,2] < -4.9 & xx[,2]>= -5.2)
-
-
-DimPlot(aa, cells.highlight = c('GTCCACTGTGCATGTT-1_1_1_1_1_1_1_1_1', 'CATGCTCGTTCGTACA-1_2_1',
-                                'GTTACCCTCTACGCAA-1_2_1'), 
-        cols.highlight = "#DE2D26", sizes.highlight = 2)
-
+Test_CSS_integration = FALSE
+if(Test_CSS_integration){
+  aa = readRDS(file = paste0(outDir, 
+                             'seuratObject_RA.symmetry.breaking_doublet.rm_mt.ribo.filtered_regressout.nCounts_',
+                             'cellCycleScoring_annot.v2_newUMAP_clusters_time_d2.to.d5.noNeurons.rds'))
+  
+  DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'condition', cols = cols_sel, raster=FALSE)
+  
+  aa$dataset = 'afterRA'
+  aa$dataset[which(aa$condition == 'day2.5_RA')] = 'RA'
+  aa$dataset[which(aa$condition == 'day2_beforeRA')] = 'beforeRA'
+  
+  aa = FindVariableFeatures(aa, selection.method = "vst", nfeatures = 3000)
+  
+  ggsave(filename = paste0(outDir, 'UMAP_RAtreatment_d2.to.d5.noMatureNeurons_rmCellCycle.correlatedGenes.pdf'), 
+         width = 10, height = 6)
+  
+  ##########################################
+  # test CSS
+  ##########################################
+  library(simspec)
+  aa = FindVariableFeatures(aa, selection.method = "vst", nfeatures = 8000)
+  aa <- RunPCA(aa, npcs = 50, weight.by.var = FALSE, 
+               features = VariableFeatures(object = aa), verbose = FALSE)
+  
+  aa <- cluster_sim_spectrum(object = aa, 
+                             label_tag = "condition",
+                             use_dr = 'pca', 
+                             #dims_use = 1:30, 
+                             cluster_resolution = 0.5
+  )
+  
+  aa <- RunUMAP(aa, reduction = "css", dims = 1:ncol(Embeddings(aa, "css")),
+                n.neighbors = 30, min.dist = 0.1)
+  DimPlot(aa, reduction = "umap", label = TRUE, repel = TRUE,  cols = cols_sel)
+  
+  
+  FeaturePlot(aa, features = c('Zfp42', 'Foxa2', 'Pax6', 'Rarg', 'Dhrs3'))
+  
+  ggsave(filename = paste0(outDir, 
+                           'CSS_integration_beforeRA_RA_afterRA.pdf'), 
+         width = 10, height = 6)
+  
+  
+  #aa <- FindNeighbors(aa, reduction = "css", dims = 1:ncol(Embeddings(aa, "css")))
+  #aa <- FindClusters(aa, resolution = 1)
+  #UMAPPlot(aa, group.by = "batch") + UMAPPlot(aa, group.by = "celltype_RSS") + UMAPPlot(aa)
+  
+  aa <- cluster_sim_spectrum(object = aa, 
+                             label_tag = "condition",
+                             #cluster_col = 'condition',
+                             use_dr = 'pca', 
+                             #dims_use = 1:10, 
+                             spectrum_type = "corr_kernel",
+                             corr_method = "spearman",
+                             cluster_resolution = 0.5
+                             
+  )
+  
+  nb_css = ncol(Embeddings(aa, "css"))
+  aa <- RunUMAP(aa, reduction = "css", dims = 1:nb_css, n.neighbors = 30, min.dist = 0.1)
+  DimPlot(aa, reduction = "umap", label = TRUE, repel = TRUE, cols = cols_sel)
+  
+  ggsave(filename = paste0(outDir, 
+                           'CSS_integration_kernelProb_condition_test_v2.pdf'), 
+         width = 10, height = 6)
+  
+  FeaturePlot(aa, features = c('Zfp42', 'Foxa2', 'Pax6', 'Rarg', 'Dhrs3'))
+  
+  
+}
 
 ##########################################
 # save file for palantir
@@ -235,7 +231,7 @@ mnt = DietSeurat(mnt,
                  scale.data = FALSE,
                  features = rownames(mnt), 
                  assays = c('RNA'), 
-                 dimreducs = c('umap'), graphs = NULL, 
+                 dimreducs = c('pca', 'umap'), graphs = NULL, 
                  misc = TRUE
 )
 
@@ -251,12 +247,27 @@ Idents(mnt) = mnt$condition
 #saveDir = paste0("/Volumes/groups/tanaka/People/current/jiwang/projects/RA_competence/",
 #                "results/scRNAseq_R13547_10x_mNT_20220813/RA_symetryBreaking/")
 
-saveFile = '/RNAmatrix_RA_noRA_d2_d4_all.h5Seurat'
+saveFile = '/RNAmatrix_RA_noRA_d2_d5.h5Seurat'
 
 SaveH5Seurat(mnt, filename = paste0(outDir, saveFile), 
              overwrite = TRUE)
 Convert(paste0(outDir, saveFile), 
         dest = "h5ad", overwrite = TRUE)
+
+
+## manually select starting cell and terminal cells
+DimPlot(aa, reduction = "umap", label = TRUE, repel = TRUE, cols = cols_sel)
+
+FeaturePlot(aa, features = c('Nanog', 'Pou5f1', 'Foxa2', 'Pax6'))
+xx = Embeddings(aa, reduction = 'umap')
+kk = which(xx[,1] < (0) & xx[,2] < -6)
+
+
+DimPlot(aa, cells.highlight = c('ACTCCCACAGCTCTGG-1_1_1_1_1_1_1_1_1', 'TTGTGTTAGATTGACA-1_2_1_1',
+                                'GCTCAAACATCGGAAG-1_1_1_1'
+                                ), 
+        cols.highlight = "#DE2D26", sizes.highlight = 2)
+
 
 ##########################################
 # test Seurat integration

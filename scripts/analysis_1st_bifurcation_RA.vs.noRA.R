@@ -9,12 +9,12 @@
 ##########################################################################
 names(cols) = levels
 levels_sels = c("day2_beforeRA",  
-                "day2.5_RA", "day3_RA.rep1", "day3_RA.rep2", "day3.5_RA",   "day4_RA", 
-                "day2.5_noRA", "day3_noRA",  "day3.5_noRA", "day4_noRA")
+                "day2.5_RA", "day3_RA.rep1", "day3_RA.rep2", "day3.5_RA",   "day4_RA", "day5_RA",
+                "day2.5_noRA", "day3_noRA",  "day3.5_noRA", "day4_noRA", "day5_noRA")
 
 cols_sel = cols[match(levels_sels, names(cols))]
 
-outDir = paste0(resDir, '/RA.vs.noRA_firstBifurcation/')
+outDir = paste0(resDir, '/RA.vs.noRA_firstBifurcation_d2.d5/')
 system(paste0('mkdir -p ', outDir))
 
 ##########################################
@@ -54,11 +54,28 @@ saveRDS(aa, file = paste0(RdataDir,
 ##########################################
 # test different approach of PCA calculation and diffusion map parameters
 ##########################################
+#aa = readRDS(file = paste0(RdataDir, 
+#                           'seuratObject_RA.vs.noRA.bifurcation_doublet.rm_mt.ribo.filtered_regressout.nCounts_',
+#                           'cellCycleScoring_annot.v1_',
+#                           species, version.analysis, '.rds'))
+
+library(slingshot, quietly = FALSE)
+library(destiny, quietly = TRUE)
+library(mclust, quietly = TRUE)
+library(scater)
+library(SingleCellExperiment)
+library(scran)
+library(RColorBrewer)
+
 aa = readRDS(file = paste0(RdataDir, 
                            'seuratObject_RA.vs.noRA.bifurcation_doublet.rm_mt.ribo.filtered_regressout.nCounts_',
-                           'cellCycleScoring_annot.v1_',
+                           'cellCycleScoring_annot.v1_reduction.DM.globalSignal.nfeature3000.neighbor200_',
                            species, version.analysis, '.rds'))
 
+## filter the weird clusters identified in make_plots_v0.R
+cells_2filter = readRDS(file = paste0(RdataDir, 'subObj_clusters_to_filter.rds'))
+mm = match(colnames(aa), colnames(cells_2filter))
+aa = subset(aa, cells = colnames(aa)[which(is.na(mm))])
 
 # weighted PCA is not working well with DM
 #dm = readRDS(file = paste0(RdataDir, 'diffusion_map_2save_allConditions.rds')) 
@@ -77,13 +94,15 @@ for(nb_features in c(3000, 5000, 8000))
   {
     # nb_features = 3000; n_neighbors = 200
     cat('nb_feature -- ', nb_features, '; n_neightors -- ', n_neighbors, '\n')
-    dm = readRDS(file = paste0(RdataDir, 'diffusionMap_firstBifurcation_RA.vs.noRA_with.sce.PCA_euclidean_',
+    dm = readRDS(file = paste0(RdataDir, 'diffusionMap_firstBifurcation_RA.vs.noRA.d2tod5_sce.PCA_euclidean_',
                                'globalSignal_nfeatures.', nb_features, '_nbNeighbors.', n_neighbors,
                                '.rds'))
     
     cells = names(dm$DC1)
     metadata = aa@meta.data
-    dcs = data.frame(DC1 = dm$DC1, DC2 = dm$DC2, DC3 = dm$DC3, DC4 = dm$DC4, DC5 = dm$DC5, stringsAsFactors = FALSE)
+    dcs = data.frame(DC1 = dm$DC1, DC2 = dm$DC2, DC3 = dm$DC3, DC4 = dm$DC4, DC5 = dm$DC5, 
+                     stringsAsFactors = FALSE)
+    mm = match(rownames(metadata), cells)
     dcs = dcs[match(rownames(metadata), cells), ]
     
     dcs = as.matrix(dcs)
@@ -103,12 +122,12 @@ for(nb_features in c(3000, 5000, 8000))
     (p1 + p2 + p3)/(p4 + p5 + p6)
     
     ggsave(filename = paste0(outDir, 'Diffusion_Map_components_test_globalSigma_nFeatures.', nb_features, 
-                             '_nNeighbors.', n_neighbors,  '.pdf'), width = 16, height = 10)
+                             '_nNeighbors.', n_neighbors,  '_d2_d5.pdf'), width = 16, height = 10)
     
     DimPlot(aa, reduction = 'DC', dims = c(1, 2), cols = cols_sel)
     ggsave(filename = paste0(outDir, 'Diffusion_Map_components_forTrajectory_globalSigma_nFeatures.', 
                              nb_features, 
-                             '_nNeighbors.', n_neighbors,  '.pdf'), 
+                             '_nNeighbors.', n_neighbors,  '_d2_d5.pdf'), 
            width = 16, height = 8)
     
     # Diffusion pseudotime calculation (very slow)
@@ -124,7 +143,7 @@ for(nb_features in c(3000, 5000, 8000))
 saveRDS(aa, file = paste0(RdataDir, 
                            'seuratObject_RA.vs.noRA.bifurcation_doublet.rm_mt.ribo.filtered_regressout.nCounts_',
                            'cellCycleScoring_annot.v1_reduction.DM.globalSignal.nfeature3000.neighbor200_',
-                           species, version.analysis, '.rds'))
+                           species, version.analysis, '_d2_d5.rds'))
 
 ########################################################
 ########################################################
@@ -149,6 +168,11 @@ aa = readRDS(file = paste0(RdataDir,
 cells_2filter = readRDS(file = paste0(RdataDir, 'subObj_clusters_to_filter.rds'))
 mm = match(colnames(aa), colnames(cells_2filter))
 aa = subset(aa, cells = colnames(aa)[which(is.na(mm))])
+
+aa = readRDS(file = paste0(RdataDir, 
+              'seuratObject_RA.vs.noRA.bifurcation_doublet.rm_mt.ribo.filtered_regressout.nCounts_',
+              'cellCycleScoring_annot.v1_reduction.DM.globalSignal.nfeature3000.neighbor200_',
+              species, version.analysis, '_d2_d5.rds'))
 
 ##########################################
 # define clusters as slingshot and outlier detection because the principle curves are sensitive to the outliers

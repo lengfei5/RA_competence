@@ -646,79 +646,149 @@ if(Test_GENIE3){
 # 
 ########################################################
 ########################################################
-calc_heterogeneity_RA.noRA = function(aa, method = 'pairwiseDist', subsample.cells = 500)
+calc_heterogeneity_RA.noRA = function(seuratObj, method = 'pairwiseDist_pca', 
+                                      subsample.cells = 200,
+                                      subsample.sketch = FALSE,
+                                      nb_features = 500, nb_pcs = 30)
 {
-  library(scater)
-  library(SingleCellExperiment)
-  library(scran)
+  # seuratObj = aa;method = 'pairwiseDist_pca';subsample.cells = 200;nb_features = 1000;nb_pcs = 30;
   
+  seuratObj = subset(seuratObj, cells = colnames(seuratObj)[which(!is.na(seuratObj$pst_group))])
   
-  set.seed(2023)
-  aa = subset(aa, downsample = 500)
+  Idents(seuratObj) = as.factor(seuratObj$pst_group)
   
-  table(aa$condition)
+  cc = unique(seuratObj$pst_group)
   
-  
-  Idents(aa) = factor(aa$condition, levels = levels_sels)
-  #cc = unique(aa$condition)
-  
-  Run_HVGs_perTimePoint = FALSE
-  if(Run_HVGs_perTimePoint){
-    hete = c()
-    nb_features = 1000
-    for(n in 1:length(levels_sels))
-    {
-      # n = 1
-      cat(n, ' -- ', levels_sels[n], '\n')
-      sce = as.SingleCellExperiment(subset(aa, idents = levels_sels[n]))
+  if(method == 'pairwiseDist_pca'){
+    
+    library(scater)
+    library(SingleCellExperiment)
+    library(scran)
+    
+    set.seed(2024)
+    
+    if(subsample.sketch){
+      seuratObj = subset(seuratObj, cells = colnames(seuratObj)[which(!is.na(seuratObj$sketch))])
+    }else{
+      seuratObj = subset(seuratObj, downsample = subsample.cells)
+    }
+    #table(seuratObj$pst_group)
+    
+    #Idents(seuratObj) = factor(seuratObj$condition, levels = levels_sels)
+    #cc = unique(seuratObj$condition)
+    
+    Run_HVGs_perTimePoint = FALSE
+    if(Run_HVGs_perTimePoint){
+      hete = c()
+      #nb_features = 1000
+      for(n in 1:length(levels_sels))
+      {
+        # n = 1
+        cat(n, ' -- ', levels_sels[n], '\n')
+        sce = as.SingleCellExperiment(subset(seuratObj, idents = levels_sels[n]))
+        
+        dec <- modelGeneVar(sce)
+        top.hvgs <- getTopHVGs(dec, n=nb_features)
+        sce <- runPCA(sce, subset_row=top.hvgs, ncomponents = 30)
+        # reducedDimNames(sce)
+        #ll.pca = reducedDim(sce, 'PCA')[, c(1:30)]
+        ll.pca = logcounts(sce)
+        ll.pca = as.matrix(ll.pca[match(top.hvgs, rownames(ll.pca)), ])
+        dists = sqrt((1-cor((ll.pca), method = 'pearson'))/2)
+        
+        #dists = dists[which(dists>0)]
+        
+        #hete = rbind(hete, data.frame(condition = rep(levels_sels[n], length(dists)), dists))
+        hete = rbind(hete, data.frame(condition = rep(levels_sels[n], length(dists)), dists))
+        
+      }
+    }else{
+      
+      sce = as.SingleCellExperiment(seuratObj)
       
       dec <- modelGeneVar(sce)
       top.hvgs <- getTopHVGs(dec, n=nb_features)
-      sce <- runPCA(sce, subset_row=top.hvgs, ncomponents = 30)
+      sce <- runPCA(sce, subset_row=top.hvgs, ncomponents = nb_pcs)
+      
       # reducedDimNames(sce)
-      #ll.pca = reducedDim(sce, 'PCA')[, c(1:30)]
-      ll.pca = logcounts(sce)
-      ll.pca = as.matrix(ll.pca[match(top.hvgs, rownames(ll.pca)), ])
-      dists = sqrt((1-cor((ll.pca), method = 'pearson'))/2)
       
-      #dists = dists[which(dists>0)]
+      ll.pca = reducedDim(sce, 'PCA')[, c(1:nb_pcs)]
       
-      hete = rbind(hete, data.frame(condition = rep(levels_sels[n], length(dists)), dists))
+      #ll.pca = logcounts(sce)
+      #ll.pca = t(as.matrix(ll.pca[match(top.hvgs, rownames(ll.pca)), ]))
+      
+      hete = c()
+      
+      for(n in 1:length(cc))
+      {
+        # n = 1
+        kk = match(colnames(sce)[which(sce$pst_group == cc[n])], rownames(ll.pca))
+        
+        cat(n, ' -- ', cc[n], '--', length(kk), 'cells \n')
+        
+        dists =  dist(ll.pca[kk, ], method = "euclidean", diag = FALSE, upper = TRUE) 
+        #sqrt((1-cor((ll
+        
+        #dists = sqrt((1-cor(ll.pca[kk, ], method = 'pearson'))/2)
+        #dists = dists[which(dists>0)]
+        
+        hete = rbind(hete, data.frame(nb_cells = rep(length(kk), length(dists)),
+                                      condition = rep(cc[n], length(dists)),
+                                      as.numeric(dists)))
+        
+      }
       
     }
-  }else{
     
-    nb_features = 1000
-    sce = as.SingleCellExperiment(aa)
-    
-    dec <- modelGeneVar(sce)
-    top.hvgs <- getTopHVGs(dec, n=nb_features)
-    sce <- runPCA(sce, subset_row=top.hvgs, ncomponents = 100)
-    
-    # reducedDimNames(sce)
-    
-    ll.pca = reducedDim(sce, 'PCA')[, c(1:30)]
-    
-    hete = c()
-    #ll.pca = logcounts(sce)
-    #ll.pca = as.matrix(ll.pca[match(top.hvgs, rownames(ll.pca)), ])
-    for(n in 1:length(levels_sels))
-    {
-      # n = 1
-      cat(n, ' -- ', levels_sels[n], '\n')
-      kk = match(colnames(sce)[which(sce$condition == levels_sels[n])], rownames(ll.pca))
-      
-      dists =  dist(ll.pca[kk, ], method = "euclidean", diag = FALSE, upper = TRUE) #sqrt((1-cor((ll
-      #dists = dists[which(dists>0)]
-      
-      hete = rbind(hete, data.frame(condition = rep(levels_sels[n], length(dists)), as.numeric(dists)))
-    }
+    #hete$dists = log10(hete$dists)
+    colnames(hete)[ncol(hete)] = 'dists'
+    hete = as.data.frame(hete)
     
   }
   
-  #hete$dists = log10(hete$dists)
-  colnames(hete)[2] = 'dists'
-  hete = as.data.frame(hete)
+  if(method == 'entropy_metric'){
+    suppressMessages(library(ROGUE))
+    suppressMessages(library(ggplot2))
+    suppressMessages(library(tidyverse))
+    
+    hete = c()
+    
+    for(n in 1:length(cc))
+    {
+      # n = 1
+      #cat(n, ' -- ', cc[n], '\n')
+      
+      kk = which(seuratObj$pst_group == cc[n])
+      expr = seuratObj@assays$RNA@counts[, kk]
+      
+      #meta <- seuratObj@meta.data
+      ent.res <- SE_fun(expr)
+      ent.res <- SE_fun(expr, span = 0.1, r = 1, mt.method = "fdr")
+      #head(ent.res)
+      
+      SEplot(ent.res)
+      
+      rogue.value <- CalculateRogue(ent.res, platform = "UMI")
+      cat(n, ' -- ', cc[n], '--', rogue.value, '\n') 
+      
+      #rogue.res <- rogue(expr, labels = meta$ct, samples = meta$Patient, platform = "UMI", span = 0.6)
+      #rogue.res
+      #ent.res <- SE_fun(expr, span = 0.1, r = 1, mt.method = "fdr")
+      #CalculateRogue(ent.res, platform = "UMI")
+      #CalculateRogue(ent.res, k = 30)
+      
+      hete = rbind(hete,  c(cc[n], (1.0 - rogue.value)))
+      
+    }
+    
+    colnames(hete) = c('condition', 'hete')
+    
+    hete = as.data.frame(hete)
+    
+    
+  }
+  
+  
   
   return(hete)
   
