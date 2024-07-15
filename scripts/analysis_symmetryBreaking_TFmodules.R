@@ -30,7 +30,6 @@ levels_sels = c("day2_beforeRA", "day2.5_RA", "day3_RA.rep1", "day3.5_RA", "day4
 names(cols) = levels
 cols_sel = cols[match(levels_sels, names(cols))]
 
-
 #aa = readRDS(file = paste0(RdataDir,
 #                           'seuratObject_merged_cellFiltered_doublet.rm_mt.ribo.geneFiltered_regressout.nCounts_',
 #                           'cellCycleScoring_annot.v1_savedUMAP.subs.v2_', species, version.analysis, '.rds'))
@@ -479,5 +478,141 @@ for(cc in conditions)
   # ggsave(filename = paste0(outDir_cc, '/Heatmap_clusterMarkers_', select.method, '.pdf'), 
   #        width = 14, height = 20)
   
-  
 }
+
+########################################################
+########################################################
+# Section : test the local gene-gene correlation
+# original code from https://github.com/hms-dbmi/crestree/blob/master/R/bifurcation.functions.R
+#
+########################################################
+########################################################
+library(igraph)
+library(mgcv)
+library(quadprog) 
+library(pcaMethods) 
+library(Rcpp) 
+library(inline) 
+library(RcppArmadillo) 
+library(pbapply)
+library(crestree)
+library(ggplot2); library(gridExtra); library(grid);
+library(parallel)
+
+data(crest)
+emb <- crest$emb
+clcol <- crest$clcol
+nc.cells <- crest$nc.cells
+wgm <- crest$wgm
+wgwm <- crest$wgwm # matrix of expression weights
+fpm <- read.table("http://pklab.med.harvard.edu/ruslan/neural_crest/fpm.txt",header=TRUE)
+fpm <- as.matrix(fpm)
+genes.tree <- crest$genes.tree
+
+ppt <- readRDS(url("http://pklab.med.harvard.edu/ruslan/neural_crest/tree_structure_full.rds"))
+
+plotppt(ppt,emb,tips=TRUE,forks=FALSE,cex.tree = 0.2,lwd.tree = 2)
+
+root <- 355
+leaves <- c(165,91)
+
+subtree <- extract.subtree(ppt,c(root,leaves))
+plotppt(ppt,emb,tips=TRUE,forks=FALSE,cex.tree = 0.3,lwd.tree = 3,subtree=subtree)
+
+reRun_forkDE = FALSE
+if(reRun_forkDE){
+  fork.de <- test.fork.genes(ppt,fpm,root=root,leaves=leaves,n.mapping = 5)
+  saveRDS(fork.de, file = paste0(outDir, 'saved_forkDE_crestree.rds' ))
+}else{
+  fork.de = readRDS(file = paste0(outDir, 'saved_forkDE_crestree.rds' ))
+}
+
+head(fork.de[order(fork.de$p),], )
+
+fork.de <- branch.specific.genes(fork.de,effect.b1 = 0.1,effect.b2 = 0.3)
+
+gene <- "Neurog2"
+
+ppt2 <- fit.associated.genes(ppt,fpm,n.map=1)
+## [1] "fit gene expression for mapping 1"
+## 
+##     branch-monotonous      complex patterns transiently expressed 
+##                   673                   112                   263
+
+visualise.trajectory(ppt, gene, fpm[gene,], subtree = subtree, cex.main = 3,lwd.t2=0.5)
+
+genes.sensory <- rownames(fork.de)[fork.de$state==1]
+genes.autonomic  <- rownames(fork.de)[fork.de$state==2]
+
+genes.sensory <- intersect(genes.sensory,genes.tree)
+str(genes.sensory)
+##  chr [1:98] "Rdh10" "Hes6" "Cxcr4" "Nfasc" "5730559C18Rik" "Rgs16" "Nhlh1" "Zbtb18" "Utrn" "Gamt" "Neurod4" "Upp1" ...
+
+genes.autonomic <- intersect(genes.autonomic,genes.tree)
+str(genes.autonomic)
+##  chr [1:122] "Serpine2" "Lrrfip1" "Cdh19" "Ralb" "Angptl1" "Pbx1" "Mpz" "Lama4" "Cnn2" "Timp3" "Ascl1" "Elk3" ...
+
+cells <- rownames(ppt$cell.summary)[ppt$cell.summary$seg %in% extract.subtree(ppt,c(root,leaves))$segs]
+par(mfrow=c(1,2))
+plot(t(programs[c(1,3),cells]),col=ppt$cell.summary[cells,]$color,pch=19,cex=0.5)
+plot(t(programs[c(2,4),cells]),col=ppt$cell.summary[cells,]$color,pch=19,cex=0.5)
+
+
+fork.de.act <- activation.fork(ppt,fork.de,fpm,root,leaves,deriv.cutoff = 0.015,n.mapping=10)
+
+fork.pt(ppt,root,leaves)
+
+cutoff <- 16.0
+
+genes.sensory.late <- genes.sensory[fork.de.act[genes.sensory,]$activation > cutoff]
+genes.sensory.early <- setdiff(genes.sensory,genes.sensory.late)
+
+genes.autonomic.late <- genes.autonomic[fork.de.act[genes.autonomic,]$activation > cutoff]
+genes.autonomic.early <- setdiff(genes.autonomic,genes.autonomic.late)
+
+cells <- rownames(ppt$cell.summary)[ppt$cell.summary$seg %in% extract.subtree(ppt,c(root,leaves))$segs]
+par(mfrow=c(1,2))
+plot(t(programs[c(1,3), cells]),col=ppt$cell.summary[cells,]$color,pch=19,cex=0.5)
+plot(t(programs[c(2,4), cells]),col=ppt$cell.summary[cells,]$color,pch=19,cex=0.5)
+
+
+freq <- slide.cells(ppt,root,leaves,wind=50)
+
+
+regions = list(list(7,151,200,1),
+               list(7,101,151,1),
+               list(7,51,100,1),
+               list(7,1,50,1),
+               list(list(6,5,1,2),1,50, -1),
+               list(list(6,5,1,2),51,100, -1),
+               list(5,1,50,1),
+               list(1,1,50,1))
+
+
+freq <- slide.cells(ppt, root, leaves, wind=50, regions=regions)
+fig_cells <- fig.cells(emb,freq)
+marrangeGrob(c(fig_cells), ncol=length(fig_cells),nrow=1,top=NA)
+
+cors <- slide.cors(freq,fpm,genes.sensory.early,genes.autonomic.early)
+
+fig_cor <- fig.cors(cors,genes.sensory.early,genes.autonomic.early)
+marrangeGrob( c(fig_cells,fig_cor),ncol=length(fig_cells),nrow=2,
+              layout_matrix = matrix(seq_len(2*length(fig_cells)), nrow = 2, 
+                                     ncol = length(fig_cells),byrow=TRUE),
+              top=NA)
+
+
+## Re-estimation average window-specific correlations for cleaned up sets of genes genesetA and genesetB:
+corA <- cors[[5]][,1]
+genesetA <- names(which(corA[genes.sensory.early] > 0.07))
+
+corB <- cors[[5]][,2]
+genesetB <- names(which(corB[genes.autonomic.early] > 0.07))
+
+cors <- slide.cors(freq, fpm, genesetA, genesetB)
+fig_cor <- fig.cors(cors, genesetA, genesetB)
+marrangeGrob( c(fig_cells,fig_cor),ncol=length(fig_cells),nrow=2,
+              layout_matrix = matrix(seq_len(2*length(fig_cells)), nrow = 2, 
+                                     ncol = length(fig_cells),byrow=TRUE),top=NA)
+
+

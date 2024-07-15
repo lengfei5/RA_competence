@@ -7,7 +7,7 @@
 # Date of creation: Tue Oct 25 10:37:05 2022
 ##########################################################################
 ##########################################################################
-cal_sample_means = function(cpm, conds = c("mUA", "mLA", "mHand") )
+cal_sample_means = function(cpm, conds = c("mUA", "mLA", "mHand"))
 {
   sample.means = c()
   for(n in 1:length(conds)) 
@@ -22,8 +22,8 @@ cal_sample_means = function(cpm, conds = c("mUA", "mLA", "mHand") )
   }
   colnames(sample.means) = conds
   return(sample.means)
+  
 }
-
 
 
 ##########################################

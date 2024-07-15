@@ -29,7 +29,7 @@ require(dplyr)
 require(stringr)
 require(tidyr)
 library(Seurat)
-library(viridis) 
+library(viridis)
 
 #library(DropletUtils)
 library(future)
@@ -198,9 +198,8 @@ if(Filter_weirdCluster){
   
 }
 
+## explore the umap parameters
 aa = readRDS(file = paste0(RdataDir, 'seuratObj_clustersFiltered_umapOverview.rds'))
-
-
 source(paste0(functionDir, '/functions_scRNAseq.R'))
 
 explore.umap.params.combination(sub.obj = aa, resDir = outDir, 
@@ -216,8 +215,9 @@ explore.umap.params.combination(sub.obj = aa, resDir = outDir,
 )
 
 
-p1 = DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'condition', raster=FALSE)
-p2 = DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'seurat_clusters', raster=FALSE)
+
+DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'condition', raster=FALSE, cols = cols)
+DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'seurat_clusters', raster=FALSE)
 p1 + p2
 
 
@@ -301,7 +301,6 @@ ggsave(paste0("../results/plots_MondaySeminar",
 saveRDS(aa, file = paste0(RdataDir, 
                           'seuratObject_merged_cellFiltered_doublet.rm_mt.ribo.geneFiltered_regressout.nCounts_',
                           'cellCycleScoring_annot.v1_savedUMAP.v1_', species, version.analysis, '.rds'))
-
 
 
 ########################################################
