@@ -200,72 +200,88 @@ if(Filter_weirdCluster){
 
 ## explore the umap parameters
 aa = readRDS(file = paste0(RdataDir, 'seuratObj_clustersFiltered_umapOverview.rds'))
-source(paste0(functionDir, '/functions_scRNAseq.R'))
 
+source(paste0(functionDir, '/functions_scRNAseq.R'))
 explore.umap.params.combination(sub.obj = aa, resDir = outDir, 
-                                pdfname = 'UMAP_test_allSamples.pdf',
+                                pdfname = 'UMAP_test_allSamples_selectedParameters.pdf',
                                 use.parallelization = FALSE,
                                 group.by = 'condition',
                                 cols = cols, 
                                 weight.by.var = TRUE,
-                                nfeatures.sampling = c(2000, 3000, 5000),
-                                nb.pcs.sampling = c(20, 30, 50), 
-                                n.neighbors.sampling = c(30, 50, 100),
-                                min.dist.sampling = c(0.1, 0.3)
+                                nfeatures.sampling = c(5000),
+                                nb.pcs.sampling = c(30), 
+                                n.neighbors.sampling = c(100),
+                                min.dist.sampling = c(0.1)
 )
 
 
-
 DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'condition', raster=FALSE, cols = cols)
-DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'seurat_clusters', raster=FALSE)
-p1 + p2
-
-
-aa <- FindVariableFeatures(aa, selection.method = "vst", nfeatures = 5000) # find subset-specific HVGs
 
 ## because the data was regressed and scaled already, only the HVGs were used to calculate PCA
-aa <- RunPCA(aa, features = VariableFeatures(object = aa), verbose = FALSE, weight.by.var = FALSE)
-ElbowPlot(aa, ndims = 50)
-
-Idents(aa) = aa$condition
-
-aa <- RunUMAP(aa, dims = 1:30, n.neighbors = 30, min.dist = 0.1)
-DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'condition', cols = cols_sel, raster=FALSE)
-
-ggsave(filename = paste0(outDir, 'UMAP_rmDoublet_rmRiboMT_regressed.nCounts_annot.v1_',
-                         'subsetting.RAsymmetryBreaking.onlyday3rep1',
-                         version.analysis, '.pdf'), 
-       width = 10, height = 8)
-
-saveRDS(aa, file = paste0(RdataDir, 
-                          'seuratObject_RA.symmetry.breaking_doublet.rm_mt.ribo.filtered_regressout.nCounts_',
-                          'cellCycleScoring_annot.v2_',
-                          species, version.analysis, '.rds'))
-
-
-
-Idents(aa) = factor(aa$condition, levels = levels)
-aa$condition = factor(aa$condition, levels = levels)
-
-
-aa =  readRDS(file = paste0(RdataDir, 
-                            'seuratObject_merged_cellFiltered_doublet.rm_mt.ribo.geneFiltered_regressout.nCounts_',
-                            'cellCycleScoring_annot.v1_', species, version.analysis, '.rds'))
-
+## test Hannah's umap parameter: nfeatures = 5000;nb.pcs=30;n.neighbors = 100; min.dist = 0.1
 aa <- FindVariableFeatures(aa, selection.method = "vst", nfeatures = 5000) # find subset-specific HVGs
-## because the data was regressed and scaled already, only the HVGs were used to calculate PCA
+
 aa <- RunPCA(aa, features = VariableFeatures(object = aa), verbose = FALSE, weight.by.var = TRUE)
 ElbowPlot(aa, ndims = 50)
 
 Idents(aa) = aa$condition
 
-#aa <- RunUMAP(aa, dims = 1:50, n.neighbors = 50, min.dist = 0.1)
-#aa <- RunUMAP(aa, dims = 1:30, n.neighbors = 100, min.dist = 0.1)
-# aa <- RunUMAP(aa, dims = 1:50, n.neighbors = 50, min.dist = 0.2)
-# aa <- RunUMAP(aa, dims = 1:50, n.neighbors = 50, min.dist = 0.3)
-#aa <- RunUMAP(aa, dims = 1:50, n.neighbors = 100, min.dist = 0.2)
-aa <- RunUMAP(aa, dims = 1:30, n.neighbors = 30, min.dist = 0.1)
+aa <- RunUMAP(aa, dims = 1:30, n.neighbors = 100, min.dist = 0.1, spread = 1)
+
+DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'condition', cols = cols, raster=FALSE)
+
+ggsave(filename = paste0(resDir, '/scRNAseq_overview_allSamples', version.analysis, '.pdf'), 
+       width = 10, height = 8)
+
+saveRDS(aa, file = paste0(RdataDir, 
+                          'seuratObj_clustersFiltered_umapOverview_selectedUmapParams.rds'))
+
+
+Idents(aa) = factor(aa$condition, levels = levels)
+aa$condition = factor(aa$condition, levels = levels)
+
+##########################################
+# plot some features
+##########################################
+aa = readRDS(file = paste0(RdataDir, 
+                           'seuratObj_clustersFiltered_umapOverview_selectedUmapParams.rds'))
+
+Idents(aa) = aa$condition
+
 DimPlot(aa, cols = cols, group.by = 'condition', label = TRUE, repel = TRUE, raster = FALSE)
+
+#features = c('Pou5f1', 'Sox2', 'Lef1', 'Otx2', 'Zfp703', 'Pax6', 'Foxa2', 'Shh', 'Nkx6-1', 'Nkx2-2', 'Olig2', 
+#             'Sox1', 'Tubb3', 'Bmp4', 'Bmp7', 'Nog', 'Pax3', 'Pax7', 'Arx')
+features = c('Pou5f1', 'Sox2', 'Nanog', 'Zfp42', 'Klf4', 'Esrrb', 'Nr0b1', 'Dazl', 
+             'Pou3f1', 'Otx2', 'Klf2', 'Klf5', 'Etv4', 'Etv5')
+#features = c('Pou5f1', 'Sox2', 'Lef1', 'Otx2', 'Zfp703', 'Pax6', 'Foxa2', 'Shh', 'Nkx6-1', 'Nkx2-2', 'Olig2', 
+#             'Sox1', 'Tubb3', 'Bmp4', 'Bmp7', 'Nog', 'Pax3', 'Pax7', 'Arx')
+#features = c('Pou5f1', 'Sox2', 'Nanog', 'Zfp42', 'Klf4', 'Esrrb', 'Nr0b1', 'Dazl', 
+#             'Pou3f1', 'Otx2', 'Klf2', 'Klf5', 'Etv4', 'Etv5')
+
+features = c('Foxa2', 'Shh', 'Arx', 'Pax6', 'Sox1', 'Nkx2-2', 'Nkx6-1', 'Olig2', 'Tubb3', 
+             'Map2', 'Rbfox3', 'Irx3', 'Irx5', 'Sp8', 'Dbx2', 'Msx2', 'Lmx1b', 'Pax3', 'Pax7', 
+             'Sox2', 'Elavl3', 'Sox10', 'Tlx2', 'Six1', 'Bmp4', 'Bmp7', 'Wnt1', 'Olig3')
+
+features = c('Foxa2', 'Shh', 'Arx', 'Ferd3l', 'Lmx1b', 'Sox2', 'Nkx6-1', 
+             'Tubb3', 'Elavl3') # floor plate markers
+
+#features = c('Pou5f1', 'Sox2', 'Lef1', 'Otx2', 'Zfp703', 'Pax6', 'Foxa2', 'Shh', 'Nkx6-1', 'Nkx2-2', 'Olig2', 
+#             'Sox1', 'Tubb3', 'Bmp4', 'Bmp7', 'Nog', 'Pax3', 'Pax7', 'Arx')
+#features = c('Pou5f1', 'Sox2', 'Nanog', 'Zfp42', 'Klf4', 'Esrrb', 'Nr0b1', 'Dazl', 
+#             'Pou3f1', 'Otx2', 'Klf2', 'Klf5', 'Etv4', 'Etv5')
+
+features = c('Foxa2', 'Shh', 'Arx', 'Pax6', 'Sox1', 'Nkx2-2', 'Nkx6-1', 'Olig2', 'Tubb3', 
+             'Map2', 'Rbfox3', 'Irx3', 'Irx5', 'Sp8', 'Dbx2', 'Msx2', 'Lmx1b', 'Pax3', 'Pax7', 
+             'Sox2', 'Elavl3', 'Sox10', 'Tlx2', 'Six1', 'Bmp4', 'Bmp7', 'Wnt1', 'Olig3')
+
+features = c('Foxa2', 'Shh', 'Arx', 'Ferd3l', 'Lmx1b', 'Sox2', 'Nkx6-1', 
+             'Tubb3', 'Elavl3') # floor plate markers
+features = unique(c('Sox2', 'Sox1', 'Tubb3', 'Elavl3', 
+                    'Irx3', 'Irx5', 'Pax3', 'Pax7',
+                    'Pax6', 'Olig2', 'Nkx2-9', 'Nkx2-2', 
+                    'Nkx6-1', 'Foxa2', 'Arx', 'Shh'
+)) # DV overview
 
 
 DimPlot(aa, cols = cols, group.by = 'condition', label = TRUE, repel = TRUE, raster = FALSE) +
@@ -283,24 +299,6 @@ ggsave(paste0("../results/plots_MondaySeminar",
               '/UMAP_condition_toUse.pdf'),  width=8, height = 6) 
 
 
-DimPlot(aa, cols = cols, group.by = 'condition', label = FALSE, repel = TRUE, raster = FALSE) +
-  theme(axis.text.x = element_text(angle = 0, size = 14), 
-        axis.text.y = element_text(angle = 0, size = 14), 
-        axis.title =  element_text(size = 14),
-        legend.text = element_text(size=12),
-        legend.title = element_text(size = 14)
-        #legend.position=c(0.2, 0.8),
-        #plot.margin = margin()
-        #legend.key.size = unit(1, 'cm')
-        #legend.key.width= unit(1, 'cm')
-  )
-ggsave(paste0("../results/plots_MondaySeminar", 
-              '/UMAP_condition_toUse_noLabel.pdf'),  width=8, height = 6) 
-
-
-saveRDS(aa, file = paste0(RdataDir, 
-                          'seuratObject_merged_cellFiltered_doublet.rm_mt.ribo.geneFiltered_regressout.nCounts_',
-                          'cellCycleScoring_annot.v1_savedUMAP.v1_', species, version.analysis, '.rds'))
 
 
 ########################################################
