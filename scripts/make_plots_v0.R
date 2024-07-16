@@ -45,6 +45,7 @@ levels = c("day0_beforeRA", "day1_beforeRA",
 cols = readRDS(file = '../results/Rdata/color_scheme_4scRNAseq.rds')
 load(file = '../results/Rdata/tfs_sps_geneExamples_4scRNAseq.Rdata')
 
+
 ########################################################
 ########################################################
 # Section I: overview of scRNA-seq data and feature highlight
@@ -250,38 +251,27 @@ Idents(aa) = aa$condition
 
 DimPlot(aa, cols = cols, group.by = 'condition', label = TRUE, repel = TRUE, raster = FALSE)
 
-#features = c('Pou5f1', 'Sox2', 'Lef1', 'Otx2', 'Zfp703', 'Pax6', 'Foxa2', 'Shh', 'Nkx6-1', 'Nkx2-2', 'Olig2', 
-#             'Sox1', 'Tubb3', 'Bmp4', 'Bmp7', 'Nog', 'Pax3', 'Pax7', 'Arx')
-features = c('Pou5f1', 'Sox2', 'Nanog', 'Zfp42', 'Klf4', 'Esrrb', 'Nr0b1', 'Dazl', 
-             'Pou3f1', 'Otx2', 'Klf2', 'Klf5', 'Etv4', 'Etv5')
-#features = c('Pou5f1', 'Sox2', 'Lef1', 'Otx2', 'Zfp703', 'Pax6', 'Foxa2', 'Shh', 'Nkx6-1', 'Nkx2-2', 'Olig2', 
-#             'Sox1', 'Tubb3', 'Bmp4', 'Bmp7', 'Nog', 'Pax3', 'Pax7', 'Arx')
-#features = c('Pou5f1', 'Sox2', 'Nanog', 'Zfp42', 'Klf4', 'Esrrb', 'Nr0b1', 'Dazl', 
-#             'Pou3f1', 'Otx2', 'Klf2', 'Klf5', 'Etv4', 'Etv5')
+features = c('Pou5f1', 'Sox2', 'Lef1', 'Otx2', 'Zfp703', 'Pax6', 'Foxa2', 'Shh', 'Nkx6-1', 'Nkx2-2', 'Olig2', 
+             'Sox1', 'Tubb3', 'Bmp4', 'Bmp7', 'Nog', 'Pax3', 'Pax7', 'Arx')
+features = c(features, c('Pou5f1', 'Sox2', 'Nanog', 'Zfp42', 'Klf4', 'Esrrb', 'Nr0b1', 'Dazl', 
+             'Pou3f1', 'Otx2', 'Klf2', 'Klf5', 'Etv4', 'Etv5'))
 
-features = c('Foxa2', 'Shh', 'Arx', 'Pax6', 'Sox1', 'Nkx2-2', 'Nkx6-1', 'Olig2', 'Tubb3', 
+features = c(features, c('Foxa2', 'Shh', 'Arx', 'Pax6', 'Sox1', 'Nkx2-2', 'Nkx6-1', 'Olig2', 'Tubb3', 
              'Map2', 'Rbfox3', 'Irx3', 'Irx5', 'Sp8', 'Dbx2', 'Msx2', 'Lmx1b', 'Pax3', 'Pax7', 
-             'Sox2', 'Elavl3', 'Sox10', 'Tlx2', 'Six1', 'Bmp4', 'Bmp7', 'Wnt1', 'Olig3')
+             'Sox2', 'Elavl3', 'Sox10', 'Tlx2', 'Six1', 'Bmp4', 'Bmp7', 'Wnt1', 'Olig3'))
 
-features = c('Foxa2', 'Shh', 'Arx', 'Ferd3l', 'Lmx1b', 'Sox2', 'Nkx6-1', 
-             'Tubb3', 'Elavl3') # floor plate markers
+features = c(features, c('Foxa2', 'Shh', 'Arx', 'Ferd3l', 'Lmx1b', 'Sox2', 'Nkx6-1', 
+             'Tubb3', 'Elavl3')) # floor plate markers
 
-#features = c('Pou5f1', 'Sox2', 'Lef1', 'Otx2', 'Zfp703', 'Pax6', 'Foxa2', 'Shh', 'Nkx6-1', 'Nkx2-2', 'Olig2', 
-#             'Sox1', 'Tubb3', 'Bmp4', 'Bmp7', 'Nog', 'Pax3', 'Pax7', 'Arx')
-#features = c('Pou5f1', 'Sox2', 'Nanog', 'Zfp42', 'Klf4', 'Esrrb', 'Nr0b1', 'Dazl', 
-#             'Pou3f1', 'Otx2', 'Klf2', 'Klf5', 'Etv4', 'Etv5')
-
-features = c('Foxa2', 'Shh', 'Arx', 'Pax6', 'Sox1', 'Nkx2-2', 'Nkx6-1', 'Olig2', 'Tubb3', 
+features = c(features, c('Foxa2', 'Shh', 'Arx', 'Pax6', 'Sox1', 'Nkx2-2', 'Nkx6-1', 'Olig2', 'Tubb3', 
              'Map2', 'Rbfox3', 'Irx3', 'Irx5', 'Sp8', 'Dbx2', 'Msx2', 'Lmx1b', 'Pax3', 'Pax7', 
-             'Sox2', 'Elavl3', 'Sox10', 'Tlx2', 'Six1', 'Bmp4', 'Bmp7', 'Wnt1', 'Olig3')
+             'Sox2', 'Elavl3', 'Sox10', 'Tlx2', 'Six1', 'Bmp4', 'Bmp7', 'Wnt1', 'Olig3'))
 
-features = c('Foxa2', 'Shh', 'Arx', 'Ferd3l', 'Lmx1b', 'Sox2', 'Nkx6-1', 
-             'Tubb3', 'Elavl3') # floor plate markers
-features = unique(c('Sox2', 'Sox1', 'Tubb3', 'Elavl3', 
+features = unique(c(features, c('Sox2', 'Sox1', 'Tubb3', 'Elavl3', 
                     'Irx3', 'Irx5', 'Pax3', 'Pax7',
                     'Pax6', 'Olig2', 'Nkx2-9', 'Nkx2-2', 
                     'Nkx6-1', 'Foxa2', 'Arx', 'Shh'
-)) # DV overview
+))) # DV overview
 
 
 DimPlot(aa, cols = cols, group.by = 'condition', label = TRUE, repel = TRUE, raster = FALSE) +
@@ -295,9 +285,9 @@ DimPlot(aa, cols = cols, group.by = 'condition', label = TRUE, repel = TRUE, ras
         #legend.key.size = unit(1, 'cm')
         #legend.key.width= unit(1, 'cm')
   )
+
 ggsave(paste0("../results/plots_MondaySeminar", 
               '/UMAP_condition_toUse.pdf'),  width=8, height = 6) 
-
 
 
 
@@ -307,7 +297,6 @@ ggsave(paste0("../results/plots_MondaySeminar",
 # 
 ########################################################
 ########################################################
-
 saveRDS(aa, file = paste0(RdataDir, 
                           'seuratObject_RA.vs.noRA.bifurcation_doublet.rm_mt.ribo.filtered_regressout.nCounts_',
                           'cellCycleScoring_annot.v1_reduction.DM_princurves_',
