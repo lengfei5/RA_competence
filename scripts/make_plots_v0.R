@@ -244,12 +244,16 @@ aa$condition = factor(aa$condition, levels = levels)
 ##########################################
 # plot some features
 ##########################################
+outDir = paste0(resDir, '/scRNAseq_featurePlots/')
+if(!dir.exists(outDir)) dir.create(outDir)
+
 aa = readRDS(file = paste0(RdataDir, 
                            'seuratObj_clustersFiltered_umapOverview_selectedUmapParams.rds'))
 
 Idents(aa) = aa$condition
 
 DimPlot(aa, cols = cols, group.by = 'condition', label = TRUE, repel = TRUE, raster = FALSE)
+
 
 features = c('Pou5f1', 'Sox2', 'Lef1', 'Otx2', 'Zfp703', 'Pax6', 'Foxa2', 'Shh', 'Nkx6-1', 'Nkx2-2', 'Olig2', 
              'Sox1', 'Tubb3', 'Bmp4', 'Bmp7', 'Nog', 'Pax3', 'Pax7', 'Arx')
@@ -273,6 +277,27 @@ features = unique(c(features, c('Sox2', 'Sox1', 'Tubb3', 'Elavl3',
                     'Nkx6-1', 'Foxa2', 'Arx', 'Shh'
 ))) # DV overview
 
+for(n in 1:length(features))
+{
+  # n = 1
+  cat(n, ' -- gene ', features[n], '\n')
+  FeaturePlot(aa, features = features[n]) + 
+    scale_color_viridis_c() +
+    theme(axis.text.x = element_text(angle = 0, size = 14), 
+          axis.text.y = element_text(angle = 0, size = 14), 
+          axis.title =  element_text(size = 14),
+          legend.text = element_text(size=12),
+          legend.title = element_text(size = 14)
+          #legend.position=c(0.2, 0.8),
+          #plot.margin = margin()
+          #legend.key.size = unit(1, 'cm')
+          #legend.key.width= unit(1, 'cm')
+    )
+  
+  ggsave(paste0(outDir, '/FeaturePlot_allSamples_', features[n], '.pdf'),  width=8, height = 6)
+  
+  
+}
 
 DimPlot(aa, cols = cols, group.by = 'condition', label = TRUE, repel = TRUE, raster = FALSE) +
   theme(axis.text.x = element_text(angle = 0, size = 14), 
@@ -843,8 +868,6 @@ ggplot(hete, aes(x= condition, y=dists, fill = treament)) +
 
 ggsave(filename = paste0(resDir, '/pairwise_distance_pst.palantir.Bins_', length(bins), 
                          '.bins.pdf'), width = 12, height = 8) 
-
-
 
 
 
