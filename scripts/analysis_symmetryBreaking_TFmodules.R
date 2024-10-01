@@ -30,6 +30,10 @@ levels_sels = c("day2_beforeRA", "day2.5_RA", "day3_RA.rep1", "day3.5_RA", "day4
 names(cols) = levels
 cols_sel = cols[match(levels_sels, names(cols))]
 
+
+##########################################
+# import the all data for RA treatment
+##########################################
 #aa = readRDS(file = paste0(RdataDir,
 #                           'seuratObject_merged_cellFiltered_doublet.rm_mt.ribo.geneFiltered_regressout.nCounts_',
 #                           'cellCycleScoring_annot.v1_savedUMAP.subs.v2_', species, version.analysis, '.rds'))
@@ -38,9 +42,7 @@ aa = readRDS(file = paste0(RdataDir,
                            'cellCycleScoring_annot.v2_newUMAP_clusters_time_d2.to.d6_',
                            species, version.analysis, '.rds'))
 
-##########################################
-# import the all data for RA treatment
-##########################################
+
 DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'condition', raster=FALSE, pt.size = 1)
 
 ggsave(filename = paste0(outDir, '/UMAP_conditions.pdf'), 
@@ -118,6 +120,7 @@ if(Clean_Subset_for_scFates){
   # first subset the cells 
   table(aa$condition)
   Idents(aa) = aa$condition
+  
   aa = subset(aa, downsample = 2000)
   
   table(aa$condition)
@@ -251,9 +254,61 @@ if(Clean_Subset_for_scFates){
   
 }
 
+
 ########################################################
 ########################################################
-# Section I : narrow down the TFs and SPs
+# Section I: plot the gene-gene correlation of scFates  
+# 
+########################################################
+########################################################
+library(data.table)
+
+dataDir = paste0(outDir, 'd2.5_d5_TFs_SPs_regressed.CellCycle_v1/')
+aa = readRDS(file = paste0(dataDir, 
+                           'seuratObject_RA.symmetry.breaking_doublet.rm_mt.ribo.filtered',
+                           '_regressout.nCounts_cellCycleScoring_annot.v2_newUMAP_clusters_time_',
+                           'd2.5_d5_regressed.CellCycle_v1.rds'))
+
+#fit = read.csv(file = paste0(dataDir, 'annData_layer_fitted.csv'), header = TRUE, row.names = c(1))
+fit = read.csv(file = paste0(dataDir, 'annData_magic_impuated.csv'), 
+                    header = TRUE, row.names = c(1))
+
+USE_MAGIC_allGenes = TRUE
+if(USE_MAGIC_allGenes){
+  fit.all = fread(file = paste0(dataDir, 'annData_magic_impuated_allGenes.csv'), header = TRUE)
+  fit.all = data.frame(fit.all)
+  rownames(fit.all) = fit.all$V1
+  fit.all = fit.all[, -1]
+  fit.sel = fit.all[, match(colnames(fit), colnames(fit.all))]
+  #fit.sel = data.frame(fit.sel)
+  fit = fit.sel
+  
+  rm(fit.all)
+  rm(fit.sel)
+  #rownames(impuated) = rownames(fit)
+  #colnames(impuated) = colnames(fit)
+  #fit = impuated
+}
+
+
+pst = read.csv(file = paste0(dataDir, 'annData_pseudotime_segments_milestones.csv'), header = TRUE,
+               row.names = c(1))
+
+assign = read.csv(file = paste0(dataDir, 'annData_cellAssignment_to_nonIntersectingWindows_8.csv'),
+                  header = TRUE, row.names = c(1))
+
+
+#fit = t(aa@assays$RNA@data)
+
+p = make_scatterplot_scFates(geneA = 'Foxa2', geneB = 'Pax6', fit, assign, pst)
+
+ggsave(filename = paste0(outDir, 'gene_gene_correlation_scFates_Foxa2_Pax6.pdf'),
+       width = 10, height = 8)
+
+
+########################################################
+########################################################
+# Section II : narrow down the TFs and SPs
 # 
 ########################################################
 ########################################################

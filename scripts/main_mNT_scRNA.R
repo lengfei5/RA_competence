@@ -55,7 +55,7 @@ cols[grep('_noRA', names(cols))] = colorRampPalette((brewer.pal(n = 6, name ="Bl
 cols[grep('_RA', names(cols))] = colorRampPalette((brewer.pal(n = 7, name ="OrRd")))(7)
 
 cols = readRDS(file = '../results/Rdata/color_scheme_4scRNAseq.rds')
-save(tfs, sps, gene_examples, file = '../results/Rdata/tfs_sps_geneExamples_4scRNAseq.Rdata')
+load(file = '../results/Rdata/tfs_sps_geneExamples_4scRNAseq.Rdata')
 
 
 ##########################################
