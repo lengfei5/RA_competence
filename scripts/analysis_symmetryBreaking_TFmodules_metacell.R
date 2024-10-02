@@ -83,9 +83,10 @@ FeatureScatter(aa, feature1 = "Pax6", feature2 = "Sox1", group.by = 'condition')
 ##########################################
 # clean and subset the samples for scFates test 
 ##########################################
-data_version = 'd3_d5_TFs_SPs_regressingCellCycle_v1'
+data_version = 'd2.5_d5_TFs_SPs_metacell_v1'
 
 system(paste0('mkdir -p ', outDir, data_version))
+
 
 Clean_Subset_for_scFates = FALSE
 if(Clean_Subset_for_scFates){
@@ -106,11 +107,10 @@ if(Clean_Subset_for_scFates){
                                                aa$condition != 'day2_beforeRA' & 
                                                aa$condition != 'day6_RA')])
   
-  aa = subset(aa, cells = colnames(aa)[which(aa$celltypes != '8' & aa$celltypes != '9' & 
-                                               aa$condition != 'day2_beforeRA' &
-                                               aa$condition != 'day2.5_RA' &
-                                               aa$condition != 'day6_RA')])
-  
+  # aa = subset(aa, cells = colnames(aa)[which(aa$celltypes != '8' & aa$celltypes != '9' & 
+  #                                              aa$condition != 'day2_beforeRA' &
+  #                                              aa$condition != 'day2.5_RA' &
+  #                                              aa$condition != 'day6_RA')])
   
   # aa = subset(aa, cells = colnames(aa)[which(aa$celltypes != '8' & aa$celltypes != '9' & 
   #                                              aa$condition != 'day2_beforeRA' & 
@@ -121,12 +121,114 @@ if(Clean_Subset_for_scFates){
   table(aa$condition)
   Idents(aa) = aa$condition
   
-  aa = subset(aa, downsample = 2000)
+  ## test metacell approach 
+  ## original code from 
+  ## https://gfellerlab.github.io/MetacellAnalysisTutorial/Metacell-
+  ## construction-chapter.html#SuperCell-construction
+  library(SuperCell)
+  sc_data = aa
+  annotation_label = 'condition'
+  
+  #sc_data <- NormalizeData(sc_data, normalization.method = "LogNormalize")
+  sc_data <- FindVariableFeatures(sc_data, nfeatures = 2000)
+  #sc_data <- ScaleData(sc_data)
+  #> Centering and scaling data matrix
+  sc_data <- RunPCA(sc_data, npcs = 50, verbose = F)
+  sc_data <- RunUMAP(sc_data, reduction = "pca", dims = c(1:30), n.neighbors = 30, verbose = F)
+  #> Warning: The default method for RunUMAP has changed from calling Python UMAP via reticulate to the R-native UWOT using the cosine metric
+  #> To use Python UMAP via reticulate, set umap.method to 'umap-learn' and metric to 'correlation'
+  #> This message will be shown once per session
+  UMAPPlot(sc_data, group.by = "condition")
+  
+  gamma = 50 # the requested graining level.
+  k_knn = 30 # the number of neighbors considered to build the knn network.
+  nb_var_genes = 2000 # number of the top variable genes to use for dimensionality reduction 
+  nb_pc = 30 # the number of principal components to use.   
+  
+  MC <- SuperCell::SCimplify(Seurat::GetAssayData(sc_data, slot = "data"),  
+                             k.knn = k_knn,
+                             gamma = gamma,
+                             # n.var.genes = nb_var_genes,  
+                             n.pc = nb_pc,
+                             genes.use = Seurat::VariableFeatures(sc_data)
+  )
+  
+  MC.GE <- supercell_GE(Seurat::GetAssayData(sc_data, slot = "counts"),
+                        MC$membership,
+                        mode =  "sum"
+  )
+  dim(MC.GE) 
+  
+  
+  print(annotation_label)
+  
+  MC$annotation <- supercell_assign(clusters = sc_data@meta.data[, annotation_label], # single-cell annotation
+                                    supercell_membership = MC$membership, # single-cell assignment to metacells
+                                    method = "absolute"
+  )
+  
+  head(MC$annotation)
+  
+  supercell_plot(
+    MC$graph.supercells, 
+    group = MC$annotation, 
+    seed = 1, 
+    alpha = -pi/2,
+    main  = "Metacells colored by condition"
+  )
+  
+  ## save the metacell result
+  colnames(MC.GE) <- as.character(1:ncol(MC.GE))
+  MC.seurat <- CreateSeuratObject(counts = MC.GE, 
+                                  meta.data = data.frame(size = as.vector(table(MC$membership)))
+  )
+  MC.seurat[[annotation_label]] <- MC$annotation
+  
+  # save single-cell membership to metacells in the MC.seurat object
+  MC.seurat@misc$cell_membership <- data.frame(row.names = names(MC$membership), membership = MC$membership)
+  MC.seurat@misc$var_features <- MC$genes.use 
+  
+  # Save the PCA components and genes used in SCimplify  
+  PCA.res <- irlba::irlba(scale(Matrix::t(sc_data@assays$RNA@data[MC$genes.use, ])), nv = nb_pc)
+  pca.x <- PCA.res$u %*% diag(PCA.res$d)
+  rownames(pca.x) <- colnames(sc_data@assays$RNA@data)
+  
+  MC.seurat@misc$sc.pca <- CreateDimReducObject(
+    embeddings = pca.x,
+    loadings = PCA.res$v,
+    key = "PC_",
+    assay = "RNA"
+  )
+  
+  if(packageVersion("Seurat") >= 5) {
+    MC.seurat[["RNA"]] <- as(object = MC.seurat[["RNA"]], Class = "Assay")
+  }
+  
+  saveRDS(MC.seurat, file = paste0(outDir, data_version,
+                                   '/seuratObject_RA.symmetry.breaking_doublet.rm_mt.ribo.filtered_regressout.nCounts_',
+                                   'cellCycleScoring_annot.v2_newUMAP_clusters_time_metacell_SuperCell',
+                                   '.rds'))
+  
+  
+  aa = readRDS(file = paste0(outDir, data_version,
+                             '/seuratObject_RA.symmetry.breaking_doublet.rm_mt.ribo.filtered_regressout.nCounts_',
+                             'cellCycleScoring_annot.v2_newUMAP_clusters_time_metacell_SuperCell',
+                             '.rds'))
+  
+  #aa = subset(aa, downsample = 2000)
   
   table(aa$condition)
   
+  aa <- NormalizeData(aa)
+  aa <- FindVariableFeatures(aa, selection.method = "vst", nfeatures = 2000)
+  
+  aa <- ScaleData(aa, vars.to.regress = 'nCount_RNA')
+  
   # rerun the umap 
-  aa <- FindVariableFeatures(aa, selection.method = "vst", nfeatures = 2000) # find subset-specific HVGs
+  #aa <- FindVariableFeatures(aa, selection.method = "vst", nfeatures = 2000) # find subset-specific HVGs
+  xx =data.frame(aa@assays$RNA@data)
+  jj = which(rownames(xx) == 'Foxa2'|rownames(xx) == 'Pax6')
+  plot(as.numeric(xx[jj[1],]), as.numeric(xx[jj[2], ]))
   
   ## because the data was regressed and scaled already, only the HVGs were used to calculate PCA
   aa <- RunPCA(aa, features = VariableFeatures(object = aa), verbose = FALSE, weight.by.var = FALSE)
@@ -134,7 +236,7 @@ if(Clean_Subset_for_scFates){
   
   Idents(aa) = aa$condition
   
-  aa <- RunUMAP(aa, dims = 1:20, n.neighbors = 30, min.dist = 0.1)
+  aa <- RunUMAP(aa, dims = 1:20, n.neighbors = 50, min.dist = 0.3)
   DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'condition', cols = cols_sel, raster=FALSE)
   
   ggsave(filename = paste0(outDir, data_version, '/UMAP_RAtreatment', data_version, '.pdf'), 
@@ -248,8 +350,8 @@ if(Clean_Subset_for_scFates){
   
   saveRDS(aa, file = paste0(outDir, data_version,
                             '/seuratObject_RA.symmetry.breaking_doublet.rm_mt.ribo.filtered_regressout.nCounts_',
-                            'cellCycleScoring_annot.v2_newUMAP_clusters_time_allGenes_',
-                            data_version, '.rds'))
+                            'cellCycleScoring_annot.v2_newUMAP_clusters_time_metacell_',
+                            '.rds'))
   
   
 }
