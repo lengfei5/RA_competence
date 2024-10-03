@@ -140,7 +140,11 @@ if(Clean_Subset_for_scFates){
   #> This message will be shown once per session
   UMAPPlot(sc_data, group.by = "condition")
   
-  gamma = 30 # the requested graining level.
+  ggsave(filename = paste0(outDir, data_version, '/plot_UMAP_for_metacell.pdf'), 
+         width = 10, height = 6)
+  
+  
+  gamma = 50 # the requested graining level.
   k_knn = 30 # the number of neighbors considered to build the knn network.
   nb_var_genes = 2000 # number of the top variable genes to use for dimensionality reduction 
   nb_pc = 30 # the number of principal components to use.   
@@ -169,16 +173,33 @@ if(Clean_Subset_for_scFates){
   
   head(MC$annotation)
   
+  pdfname = paste0(outDir, data_version, '/plot_metacell_graph.pdf')
+  pdf(pdfname, width=10, height = 6)
+  
   supercell_plot(
     MC$graph.supercells, 
-    group = MC$annotation, 
+    group = MC$annotation,
+    lay.method = 'fr',
     seed = 1, 
     alpha = -pi/2,
     main  = "Metacells colored by condition"
   )
   
+  # supercell_plot_UMAP(
+  #   MC$graph.supercells, 
+  #   group = MC$annotation,
+  #   #lay.method = 'fr',
+  #   #seed = 1, 
+  #   alpha = -pi/2,
+  #   title  = "Metacells colored by condition"
+  # )
+  # 
+  dev.off()
+  
+  
   ## save the metacell result
   colnames(MC.GE) <- as.character(1:ncol(MC.GE))
+  
   MC.seurat <- CreateSeuratObject(counts = MC.GE, 
                                   meta.data = data.frame(size = as.vector(table(MC$membership)))
   )
@@ -208,6 +229,79 @@ if(Clean_Subset_for_scFates){
                                    '/seuratObject_RA.symmetry.breaking_doublet.rm_mt.ribo.filtered_regressout.nCounts_',
                                    'cellCycleScoring_annot.v2_newUMAP_clusters_time_metacell_SuperCell',
                                    '.rds'))
+  
+  
+  ## QC of metacell (https://gfellerlab.github.io/MetacellAnalysisTutorial/QCs.html)
+  QC_metacells = FALSE 
+  if(QC_metacells){
+    library(reticulate)
+    conda_env <-  conda_list()[reticulate::conda_list()$name == "palantir","python"]
+    
+    use_condaenv(conda_env)
+    
+    library(MetacellAnalysisToolkit)
+    
+    mc_data = MC.seurat
+    membership_df <- mc_data@misc$cell_membership
+    
+    mc_data$purity <- mc_purity(membership = membership_df$membership, 
+                                annotation = sc_data@meta.data[, annotation_label])
+    qc_boxplot(mc.obj = mc_data, qc.metrics = "purity")
+    
+    ggsave(filename = paste0(outDir, data_version, '/QCs_metacell_purity.pdf'), 
+           width = 10, height = 6)
+    
+    qc_boxplot(mc.obj = mc_data, qc.metrics = "purity", split.by = annotation_label)
+    ggsave(filename = paste0(outDir, data_version, '/QCs_metacell_purity_condition.pdf'), 
+           width = 10, height = 6)
+    
+    pdfname = paste0(outDir, data_version, '/plot_metacell_sizeDistribution.pdf')
+    pdf(pdfname, width=10, height = 6)
+    
+    # Seurat::VlnPlot(mc_data, features = "size", pt.size = 2)
+    # Seurat::VlnPlot(mc_data, features = "size", pt.size = 2, group.by = annotation_label)
+    hist(mc_data$size, main = "Size distribution", xlab = "Size", breaks = 50)
+    
+    dev.off()
+    
+    
+    # we run diffufion maps on the pca axes saved in the seurat object. 
+    # Note that a matrix containing the PCA components can be provided as well
+    diffusion_comp <- get_diffusion_comp(sc.obj = sc_data, sc.reduction = "pca", dims = 1:30)
+    
+    #> Error in python_config_impl(python) : 
+    #>   Error running '/users/agabrie4/.virtualenvs/r-reticulate/bin/python': No such file.
+    #> The Python installation used to create the virtualenv has been moved or removed:
+    #>   '/usr/bin'
+    #> Warning: The following arguments are not used: layer
+    #> Computing diffusion maps ...
+    mc_data$compactness <- mc_compactness(cell.membership = membership_df, 
+                                          sc.obj = sc_data,
+                                          sc.reduction = diffusion_comp, 
+                                          dims = 1:ncol(diffusion_comp))
+    qc_boxplot(mc.obj = mc_data, qc.metrics = "compactness")
+    
+    
+    sc_data <- RunUMAP(sc_data, reduction = "pca", dims = c(1:30), n.neighbors = 30, 
+                       #min.dist = 0.2, 
+                       verbose = F)
+    UMAPPlot(sc_data, group.by = "condition", cols = cols_sel)
+    
+    pdfname = paste0(outDir, data_version, '/plot_metacell_projection.pdf')
+    pdf(pdfname, width=10, height = 6)
+    
+    mc_projection(
+      sc.obj = sc_data, 
+      mc.obj = mc_data,
+      cell.membership = membership_df,
+      sc.reduction = "umap", 
+      sc.label = unlist(annotation_label), # single cells will be colored according the sc.label  
+      metacell.label = unlist(annotation_label) # metacells cell will be colored according the metacell.label
+    )
+    
+    dev.off()
+    
+  }
   
   
   aa = readRDS(file = paste0(outDir, data_version,

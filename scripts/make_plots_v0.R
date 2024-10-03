@@ -646,6 +646,15 @@ if(Use_pseudotime_palantir){
   
   DimPlot(aa, group.by = 'condition', label = TRUE, cols = cols_sel)
   
+  ## add DM components
+  dm = read.csv(paste0(outDir, 'DM_components_palantir.csv'), row.names = c(1))
+  dm = as.matrix(dm)
+  colnames(dm) = paste0('DM_', c(1:ncol(dm)))
+  
+  aa[["dm"]] <- CreateDimReducObject(embeddings = dm, key = "DM_", assay = DefaultAssay(aa))
+  
+  DimPlot(aa, reduction =  'dm', group.by = 'condition', label = TRUE, cols = cols_sel)
+  
   #aa = subset(aa, idents = levels_sels)
   
   pst = read.csv(paste0(outDir, 'palantir_pseudotime_d2_d5.csv'), row.names = c(1))
@@ -704,6 +713,7 @@ if(Use_pseudotime_palantir){
   aa = subset(aa, cells = colnames(aa)[which(!is.na(aa$pseudot))])
   
   VlnPlot(aa, features = 'pseudot', group.by = 'condition', cols = cols_sel, pt.size = 0.0)
+  
   ggsave(filename = paste0(outDir, 'pseudotime_vs_realTime_palantir.pdf'), width = 10, height = 8)
   
   
@@ -842,13 +852,16 @@ for(n in 1:(length(bins)-1))
 }
 
 
-DimPlot(aa, group.by = 'pst_group', label = TRUE)
+DimPlot(aa, group.by = 'pst_group', label = FALSE) +
+  NoLegend()
 
 source('functions_utility.R')
-hete = calc_heterogeneity_RA.noRA(seuratObj = aa, method = 'pairwiseDist_pca', 
+hete = calc_heterogeneity_RA.noRA(seuratObj = aa, 
+                                  method = 'pairwiseDist_pca', 
                                   subsample.cells = 200, 
                                   #subsample.sketch = FALSE,
-                                  nb_features = 1000, nb_pcs = 20)
+                                  nb_features = 1000, 
+                                  nb_pcs = 20)
 
 hete$condition = factor(hete$condition, 
                            levels = paste0(c('noRA', 'RA'), '_groupPst_', rep(c(1:(length(bins)-1)), 

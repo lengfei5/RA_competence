@@ -646,10 +646,12 @@ if(Test_GENIE3){
 # 
 ########################################################
 ########################################################
-calc_heterogeneity_RA.noRA = function(seuratObj, method = 'pairwiseDist_pca', 
+calc_heterogeneity_RA.noRA = function(seuratObj, 
+                                      method = 'pairwiseDist_pca', 
                                       subsample.cells = 200,
                                       subsample.sketch = FALSE,
-                                      nb_features = 500, nb_pcs = 30)
+                                      nb_features = 500, 
+                                      nb_pcs = 30)
 {
   # seuratObj = aa;method = 'pairwiseDist_pca';subsample.cells = 200;nb_features = 1000;nb_pcs = 30;
   
@@ -744,6 +746,36 @@ calc_heterogeneity_RA.noRA = function(seuratObj, method = 'pairwiseDist_pca',
     colnames(hete)[ncol(hete)] = 'dists'
     hete = as.data.frame(hete)
     
+  }
+  
+  ## original code 
+  ## from https://github.com/GfellerLab/MetacellAnalysisToolkit/blob/main/R/mc_compactness.R
+  if(method == 'DM_compactness'){
+    # cell.membership = membership_df; sc.obj = sc_data; sc.reduction = "pca";
+    # group.label = "membership"; dims=NULL;
+    #dims = 1:ncol(diffusion_comp)
+    
+    sc.reduction <- Seurat::Embeddings(sc.obj,reduction = sc.reduction)
+    if (is.null(dims)) {
+      dims <- c(1:dim(sc.reduction)[2])
+    }
+    
+    # remove MetaCell2 outliers 
+    memberships_without_outliers <- na.exclude(cell.membership)
+    
+    membership_vector <- memberships_without_outliers[, group.label]
+    names(membership_vector) <- rownames(memberships_without_outliers)
+    
+    sc.reduction = sc.reduction[names(membership_vector), dims]
+    
+    centroids <- stats::aggregate(sc.reduction,
+                                  by = list(metacell = membership_vector),
+                                  FUN = var)
+    compactness <- apply(centroids[, -1], 1, mean)
+    names(compactness) <- centroids[, 1]
+    
+    return(compactness)
+      
   }
   
   if(method == 'entropy_metric'){
