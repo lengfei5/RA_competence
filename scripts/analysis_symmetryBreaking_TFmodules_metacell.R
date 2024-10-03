@@ -91,17 +91,17 @@ system(paste0('mkdir -p ', outDir, data_version))
 Clean_Subset_for_scFates = FALSE
 if(Clean_Subset_for_scFates){
   ## remove the cluster 8 and 9 mainly mature neurons and also day6_RA
-  aa = subset(aa, cells = colnames(aa)[which(aa$celltypes != '8' & aa$celltypes != '9' & 
-                                               aa$condition != 'day6_RA')])
-  
-  aa = subset(aa, cells = colnames(aa)[which(aa$celltypes != '8' & aa$celltypes != '9')])
-  
-  aa = subset(aa, cells = colnames(aa)[which(aa$celltypes != '8' & aa$celltypes != '9' & 
-                                               aa$condition != 'day2_beforeRA')])
-  
-  aa = subset(aa, cells = colnames(aa)[which(aa$celltypes != '8' & aa$celltypes != '9' & 
-                                               aa$condition != 'day2_beforeRA' & 
-                                               aa$condition != 'day2.5_RA')])
+  # aa = subset(aa, cells = colnames(aa)[which(aa$celltypes != '8' & aa$celltypes != '9' & 
+  #                                              aa$condition != 'day6_RA')])
+  # 
+  # aa = subset(aa, cells = colnames(aa)[which(aa$celltypes != '8' & aa$celltypes != '9')])
+  # 
+  # aa = subset(aa, cells = colnames(aa)[which(aa$celltypes != '8' & aa$celltypes != '9' & 
+  #                                              aa$condition != 'day2_beforeRA')])
+  # 
+  # aa = subset(aa, cells = colnames(aa)[which(aa$celltypes != '8' & aa$celltypes != '9' & 
+  #                                              aa$condition != 'day2_beforeRA' & 
+  #                                              aa$condition != 'day2.5_RA')])
   
   aa = subset(aa, cells = colnames(aa)[which(aa$celltypes != '8' & aa$celltypes != '9' & 
                                                aa$condition != 'day2_beforeRA' & 
@@ -140,7 +140,7 @@ if(Clean_Subset_for_scFates){
   #> This message will be shown once per session
   UMAPPlot(sc_data, group.by = "condition")
   
-  gamma = 50 # the requested graining level.
+  gamma = 30 # the requested graining level.
   k_knn = 30 # the number of neighbors considered to build the knn network.
   nb_var_genes = 2000 # number of the top variable genes to use for dimensionality reduction 
   nb_pc = 30 # the number of principal components to use.   
@@ -220,29 +220,54 @@ if(Clean_Subset_for_scFates){
   table(aa$condition)
   
   aa <- NormalizeData(aa)
-  aa <- FindVariableFeatures(aa, selection.method = "vst", nfeatures = 2000)
+  aa <- FindVariableFeatures(aa, selection.method = "vst", 
+                             nfeatures = 2000)
   
   aa <- ScaleData(aa, vars.to.regress = 'nCount_RNA')
   
-  # rerun the umap 
-  #aa <- FindVariableFeatures(aa, selection.method = "vst", nfeatures = 2000) # find subset-specific HVGs
-  xx =data.frame(aa@assays$RNA@data)
+  ## double check the Foxa2 and Pax6 levels 
+  xx = data.frame(aa@assays$RNA@data)
   jj = which(rownames(xx) == 'Foxa2'|rownames(xx) == 'Pax6')
   plot(as.numeric(xx[jj[1],]), as.numeric(xx[jj[2], ]))
   
+  
+  ## calculate the cell cycle scoreing
+  s.genes <- firstup(cc.genes$s.genes)
+  s.genes[which(s.genes == 'Mlf1ip')] = 'Cenpu'
+  g2m.genes <- firstup(cc.genes$g2m.genes)
+  
+  aa <- CellCycleScoring(aa, s.features = s.genes, 
+                         g2m.features = g2m.genes, 
+                         set.ident = FALSE)
+  
+  # Visualize the distribution of cell cycle markers across
+  RidgePlot(aa, features = c("Pcna", "Top2a", "Mcm6", "Mki67"),
+            ncol = 2)
+  
+  # Running a PCA on cell cycle genes reveals, unsurprisingly, that cells separate entirely by
+  # phase
+  aa <- RunPCA(aa, features = c(s.genes, g2m.genes))
+  DimPlot(aa, reduction = 'pca', group.by = 'Phase')
+  
   ## because the data was regressed and scaled already, only the HVGs were used to calculate PCA
-  aa <- RunPCA(aa, features = VariableFeatures(object = aa), verbose = FALSE, weight.by.var = FALSE)
+  aa <- RunPCA(aa, features = VariableFeatures(object = aa), 
+               verbose = FALSE, weight.by.var = TRUE)
   ElbowPlot(aa, ndims = 50)
   
   Idents(aa) = aa$condition
   
-  aa <- RunUMAP(aa, dims = 1:20, n.neighbors = 50, min.dist = 0.3)
-  DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'condition', cols = cols_sel, raster=FALSE)
+  aa <- RunUMAP(aa, dims = 1:30, n.neighbors = 50, min.dist = 0.3)
+  DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'condition', 
+          cols = cols_sel, raster=FALSE)
   
-  ggsave(filename = paste0(outDir, data_version, '/UMAP_RAtreatment', data_version, '.pdf'), 
+  ggsave(filename = paste0(outDir, data_version, '/UMAP_RAtreatment', 
+                           data_version, '.pdf'), 
          width = 10, height = 6)
   
-  Discard_cellCycle.corrrelatedGenes = TRUE
+  DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'Phase', 
+          raster=FALSE)
+  
+  Discard_cellCycle.corrrelatedGenes = FALSE
   if(Discard_cellCycle.corrrelatedGenes){
     library(scater)
     Idents(aa) = aa$condition
@@ -277,13 +302,16 @@ if(Clean_Subset_for_scFates){
     
   }else{
     
-    DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'Phase',  raster=FALSE)
+    DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'Phase',  
+            raster=FALSE)
     
     # subset first maybe
     Idents(aa) = aa$condition
     #aa = subset(aa, downsample = 2000)
     
-    aa <- ScaleData(aa, vars.to.regress = c("nCount_RNA", "S.Score", "G2M.Score"), 
+    aa <- ScaleData(aa, vars.to.regress = c("nCount_RNA", 
+                                            "S.Score", 
+                                            "G2M.Score"), 
                     features = rownames(aa))
     
     saveRDS(aa, file = paste0(outDir, data_version,
@@ -299,16 +327,19 @@ if(Clean_Subset_for_scFates){
     
   }
   
-  aa = FindVariableFeatures(aa, selection.method = "vst", nfeatures = 2000)
-  aa <- RunPCA(aa, features = VariableFeatures(object = aa), verbose = FALSE, weight.by.var = FALSE)
+  aa = FindVariableFeatures(aa, selection.method = "vst", 
+                            nfeatures = 2000)
+  
+  aa <- RunPCA(aa, features = VariableFeatures(object = aa), 
+               verbose = FALSE, weight.by.var = FALSE)
   ElbowPlot(aa, ndims = 50)
   Idents(aa) = aa$condition
   
-  aa <- RunUMAP(aa, dims = 1:20, n.neighbors = 30, min.dist = 0.1)
-  #aa <- RunUMAP(aa, dims = 1:20, n.neighbors = 30, min.dist = 0.1)
-  DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'condition', cols = cols_sel, raster=FALSE)
+  aa <- RunUMAP(aa, dims = 1:20, n.neighbors = 50, min.dist = 0.2)
+  DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'condition', 
+          cols = cols_sel, raster=FALSE)
   
-  
+  ## save the object for scFates
   aa$dataset = 'afterRA'
   aa$dataset[which(aa$condition == 'day2.5_RA')] = 'RA'
   aa$dataset[which(aa$condition == 'day2_beforeRA')] = 'beforeRA'
@@ -319,9 +350,7 @@ if(Clean_Subset_for_scFates){
   library(SeuratDisk)
   
   VariableFeatures(mnt) = NULL
-  #mnt@assays$RNA@scale.data = NULL
-  #mnt@assays$RNA@data = NULL
-  
+    
   DefaultAssay(mnt) = 'RNA'
   
   mnt = DietSeurat(mnt, 
@@ -341,7 +370,8 @@ if(Clean_Subset_for_scFates){
   
   #mnt = subset(mnt, downsample = 1000)
   
-  saveFile = paste0('/RNAmatrix_RA_allGenes_', data_version, '.h5Seurat')
+  saveFile = paste0('/RNAmatrix_RA_TFs_SPs_regressedCellCycle', 
+                    data_version, '.h5Seurat')
   
   SaveH5Seurat(mnt, filename = paste0(outDir, data_version,  saveFile), 
                overwrite = TRUE)
@@ -351,7 +381,7 @@ if(Clean_Subset_for_scFates){
   saveRDS(aa, file = paste0(outDir, data_version,
                             '/seuratObject_RA.symmetry.breaking_doublet.rm_mt.ribo.filtered_regressout.nCounts_',
                             'cellCycleScoring_annot.v2_newUMAP_clusters_time_metacell_',
-                            '.rds'))
+                            'cellcycleRegressed.rds'))
   
   
 }
@@ -365,17 +395,17 @@ if(Clean_Subset_for_scFates){
 ########################################################
 library(data.table)
 
-dataDir = paste0(outDir, 'd2.5_d5_TFs_SPs_regressed.CellCycle_v1/')
+dataDir = paste0(outDir, 'd2.5_d5_TFs_SPs_metacell_v1/')
 aa = readRDS(file = paste0(dataDir, 
-                           'seuratObject_RA.symmetry.breaking_doublet.rm_mt.ribo.filtered',
-                           '_regressout.nCounts_cellCycleScoring_annot.v2_newUMAP_clusters_time_',
-                           'd2.5_d5_regressed.CellCycle_v1.rds'))
+                           'seuratObject_RA.symmetry.breaking_doublet.rm_mt.ribo.filtered_',
+                           'regressout.nCounts_cellCycleScoring_annot.v2_newUMAP_clusters_time_',
+                           'metacell_cellcycleRegressed.rds'))
 
 #fit = read.csv(file = paste0(dataDir, 'annData_layer_fitted.csv'), header = TRUE, row.names = c(1))
-fit = read.csv(file = paste0(dataDir, 'annData_magic_impuated.csv'), 
+fit = read.csv(file = paste0(dataDir, 'annData_geneExpr_metacells.csv'), 
                     header = TRUE, row.names = c(1))
 
-USE_MAGIC_allGenes = TRUE
+USE_MAGIC_allGenes = FALSE
 if(USE_MAGIC_allGenes){
   fit.all = fread(file = paste0(dataDir, 'annData_magic_impuated_allGenes.csv'), header = TRUE)
   fit.all = data.frame(fit.all)
@@ -399,13 +429,17 @@ pst = read.csv(file = paste0(dataDir, 'annData_pseudotime_segments_milestones.cs
 assign = read.csv(file = paste0(dataDir, 'annData_cellAssignment_to_nonIntersectingWindows_8.csv'),
                   header = TRUE, row.names = c(1))
 
+rownames(pst) = paste0('X', rownames(pst))
+rownames(fit) = paste0('X', rownames(fit))
 
 #fit = t(aa@assays$RNA@data)
 
-p = make_scatterplot_scFates(geneA = 'Foxa2', geneB = 'Pax6', fit, assign, pst)
 
-ggsave(filename = paste0(outDir, 'gene_gene_correlation_scFates_Foxa2_Pax6.pdf'),
-       width = 10, height = 8)
+source('functions_utility.R')
+p = make_scatterplot_scFates(geneA = 'Foxa2', geneB = 'Nr2f1', fit, assign, pst)
+
+ggsave(filename = paste0(outDir, 'gene_gene_correlation_scFates_Foxa2_Pax6_v2.pdf'),
+       width = 10, height = 6)
 
 
 ########################################################

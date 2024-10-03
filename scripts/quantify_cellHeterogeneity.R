@@ -140,6 +140,7 @@ if(Test_Heteregeneity_pairwiseDist){
       #dists = dists[which(dists>0)]
       
       hete = rbind(hete, data.frame(condition = rep(levels_sels[n], length(dists)), as.numeric(dists)))
+      
     }
     
   }
@@ -413,10 +414,6 @@ ph <- plotmarkergenes(sc, genes=genes, noise=TRUE,
                       zsc=TRUE, 
                       logscale = TRUE)
 dev.off()
-
-
-
-
 
 
 

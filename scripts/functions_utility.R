@@ -802,7 +802,7 @@ make_scatterplot_scFates = function(geneA = 'Foxa2', geneB = 'Pax6', fit, assign
 {
   library(gridExtra)
   
-  # geneA = 'Foxa2'; geneB = 'Pax6'; win_keep=c(2, 3, 4, 5)
+  # geneA = 'Foxa2'; geneB = 'Pax6'; win_keep=c(2:4)
   if(length(!is.na(match(geneA, colnames(fit)))) != 1){
     stop('-- geneA not found --')
   }
@@ -821,7 +821,7 @@ make_scatterplot_scFates = function(geneA = 'Foxa2', geneB = 'Pax6', fit, assign
   cmd = c()
   for(n in win_keep)
   {
-    # n = 3
+    # n = 2
     cells = names(which(assignment == n))
     cells = gsub('[.]', '-', cells)
     mm = match(cells, rownames(fit))
@@ -833,11 +833,12 @@ make_scatterplot_scFates = function(geneA = 'Foxa2', geneB = 'Pax6', fit, assign
     colnames(dat) = c('geneA', 'geneB', 'pseudotime')
     title = paste0('pst-window : ', n)
     eval(parse(text= paste0('p', n,  '=  ggplot(data = dat, aes(x = geneA, y=geneB)) +
-      geom_point(size = 0.5) + 
+      geom_point(size = 1.5, color = "darkorange") + 
       theme_classic() +
       labs(x = geneA, y = geneB ) +
       theme(axis.text.x = element_text(size = 10),
             axis.text.y = element_text(size = 10)) + 
+            theme(aspect.ratio=1) + 
       ggtitle(title)')))
     cmd = c(cmd, paste0('p', n))
            
@@ -845,7 +846,7 @@ make_scatterplot_scFates = function(geneA = 'Foxa2', geneB = 'Pax6', fit, assign
   
   figure = eval(parse(text= paste0(cmd, collapse = '+')))
   
-  plot(figure)
+  plot(figure, nrow = 1)
   
 }
 
