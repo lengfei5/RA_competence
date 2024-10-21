@@ -134,10 +134,9 @@ if(Clean_Subset_for_scFates){
   #sc_data <- ScaleData(sc_data)
   #> Centering and scaling data matrix
   sc_data <- RunPCA(sc_data, npcs = 50, verbose = F)
+  
   sc_data <- RunUMAP(sc_data, reduction = "pca", dims = c(1:30), n.neighbors = 30, verbose = F)
-  #> Warning: The default method for RunUMAP has changed from calling Python UMAP via reticulate to the R-native UWOT using the cosine metric
-  #> To use Python UMAP via reticulate, set umap.method to 'umap-learn' and metric to 'correlation'
-  #> This message will be shown once per session
+  
   UMAPPlot(sc_data, group.by = "condition")
   
   ggsave(filename = paste0(outDir, data_version, '/plot_UMAP_for_metacell.pdf'), 
