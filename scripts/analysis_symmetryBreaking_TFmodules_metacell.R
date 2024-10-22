@@ -25,7 +25,7 @@ source('functions_utility.R')
 outDir = paste0(resDir, '/RA_symetryBreaking/TF_modules/')
 system(paste0('mkdir -p ', outDir))
 
-levels_sels = c("day2_beforeRA", "day2.5_RA", "day3_RA.rep1", "day3.5_RA", "day4_RA", "day5_RA")
+levels_sels = c("day2.5_RA", "day3_RA.rep1", "day3.5_RA", "day4_RA", "day5_RA")
 
 names(cols) = levels
 cols_sel = cols[match(levels_sels, names(cols))]
@@ -84,6 +84,7 @@ FeatureScatter(aa, feature1 = "Pax6", feature2 = "Sox1", group.by = 'condition')
 # clean and subset the samples for scFates test 
 ##########################################
 data_version = 'd2.5_d5_TFs_SPs_metacell_v1'
+#data_version = 'd2.5_d5_TFs_SPs_metacell_v1.5'
 
 system(paste0('mkdir -p ', outDir, data_version))
 
@@ -130,18 +131,34 @@ if(Clean_Subset_for_scFates){
   annotation_label = 'condition'
   
   #sc_data <- NormalizeData(sc_data, normalization.method = "LogNormalize")
-  sc_data <- FindVariableFeatures(sc_data, nfeatures = 2000)
+  sc_data <- FindVariableFeatures(sc_data, nfeatures = 3000)
   #sc_data <- ScaleData(sc_data)
   #> Centering and scaling data matrix
-  sc_data <- RunPCA(sc_data, npcs = 50, verbose = F)
+  sc_data <- RunPCA(sc_data, npcs = 100, verbose = F)
   
-  sc_data <- RunUMAP(sc_data, reduction = "pca", dims = c(1:30), n.neighbors = 30, verbose = F)
-  
+  sc_data <- RunUMAP(sc_data, reduction = "pca", dims = c(1:100), n.neighbors = 50, verbose = F, 
+                     min.dist = 0.2)
   UMAPPlot(sc_data, group.by = "condition")
   
-  ggsave(filename = paste0(outDir, data_version, '/plot_UMAP_for_metacell.pdf'), 
+  ggsave(filename = paste0(outDir, data_version, '/plot_UMAP_for_metacell_v2.pdf'), 
          width = 10, height = 6)
   
+  FeaturePlot(sc_data, features = c('Foxa2', 'Pax6'))
+  
+  
+  # source(paste0(functionDir, '/functions_scRNAseq.R'))
+  # explore.umap.params.combination(sub.obj = sc_data, 
+  #                                 resDir = outDir, 
+  #                                 pdfname = 'UMAP_params_for_metacells.pdf',
+  #                                 use.parallelization = FALSE,
+  #                                 group.by = 'condition',
+  #                                 cols = cols_sel, 
+  #                                 nfeatures.sampling = c(3000, 5000),
+  #                                 nb.pcs.sampling = c(30, 50, 100), 
+  #                                 n.neighbors.sampling = c(30, 50, 100),
+  #                                 min.dist.sampling = c(0.2, 0.3, 0.5)
+  #                                 )
+                                  
   
   gamma = 50 # the requested graining level.
   k_knn = 30 # the number of neighbors considered to build the knn network.
@@ -172,7 +189,7 @@ if(Clean_Subset_for_scFates){
   
   head(MC$annotation)
   
-  pdfname = paste0(outDir, data_version, '/plot_metacell_graph.pdf')
+  pdfname = paste0(outDir, data_version, '/plot_metacell_graph_v2.pdf')
   pdf(pdfname, width=10, height = 6)
   
   supercell_plot(
@@ -227,12 +244,13 @@ if(Clean_Subset_for_scFates){
   saveRDS(MC.seurat, file = paste0(outDir, data_version,
                                    '/seuratObject_RA.symmetry.breaking_doublet.rm_mt.ribo.filtered_regressout.nCounts_',
                                    'cellCycleScoring_annot.v2_newUMAP_clusters_time_metacell_SuperCell',
-                                   '.rds'))
+                                   '_v2.rds'))
   
   
   ## QC of metacell (https://gfellerlab.github.io/MetacellAnalysisTutorial/QCs.html)
   QC_metacells = FALSE 
   if(QC_metacells){
+    
     library(reticulate)
     conda_env <-  conda_list()[reticulate::conda_list()$name == "palantir","python"]
     
@@ -286,7 +304,7 @@ if(Clean_Subset_for_scFates){
                        verbose = F)
     UMAPPlot(sc_data, group.by = "condition", cols = cols_sel)
     
-    pdfname = paste0(outDir, data_version, '/plot_metacell_projection.pdf')
+    pdfname = paste0(outDir, data_version, '/plot_metacell_projection_v2.pdf')
     pdf(pdfname, width=10, height = 6)
     
     mc_projection(
@@ -306,7 +324,7 @@ if(Clean_Subset_for_scFates){
   aa = readRDS(file = paste0(outDir, data_version,
                              '/seuratObject_RA.symmetry.breaking_doublet.rm_mt.ribo.filtered_regressout.nCounts_',
                              'cellCycleScoring_annot.v2_newUMAP_clusters_time_metacell_SuperCell',
-                             '.rds'))
+                             '_v2.rds'))
   
   #aa = subset(aa, downsample = 2000)
   
@@ -314,7 +332,7 @@ if(Clean_Subset_for_scFates){
   
   aa <- NormalizeData(aa)
   aa <- FindVariableFeatures(aa, selection.method = "vst", 
-                             nfeatures = 2000)
+                             nfeatures = 3000)
   
   aa <- ScaleData(aa, vars.to.regress = 'nCount_RNA')
   
@@ -349,12 +367,12 @@ if(Clean_Subset_for_scFates){
   
   Idents(aa) = aa$condition
   
-  aa <- RunUMAP(aa, dims = 1:30, n.neighbors = 50, min.dist = 0.3)
+  aa <- RunUMAP(aa, dims = 1:50, n.neighbors = 50, min.dist = 0.3)
   DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'condition', 
           cols = cols_sel, raster=FALSE)
   
   ggsave(filename = paste0(outDir, data_version, '/UMAP_RAtreatment', 
-                           data_version, '.pdf'), 
+                           '_metacell.pdf'), 
          width = 10, height = 6)
   
   DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'Phase', 
@@ -410,15 +428,21 @@ if(Clean_Subset_for_scFates){
     saveRDS(aa, file = paste0(outDir, data_version,
                           '/seuratObject_RA.symmetry.breaking_doublet.rm_mt.ribo.filtered_regressout.nCounts_',
                               'cellCycleScoring_annot.v2_newUMAP_clusters_time_cellCycole.regression_',
-                              data_version, '.rds'))
+                              'metacells_gamma50', '.rds'))
     
     aa = readRDS(file = paste0(outDir, data_version,
                                '/seuratObject_RA.symmetry.breaking_doublet.rm_mt.ribo.filtered_regressout.nCounts_',
                                'cellCycleScoring_annot.v2_newUMAP_clusters_time_cellCycole.regression_',
-                               data_version, '.rds'))
+                               'metacells_gamma50', '.rds'))
     
     
   }
+  
+  
+  aa = readRDS(file = paste0(outDir, data_version,
+                             '/seuratObject_RA.symmetry.breaking_doublet.rm_mt.ribo.filtered_regressout.nCounts_',
+                             'cellCycleScoring_annot.v2_newUMAP_clusters_time_cellCycole.regression_',
+                             data_version, '.rds'))
   
   aa = FindVariableFeatures(aa, selection.method = "vst", 
                             nfeatures = 2000)
@@ -428,9 +452,16 @@ if(Clean_Subset_for_scFates){
   ElbowPlot(aa, ndims = 50)
   Idents(aa) = aa$condition
   
-  aa <- RunUMAP(aa, dims = 1:20, n.neighbors = 50, min.dist = 0.2)
+  aa <- RunUMAP(aa, dims = 1:30, n.neighbors = 50, min.dist = 0.2)
   DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'condition', 
           cols = cols_sel, raster=FALSE)
+  
+  
+  saveRDS(aa, file = paste0(outDir, data_version,
+                            '/seuratObject_RA.symmetry.breaking_doublet.rm_mt.ribo.filtered_regressout.nCounts_',
+                            'cellCycleScoring_annot.v2_newUMAP_clusters_time_cellCycole.regression_',
+                            'metacells_gamma50', '.rds'))
+  
   
   ## save the object for scFates
   aa$dataset = 'afterRA'
