@@ -820,8 +820,6 @@ calc_heterogeneity_RA.noRA = function(seuratObj,
     
   }
   
-  
-  
   return(hete)
   
 }
@@ -829,12 +827,15 @@ calc_heterogeneity_RA.noRA = function(seuratObj,
 ##########################################
 # plot the gene-gene scatterplot from the output scFates 
 ##########################################
-make_scatterplot_scFates = function(geneA = 'Foxa2', geneB = 'Pax6', fit, assign, pst,
-                                    win_keep=c(2, 3, 4))
+make_scatterplot_genePair_scFates = function(geneA = 'Foxa2',
+                                             geneB = 'Pax6',
+                                             fit, assign, pst, 
+                                             win_keep = NULL)
 {
   library(gridExtra)
+  library(ggpubr)
   
-  # geneA = 'Foxa2'; geneB = 'Pax6'; win_keep=c(2:4)
+  # geneA = 'Foxa2'; geneB = 'Pax6'; win_keep=NULL
   if(length(!is.na(match(geneA, colnames(fit)))) != 1){
     stop('-- geneA not found --')
   }
@@ -845,25 +846,39 @@ make_scatterplot_scFates = function(geneA = 'Foxa2', geneB = 'Pax6', fit, assign
   
   jj1 = which(colnames(fit) == geneA)
   jj2 = which(colnames(fit) == geneB)
-  nt = nrow(assign)
-  cat('there are ', nt, 'non-intersecting time windowns \n')
-  assignment = apply(assign, 2, which.max) 
+  
+  cat('there are ', nrow(assign), 'non-intersecting time windowns \n')
+  cat(paste0(rownames(assign), collapse = '--'))
+  cat('\n')
+  
+  mm = match(rownames(fit), colnames(assign))
+  assign = assign[,mm]
+  
+  assignment = rownames(assign)[apply(assign, 2, which.max)] 
+  names(assignment) = colnames(assign)
+  #aa$window = paste0('w', assignment)
+  #assignment = apply(assign, 2, which.max) 
+  
+  if(is.null(win_keep)){
+    win_keep = rownames(assign)
+  }
   
   
-  cmd = c()
+  #plot_list = list(length(win_keep))
   for(n in win_keep)
   {
-    # n = 2
+    # n = 1
     cells = names(which(assignment == n))
-    cells = gsub('[.]', '-', cells)
+    #cells = gsub('[.]', '-', cells)
     mm = match(cells, rownames(fit))
     mm = mm[which(!is.na(mm))]
     
     kk = match(rownames(fit)[mm], rownames(pst))
     
     dat = data.frame(fit[mm, c(jj1, jj2)], pst = pst$t[kk])
+    
     colnames(dat) = c('geneA', 'geneB', 'pseudotime')
-    title = paste0('pst-window : ', n)
+    title = paste0('w', n)
     eval(parse(text= paste0('p', n,  '=  ggplot(data = dat, aes(x = geneA, y=geneB)) +
       geom_point(size = 1.5, color = "darkorange") + 
       theme_classic() +
@@ -876,10 +891,25 @@ make_scatterplot_scFates = function(geneA = 'Foxa2', geneB = 'Pax6', fit, assign
            
   }
   
-  figure = eval(parse(text= paste0(cmd, collapse = '+')))
+  pp = ggarrange(p0, p1, p2, p3, p4, p5, p6, p7, ncol = 4, nrow = 2)
   
-  plot(figure, nrow = 1)
+  #figure = eval(parse(text= paste0(cmd, collapse = '+')))
+  
+  plot(pp)
   
 }
 
+make_scatterplot_genePair_scFates_all = function(geneToCompare = c('Foxa2'), 
+                                                 fit, assign, pst)
+{
+  ggs_all = colnames(fit)
+  ggs_all = setdiff(ggs, geneToCompare)
+  
+  for(n in 1:length(ggs_all)){
+    cat('-- gene :', ggs_all[n], '--\n')
+    make_scatterplot_genePair_scFates(geneA = geneToCompare, geneB = ggs_all[n], fit, assign, pst)
+  }
+  
+  
+}
 
