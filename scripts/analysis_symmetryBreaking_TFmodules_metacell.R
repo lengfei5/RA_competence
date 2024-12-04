@@ -518,44 +518,31 @@ if(Clean_Subset_for_scFates){
 ########################################################
 ########################################################
 library(data.table)
+data_version = 'd2.5_d5_TFs_SPs_metacell_v1'
+dataDir = paste0(outDir, data_version, '/')
 
-dataDir = paste0(outDir, 'd2.5_d5_TFs_SPs_metacell_v1/')
-aa = readRDS(file = paste0(outDir, data_version,
-                           '/seuratObject_RA.symmetry.breaking_doublet.rm_mt.ribo.filtered_regressout.nCounts_',
+outDir = paste0(outDir, data_version, '_out_v2')
+system(paste0('mkdir -p ', outDir))
+
+
+aa = readRDS(file = paste0(dataDir,
+                           'seuratObject_RA.symmetry.breaking_doublet.rm_mt.ribo.filtered_regressout.nCounts_',
                            'cellCycleScoring_annot.v2_newUMAP_clusters_time_cellCycole.regression_',
                            'metacells_gamma50', '.rds'))
 
 DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'condition', 
         cols = cols_sel, raster=FALSE)
 
-ggsave(filename = paste0(outDir, data_version, '/UMAP_metacell.pdf'), width = 10, height = 6)
+ggsave(filename = paste0(outDir, '/UMAP_metacell.pdf'), width = 10, height = 6)
 
 #fit = read.csv(file = paste0(dataDir, 'annData_layer_fitted.csv'), header = TRUE, row.names = c(1))
-fit = read.csv(file = paste0(dataDir, 'annData_geneExpr_metacells.csv'), 
+fit = read.csv(file = paste0(dataDir, 'annData_geneExpr_metacells_v2.csv'), 
                     header = TRUE, row.names = c(1))
 
-USE_MAGIC_allGenes = FALSE
-if(USE_MAGIC_allGenes){
-  fit.all = fread(file = paste0(dataDir, 'annData_magic_impuated_allGenes.csv'), header = TRUE)
-  fit.all = data.frame(fit.all)
-  rownames(fit.all) = fit.all$V1
-  fit.all = fit.all[, -1]
-  fit.sel = fit.all[, match(colnames(fit), colnames(fit.all))]
-  #fit.sel = data.frame(fit.sel)
-  fit = fit.sel
-  
-  rm(fit.all)
-  rm(fit.sel)
-  #rownames(impuated) = rownames(fit)
-  #colnames(impuated) = colnames(fit)
-  #fit = impuated
-}
-
-
-pst = read.csv(file = paste0(dataDir, 'annData_pseudotime_segments_milestones.csv'), header = TRUE,
+pst = read.csv(file = paste0(dataDir, 'annData_pseudotime_segments_milestones_v2.csv'), header = TRUE,
                row.names = c(1))
 
-assign = read.csv(file = paste0(dataDir, 'annData_cellAssignment_to_nonIntersectingWindows_8.csv'),
+assign = read.csv(file = paste0(dataDir, 'annData_cellAssignment_to_nonIntersectingWindows_8_v2.csv'),
                   header = TRUE, row.names = c(1))
 
 modules = read.csv(file = paste0(dataDir, 'scFates_early_late_modules_NP_FP_tl.test.fork.rescaled.csv'),
@@ -563,6 +550,7 @@ modules = read.csv(file = paste0(dataDir, 'scFates_early_late_modules_NP_FP_tl.t
 
 rownames(pst) = paste0('X', rownames(pst))
 rownames(fit) = paste0('X', rownames(fit))
+
 
 #fit = t(aa@assays$RNA@data)
 mm = match(paste0('X', colnames(aa)), colnames(assign))
@@ -580,35 +568,169 @@ color_list <- ggplotColours(n=8)
 DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'window', pt.size = 1.5, label.size = 6.0,
         cols = color_list, raster=FALSE)
 
-ggsave(filename = paste0(outDir, data_version, '/UMAP_metacell_scFates_slidingWindow.pdf'), 
+ggsave(filename = paste0(outDir, '/UMAP_metacell_scFates_slidingWindow_v2.pdf'), 
        width = 10, height = 6)
 
 
+##########################################
+# gene-gene correlation analysis from scFates
+##########################################
+Gene_Correlation_Analysis = FALSE
+if(Gene_Correlation_Analysis){
+  ggs = rownames(modules)
+  ggs[which(ggs == "Nkx6-2")] = "Nkx6.2"
+  jj = match(ggs, colnames(fit))
+  fit = fit[, jj]
+  
+  source('functions_utility.R')
+  
+  p = make_scatterplot_genePair_scFates(geneA = 'Pax6', geneB = 'Foxa2', fit, assign, pst)
+  ggsave(filename = paste0(outDir, 'gene_gene_correlation_scFates_Foxa2_Pax6_v2.pdf'),
+         width = 10, height = 6)
+  
+  pdfname = paste0(outDir, data_version, '/genePairs_scatterplot_scFates_vs_Foxa2.pdf')
+  pdf(pdfname, width=12, height = 8)
+  
+  source('functions_utility.R')
+  make_scatterplot_genePair_scFates_all(geneToCompare = c('Foxa2'), fit, assign, pst)
+  
+  dev.off()
+  
+  pdfname = paste0(outDir, data_version, '/genePairs_scatterplot_scFates_vs_Pax6.pdf')
+  pdf(pdfname, width=12, height = 6)
+  source('functions_utility.R')
+  make_scatterplot_genePair_scFates_all(geneToCompare = c('Pax6'), fit, assign, pst)
+  
+  dev.off()
+  
+}
 
-ggs = rownames(modules)
-ggs[which(ggs == "Nkx6-2")] = "Nkx6.2"
-jj = match(ggs, colnames(fit))
-fit = fit[, jj]
+##########################################
+# analysis of Landscape model connection
+##########################################
+Connection_LandscapeModel_Analysis = FALSE
+if(Connection_LandscapeModel_Analysis){
+  
+  ## signatures of unstable manifold w3 here
+  Idents(aa) = as.factor(aa$window)
+  markers = FindAllMarkers(aa, only.pos = TRUE)
+  
+  #saveRDS(markers, file = paste0(RdataDir, 'seuratObject_', species, version.analysis, '_markers_v1.rds'))
+  #markers = readRDS(file = paste0(RdataDir, 'seuratObject_', species, version.analysis, '_markers_v2.rds')) 
+  
+  markers %>%
+    #filter(!str_detect(gene, '^(AMEX|LOC)')) %>%
+    group_by(cluster) %>%
+    slice_max(n = 20, order_by = avg_log2FC) -> top20
+  
+  #saveRDS(top10, file = paste0(RdataDir, 'top10_markerGenes_coarseCluster.rds'))
+  
+  #xx = subset(aa, downsample = 500)
+  DoHeatmap(aa, features = top10$gene) + NoLegend()
+  
+  ggsave(filename = paste0(outDir, '/Markers_slidingWindows.pdf'), width = 16, height = 12)
+  
+  
+  FeaturePlot(aa, features = c(top10$gene[which(top10$cluster == 'w3')], 'Sox17'))
+  
+  ggsave(filename = paste0(outDir, '/FeaturePlots_top10_signature_w3.pdf'), 
+         width = 16, height = 10)
+  
+  
+  
+  ## proportion of day3.5 and d4
+  mm = match(paste0('X', colnames(aa)), rownames(pst))
+  aa$milestones = pst$milestones[mm]
+  
+  color_list <- ggplotColours(n=length(unique(aa$milestones)))
+  p1 = DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'milestones', pt.size = 1.5, label.size = 6.0,
+          cols = color_list, raster=FALSE)
+  
+  p2 = DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'condition', pt.size = 1.5, label.size = 6.0,
+              raster=FALSE)
+  
+  p1 + p2
+  
+  ggsave(filename = paste0(outDir, '/UMAP_metacell_scFates_milestones_conditions.pdf'), 
+         width = 14, height = 6)
+  
+  
+  freqs = matrix(0, nrow = 2, ncol = 3)
+  rownames(freqs) = c('d3.5', 'd4')
+  colnames(freqs) = c('Bifu', 'FP', 'NP')
+  
+  for(n in 1:ncol(aa))
+  {
+    # n = 1
+    cat(n, '--\n')
+    nb_cells = as.numeric(aa$size[n])
+    mm = match(aa$milestones[n], colnames(freqs))
+    
+    if(aa$condition[n] == 'day3.5_RA'){
+      freqs[1, mm] = freqs[1, mm] + nb_cells
+    }
+    
+    if(aa$condition[n] == 'day4_RA'){
+      freqs[2, mm] = freqs[2, mm] + nb_cells
+    }
+  }
+  
+  freqs[1, ] = freqs[1,]/sum(freqs[1, ])
+  freqs[2, ] = freqs[2,]/sum(freqs[2, ])
+  
+  freqs = data.frame(freqs, stringsAsFactors = FALSE)
+  freqs$time = rownames(freqs)
+  
+  library(tidyr)
+  gather(freqs, milestones, pct, c(1:3), factor_key=TRUE) %>%
+    #mutate(cellNbs = integer(Freq))
+    ggplot(aes(x=time, y=pct, fill = milestones)) +
+    #geom_bar(stat="identity", width=0.5) +
+    geom_bar(position="dodge", stat="identity") + 
+    theme_classic() +
+    labs( x = '', y = 'cell proportions' )  +
+    theme(axis.text.x = element_text(angle = 0, size = 10)) 
+ 
+  ggsave(filename = paste0(outDir, '/cell_proportions_comparison_metacells.pdf'), 
+         width = 8, height = 4)
+  
 
-source('functions_utility.R')
-p = make_scatterplot_genePair_scFates(geneA = 'Pax6', geneB = 'Foxa2', fit, assign, pst)
-ggsave(filename = paste0(outDir, 'gene_gene_correlation_scFates_Foxa2_Pax6_v2.pdf'),
-       width = 10, height = 6)
+    
+  Calculate_cellProportion_singleCells = FALSE
+  if(Calculate_cellProportion_singleCells){
+    
+    newDataDir = paste0(resDir, 
+                        '/RA_symetryBreaking/TF_modules/d2.5_d5_TFs_SPs_regressed.CellCycle_v1/')
+    
+    xx = readRDS(file = paste0(newDataDir,
+                               'seuratObject_RA.symmetry.breaking_doublet.rm_mt.ribo.filtered_',
+                               'regressout.nCounts_cellCycleScoring_annot.v2_newUMAP_clusters_time_',
+                               'd2.5_d5_regressed.CellCycle_v1.rds'))
+    
+    pst = read.csv(file = paste0(newDataDir, 
+                                 'annData_pseudotime_segments_milestones.csv'), header = TRUE,
+                   row.names = c(1))
+    
+    mm = match(rownames(pst), colnames(xx))
+    pst = data.frame(pst, condition = xx$condition[mm], stringsAsFactors = FALSE)
+    pst = pst[which(pst$condition == 'day3.5_RA' | 
+                      pst$condition == 'day3_RA.rep1'|
+                    pst$condition == 'day4_RA'), ]
+    
+    freqs = table(pst$condition, pst$milestones)
+    
+    for(n in 1:nrow(freqs))  freqs[n, ] = freqs[n,]/sum(freqs[n, ])
+    
+    freqs = data.frame(freqs, stringsAsFactors = FALSE)
+    freqs$time = rownames(freqs)
+    
+  }
+  
+  
+     
+  
+}
 
-pdfname = paste0(outDir, data_version, '/genePairs_scatterplot_scFates_vs_Foxa2.pdf')
-pdf(pdfname, width=12, height = 8)
-
-source('functions_utility.R')
-make_scatterplot_genePair_scFates_all(geneToCompare = c('Foxa2'), fit, assign, pst)
-
-dev.off()
-
-pdfname = paste0(outDir, data_version, '/genePairs_scatterplot_scFates_vs_Pax6.pdf')
-pdf(pdfname, width=12, height = 6)
-source('functions_utility.R')
-make_scatterplot_genePair_scFates_all(geneToCompare = c('Pax6'), fit, assign, pst)
-
-dev.off()
 
 
 ########################################################
