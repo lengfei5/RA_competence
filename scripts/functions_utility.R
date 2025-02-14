@@ -865,6 +865,7 @@ make_scatterplot_genePair_scFates = function(geneA = 'Foxa2',
   
   
   #plot_list = list(length(win_keep))
+  #cmd = c()
   for(n in win_keep)
   {
     # n = 1
@@ -887,7 +888,7 @@ make_scatterplot_genePair_scFates = function(geneA = 'Foxa2',
             axis.text.y = element_text(size = 10)) + 
             theme(aspect.ratio=1) + 
       ggtitle(title)')))
-    cmd = c(cmd, paste0('p', n))
+    #cmd = c(cmd, paste0('p', n))
            
   }
   

@@ -585,10 +585,12 @@ if(Gene_Correlation_Analysis){
   source('functions_utility.R')
   
   p = make_scatterplot_genePair_scFates(geneA = 'Pax6', geneB = 'Foxa2', fit, assign, pst)
+  p
+  
   ggsave(filename = paste0(outDir, 'gene_gene_correlation_scFates_Foxa2_Pax6_v2.pdf'),
          width = 10, height = 6)
   
-  pdfname = paste0(outDir, data_version, '/genePairs_scatterplot_scFates_vs_Foxa2.pdf')
+  pdfname = paste0(outDir, '/genePairs_scatterplot_scFates_vs_Foxa2.pdf')
   pdf(pdfname, width=12, height = 8)
   
   source('functions_utility.R')
@@ -602,6 +604,7 @@ if(Gene_Correlation_Analysis){
   make_scatterplot_genePair_scFates_all(geneToCompare = c('Pax6'), fit, assign, pst)
   
   dev.off()
+  
   
 }
 
@@ -655,8 +658,8 @@ if(Connection_LandscapeModel_Analysis){
          width = 14, height = 6)
   
   
-  freqs = matrix(0, nrow = 2, ncol = 3)
-  rownames(freqs) = c('d3.5', 'd4')
+  freqs = matrix(0, nrow = 3, ncol = 3)
+  rownames(freqs) = c('day3.5_RA', 'day4_RA', 'day5_RA')
   colnames(freqs) = c('Bifu', 'FP', 'NP')
   
   for(n in 1:ncol(aa))
@@ -666,17 +669,15 @@ if(Connection_LandscapeModel_Analysis){
     nb_cells = as.numeric(aa$size[n])
     mm = match(aa$milestones[n], colnames(freqs))
     
-    if(aa$condition[n] == 'day3.5_RA'){
-      freqs[1, mm] = freqs[1, mm] + nb_cells
+    jj = match(aa$condition[n], rownames(freqs))
+    
+    if(!is.na(jj)){
+      freqs[jj, mm] = freqs[jj, mm] + nb_cells
     }
     
-    if(aa$condition[n] == 'day4_RA'){
-      freqs[2, mm] = freqs[2, mm] + nb_cells
-    }
   }
   
-  freqs[1, ] = freqs[1,]/sum(freqs[1, ])
-  freqs[2, ] = freqs[2,]/sum(freqs[2, ])
+  for(n in 1:nrow(freqs))  freqs[n, ] = freqs[n,]/sum(freqs[n, ])
   
   freqs = data.frame(freqs, stringsAsFactors = FALSE)
   freqs$time = rownames(freqs)
