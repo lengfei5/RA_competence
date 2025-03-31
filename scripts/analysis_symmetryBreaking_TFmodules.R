@@ -306,6 +306,8 @@ ggsave(filename = paste0(outDir, 'gene_gene_correlation_scFates_Foxa2_Pax6.pdf')
        width = 10, height = 8)
 
 
+
+
 ########################################################
 ########################################################
 # Section II : narrow down the TFs and SPs
@@ -534,6 +536,7 @@ for(cc in conditions)
   #        width = 14, height = 20)
   
 }
+
 
 ########################################################
 ########################################################

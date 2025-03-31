@@ -221,9 +221,11 @@ saveRDS(aa, file = paste0(RdataDir,
                           'seuratObject_merged_cellFiltered_doublet.rm_mt.ribo.geneFiltered_regressout.nCounts_',
                           'cellCycleScoring_annot.v1_savedUMAP.v1_', species, version.analysis, '.rds'))
 
+
 ##########################################
 # features and TF activity overlaying UMAP 
 ##########################################
+
 levels_sels = c("day2_beforeRA", "day2.5_RA", "day3_RA.rep1",  'day3_RA.rep2',
                 "day3.5_RA", "day4_RA", "day5_RA", "day6_RA")
 data_version = "_d2_d2.5_d3_d3.5_d4_d5"
@@ -275,8 +277,15 @@ FeaturePlot(subs, features = c('Foxa2', 'Pax6'))
 ggsave(paste0("../results/plots_MondaySeminar", 
               '/umap_d2.to.d6_Foxa2_Pax6_updatedUMAP.pdf'),  width=12, height = 6) 
 
-FeaturePlot(object = subs,  features = c('Foxa2', 'Pax6'), blend = TRUE,
-            cols =  c("lightgrey","#00ff00",  "magenta"))
+
+subs = readRDS(file = paste0(RdataDir, 
+              "seuratObject_merged_cellFiltered_doublet.rm_mt.ribo.geneFiltered_",
+              "regressout.nCounts_cellCycleScoring_annot.v1_savedUMAP.subs.v2_mNT_scRNAseq_R13547_10x_mNT_20220813.rds"
+))
+
+FeaturePlot(object = subs,  features = c('Foxa2', 'Pax6'), blend = TRUE
+            #cols =  c("lightgray","#00ff00",  "magenta")
+            )
 
 ggsave(paste0("../results/plots_MondaySeminar", 
               '/umap_d2.to.d6_Foxa2_Pax6_updatedUMAP_blend.pdf'),  width=24, height = 6) 
@@ -284,6 +293,8 @@ ggsave(paste0("../results/plots_MondaySeminar",
 saveRDS(subs, file = paste0(RdataDir, 
               'seuratObject_merged_cellFiltered_doublet.rm_mt.ribo.geneFiltered_regressout.nCounts_',
               'cellCycleScoring_annot.v1_savedUMAP.subs.v2_', species, version.analysis, '.rds'))
+
+
 
 ggs = c('Cdh1', 'Crabp2', 'Zeb2', 'Rbpj', 'Gli1', 'Shh', 'Tead1', 'Tead2', 'Tead3', "Tead4",
         "Gli2", "Esr1", "Kdm5b", 'Lef1', 'Otx2','Pou5f1', 'Sox1', 'Nanog', 'Nkx6-1', 

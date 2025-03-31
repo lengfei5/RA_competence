@@ -32,14 +32,18 @@ data_version = "_d3_d3.5_d4"
 #levels_sels = c("day2_beforeRA", "day2.5_RA", "day3_RA.rep1", "day3.5_RA", "day4_RA", "day5_RA")
 #data_version = "_d2_d2.5_d3_d3.5_d4"
 
-levels_sels = c("day2_beforeRA", "day2.5_RA", "day3_RA.rep1",  "day3_RA.rep2",
-                "day3.5_RA", "day4_RA", "day5_RA", "day6_RA")
-data_version = "_d2_d2.5_d3_d3.5_d4_d5_d6"
+#levels_sels = c("day2_beforeRA", "day2.5_RA", "day3_RA.rep1",  "day3_RA.rep2",
+#                "day3.5_RA", "day4_RA", "day5_RA", "day6_RA")
+#data_version = "_d2_d2.5_d3_d3.5_d4_d5_d6"
+
+levels_sels = c("day3.5_RA", "day4_RA")
+data_version = "_d3.5_d4"
+
 
 names(cols) = levels
 cols_sel = cols[match(levels_sels, names(cols))]
 
-outDir = paste0(resDir, '/RA_symetryBreaking/signaling_pathway_activity', data_version)
+outDir = paste0(resDir, '/RA_symetryBreaking/signaling_pathway_cellProportions', data_version)
 system(paste0('mkdir -p ', outDir))
 
 Idents(aa) = factor(aa$condition, levels = levels)
@@ -77,7 +81,7 @@ if(Prepare_selected_conditions){
   
   Idents(aa) = aa$condition
   
-  aa <- RunUMAP(aa, dims = 1:50, n.neighbors = 50, min.dist = 0.1)
+  aa <- RunUMAP(aa, dims = 1:30, n.neighbors = 30, min.dist = 0.1)
   
   
   # quickly run clustering
@@ -594,8 +598,8 @@ if(Test_DecoupleR_reactome){
       scale_colour_gradient2(low = 'blue', mid = 'white', high = 'red'))
   
   
-  
 }
+
 
 ########################################################
 ########################################################
