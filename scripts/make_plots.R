@@ -55,7 +55,6 @@ load(file = '../results/Rdata/tfs_sps_geneExamples_4scRNAseq.Rdata')
 outDir = paste0(resDir, '/UMAP_allSamples/')
 if(!dir.exists(outDir)) dir.create(outDir)
 
-
 Save_weirdClusters = FALSE
 if(Save_weirdClusters){
   bb = readRDS(file = paste0('../results/Rdata/', 
@@ -815,7 +814,7 @@ dev.off()
 aa$pst_group = NA
 #bins = seq(0.1, 0.9, length.out = 16)
 
-bin_interval = 0.01
+bin_interval = 0.05
 bins = c(seq(0.15, 0.25, by = bin_interval), seq(0.5, 0.9, by = bin_interval))
 for(n in 1:(length(bins)-1))
 {
@@ -832,6 +831,7 @@ for(n in 1:(length(bins)-1))
 }
 
 bins = c(seq(0.15, 0.45, by = bin_interval), seq(0.7, 0.9, by = bin_interval))
+
 for(n in 1:(length(bins)-1))
 {
   if(bins[n+1] < 0.5){
@@ -852,8 +852,46 @@ for(n in 1:(length(bins)-1))
 }
 
 
-DimPlot(aa, group.by = 'pst_group', label = FALSE) +
-  NoLegend()
+# nb_bins = 8
+# aa$pst_group = NA
+# 
+# bins = seq(0.6, 1, length.out = (nb_bins + 1))
+# for(n in 1:(length(bins)-1))
+# {
+#   jj = which(aa$pseudot_RA < bins[(n+1)] & aa$pseudot_RA > bins[n])
+#   aa$pst_group[jj] = paste0('RA_groupPst_', n)
+# }
+# 
+# bins = seq(0.25, 1, length.out = (nb_bins + 1))
+# for(n in 1:(length(bins)-1))
+# {
+#   jj = which(aa$pseudot_noRA < bins[(n+1)] & aa$pseudot_noRA > bins[n])
+#   aa$pst_group[jj] = paste0('noRA_groupPst_', n)
+# }
+
+aa <- FindVariableFeatures(aa, selection.method = "vst", nfeatures = 3000) # find subset-specific HVGs
+## because the data was regressed and scaled already, only the HVGs were used to calculate PCA
+aa <- RunPCA(aa, features = VariableFeatures(object = aa), verbose = FALSE, weight.by.var = TRUE)
+ElbowPlot(aa, ndims = 50)
+
+aa <- RunUMAP(aa, dims = 1:30, n.neighbors = 100, min.dist = 0.1)
+DimPlot(aa, group.by = 'condition', label = TRUE, cols = cols_sel)
+
+
+bb = subset()
+
+p1 = DimPlot(aa, group.by = 'condition', label = TRUE, cols = cols_sel)
+p2 = FeaturePlot(aa, features = 'pseudot', cols = c('lightgray', 'blue')) +
+  ggtitle(label = 'pseudo time') +
+  scale_color_viridis_c(direction = -1)
+
+p3 = DimPlot(aa, group.by = 'pst_group', label = FALSE, repel = TRUE)
+
+p1 + p2 + p3
+
+ggsave(filename = paste0(resDir, '/RA_noRA_d2_d5_condition_pseudotime_palantir_bins_v2.pdf'), 
+       width = 20, height = 6) 
+
 
 source('functions_utility.R')
 hete = calc_heterogeneity_RA.noRA(seuratObj = aa, 
@@ -881,6 +919,98 @@ ggplot(hete, aes(x= condition, y=dists, fill = treament)) +
 
 ggsave(filename = paste0(resDir, '/pairwise_distance_pst.palantir.Bins_', length(bins), 
                          '.bins.pdf'), width = 12, height = 8) 
+
+
+##########################################
+# plot the feature selection outcome 
+##########################################
+dataDir = "../results/scRNAseq_R13547_10x_mNT_20220813/RA_symetryBreaking/sparse_featureSelection_d2_d2.5_d3_d3.5_d4_d5/"
+
+ggs = c()
+xx = read.csv(file = paste0(dataDir, 'geneBasis_top50_tfs_sps_final.csv'), sep = ";")
+ggs = unique(c(ggs, xx[, 2]))
+
+write.csv(xx, file = paste0(resDir, '/geneBasis_top50_tfs_sps_final.csv'), row.names = FALSE)
+
+xx = read.csv(file = paste0(dataDir, 'dubstep_sparse_74.tfs.sps_final.csv'))
+ggs = unique(c(ggs, xx[, 1]))
+
+write.csv(xx, file = paste0(resDir, '/dubstep_sparse_74.tfs.sps_final.csv'), row.names = FALSE)
+
+xx = read.csv(file = paste0(dataDir, 'SMD_sparse_31tfs.sps_final.csv'))
+ggs = unique(c(ggs, xx[c(1:31), 1]))
+write.csv(xx[c(1:31), ], 
+          file = paste0(resDir, '/dubstep_sparse_74.tfs.sps_final.csv'), row.names = FALSE)
+
+aa = readRDS(paste0('/groups/tanaka/Collaborations/Jingkui-Hannah/RA_competence/scRNAseq_mNT/saved_seuratObj/',
+                    'RAsamples_d2_d6_UMAP_selectedParam.rds'))
+
+ggs = ggs[which(!is.na(match(ggs, rownames(aa))))]
+
+
+levels_sels = c("day2_beforeRA",  
+                "day2.5_RA", "day3_RA.rep1", "day3.5_RA",   "day4_RA", "day5_RA")
+
+#levels_sels = unique(aa$condition)
+cols_sel = cols[match(levels_sels, names(cols))]
+Idents(aa) = as.factor(aa$condition)
+
+aa = subset(aa, idents = levels_sels)
+aa <- RunPCA(aa, features = ggs, verbose = FALSE, weight.by.var = TRUE)
+ElbowPlot(aa, ndims = 50)
+
+
+aa <- RunUMAP(aa, dims = 1:20, n.neighbors = 100, min.dist = 0.1)
+DimPlot(aa, group.by = 'condition', label = TRUE, cols = cols_sel)
+
+ggsave(filename = paste0(resDir, '/RA_umap_with_selectedFeatures.pdf'), width = 8, height = 6) 
+
+saveRDS(ggs, file = paste0(resDir, '/geneList_sparseFeatureSelection.rds'))
+
+##########################################
+# Visualising RA-specific expression pattern / kinetics (feature plots / exp vs pseudotime?  
+# by Hannah
+##########################################
+aa = readRDS(paste0('/groups/tanaka/Collaborations/Jingkui-Hannah/RA_competence/scRNAseq_mNT/saved_seuratObj/',
+                    'RA_noRAsamples_d2_d6_UMAP_selectedParam.rds'))
+
+levels_sels = c("day2.5_RA", "day3_RA.rep1", "day3.5_RA",   "day4_RA", "day5_RA", "day6_RA", 
+                "day2.5_noRA", "day3_noRA",  "day3.5_noRA", "day4_noRA", "day5_noRA", "day6_noRA")
+
+Idents(aa) = as.factor(aa$condition)
+aa = subset(aa, idents = levels_sels)
+
+levels_sels = unique(aa$condition)
+cols_sel = cols[match(levels_sels, names(cols))]
+
+DimPlot(aa, cols = cols_sel)
+
+aa$groups = NA
+aa$groups[grep('_RA', aa$condition)] = 'RA'
+aa$groups[grep('_noRA', aa$condition)] = 'noRA'
+aa$groups = factor(aa$groups, levels = c('RA', 'noRA'))
+
+aa$condition = droplevels(aa$condition)
+
+aa$time = sapply(aa$condition, function(x) {unlist(strsplit(as.character(x), '_'))[1]})
+
+features =c('Foxa2', 'Pax6', 'Pou5f1', 'Sox1')
+VlnPlot(aa, features = features, split.by = "groups", group.by = 'time', log = FALSE, 
+        same.y.lims = TRUE, ncol = 2, pt.size = 0.01,
+        cols = c("#EF6548", "#6BAED6"))
+
+ggsave(filename = paste0(resDir, '/RAspecific_geneExpression_kinetics.pdf'), width = 16, height = 8) 
+
+
+# SplitDotPlotGG has been replaced with the `split.by` parameter for DotPlot
+Idents(aa) = factor(aa$time) 
+DotPlot(aa, features = ggs[c(1:20)], split.by = "groups", 
+        cols = c("#EF6548", "#6BAED6")
+        ) +
+  RotatedAxis()
+
+
+
 
 
 
