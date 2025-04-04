@@ -438,19 +438,33 @@ if(Use.Robinson.workflow){
   set.seed(1234)
   #sce <- runDR(sce, "TSNE", cells = 500, features = "type")
   
-  sce <- runDR(sce, "PCA", ncomponents = 5,
-               cells = 2000, features = "type")
+  sce <- runDR(sce, "PCA", ncomponents = 4,
+               cells = NULL, features = "type")
   
   p1 = plotDR(sce, "PCA", color_by = "condition")
   p1
   
-  p2 = plotDR(sce, "PCA", color_by = "FoxA2")
-  p3 = plotDR(sce, 'PCA', color_by = 'Pax6')
+  pcs = reducedDim(sce, 'PCA')
   
-  p2 + p3
+  ### filter outliers cells
+  sels = which(pcs[ ,1] < 2 & pcs[ ,2] <2)
+  sce = sce[, sels]
+  
+  p1 = plotDR(sce, "PCA", color_by = "condition")
+  p1
+  
+  cf <- 5 
+  y <- assay(sce, "counts")
+  #y <- asinh(sweep(y, 1, cf, "/"))
+  assay(sce, "exprs", FALSE) <- y
   
   
-  sce <- runDR(sce, "DiffusionMap",
+  #p2 = plotDR(sce, "PCA", color_by = "FoxA2")
+  #p3 = plotDR(sce, 'PCA', color_by = 'Pax6')
+  #p2 + p3
+  
+  
+  sce <- runDR(sce, "DiffusionMap", cells = 2000,
                features = "type")
   
   p1 = plotDR(sce, "DiffusionMap", color_by = "condition")
@@ -461,25 +475,33 @@ if(Use.Robinson.workflow){
   
   p2 + p3
   
-  
-  sce <- runDR(sce, "UMAP", cells = NULL, 
+  set.seed(1234)
+  sce <- runDR(sce, "UMAP", cells = 3000, 
                features = "type",
-               n_neighbors = 100, scale = FALSE,
+               n_neighbors = 50, scale = TRUE,
                min_dist = 0.05, metric = "cosine"
                )
   
+  figureDir = "../results/figures_tables_R13547_10x_mNT_20240522/"
   
   p1 = plotDR(sce, "UMAP", color_by = "condition")
   p1
   
-  p2 = plotDR(sce, "UMAP", color_by = "FoxA2")
-  p3 = plotDR(sce, 'UMAP', color_by = 'Pax6')
+  ggsave(paste0(figureDir, 'FACS_RA_umap.pdf'), width=8, height = 6) 
   
-  p2 + p3
+  p2 = plotDR(sce, "UMAP", color_by = "FoxA2", scale = TRUE)
+  p3 = plotDR(sce, 'UMAP', color_by = 'Pax6', scale = TRUE)
+  p4 = plotDR(sce, 'UMAP', color_by = 'Oct4', scale = TRUE)
+  p5 = plotDR(sce, 'UMAP', color_by = 'Sox1', scale = TRUE)
+  
+  (p2 + p3)/(p4 + p5)
+  
+  ggsave(paste0(figureDir, 'FACS_RA_umap_genes.pdf'), width=16, height = 12) 
+  
   
   saveRDS(sce, file = paste0(RdataDir, '/sce_FACS_RA_umap_saved.rds'))
   
-
+  
     
 }
 
