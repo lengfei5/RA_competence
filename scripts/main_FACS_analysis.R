@@ -218,6 +218,8 @@ if(Use.scDataviz.analysis){
   sce = performUMAP(sce, assay = 'normcounts', config = config)
   toc()
   
+  saveRDS(sce, file = paste0(RdataDir, '/cytof_mat_transformedData_metadata_scDataviz_umap.rds'))
+  
   # sce <- performUMAP(sce, reducedDim = 'PCA', dims = c(1:5))
   
   # metadataPlot(sce,
@@ -269,13 +271,16 @@ if(Use.scDataviz.analysis){
 
 
 ##########################################
-# not used here; there is some issues creating sce object
+# Test again the Robinson's workflow 
+# original code from:
+# https://www.bioconductor.org/packages/release/workflows/vignettes/cytofWorkflow/inst/doc/
+# cytofWorkflow.html#data-transformation
 ##########################################
 Use.Robinson.workflow = FALSE
 if(Use.Robinson.workflow){
   if(Test_example){
     library(readxl)
-    url <- "http://imlspenticton.uzh.ch/robinson_lab/cytofWorkflow"
+    url <- "https://zenodo.org/records/10039274/files"
     md <- "PBMC8_metadata.xlsx"
     download.file(file.path(url, md), destfile = md, mode = "wb")
     md <- read_excel(md)
@@ -292,29 +297,61 @@ if(Use.Robinson.workflow){
     all(panel$fcs_colname %in% colnames(fs))
     
     # specify levels for conditions & sample IDs to assure desired ordering
+    # specify levels for conditions & sample IDs to assure desired ordering
     md$condition <- factor(md$condition, levels = c("Ref", "BCRXL"))
     md$sample_id <- factor(md$sample_id, 
                            levels = md$sample_id[order(md$condition)])
     
     # construct SingleCellExperiment
-    sce0 <- prepData(fs, panel, md, features = panel$fcs_colname)
-    sce0 <- prepData(fs, panel, md, features = panel$fcs_colname)
+    sce <- prepData(fs, panel, md, features = panel$fcs_colname)
     
-    p <- plotExprs(sce0, color_by = "condition")
+    p <- plotExprs(sce, color_by = "condition")
     p$facet$params$ncol <- 6
     p
     
+    n_cells(sce) 
+    
+    plotCounts(sce, group_by = "sample_id", color_by = "condition")
+    
+    pbMDS(sce, color_by = "condition", label_by = "sample_id")
+    
+    plotExprHeatmap(sce, scale = "last",
+                    hm_pal = rev(hcl.colors(10, "YlGnBu")))
+    
+    # run t-SNE/UMAP on at most 500/1000 cells per sample
+    set.seed(1234)
+    sce <- runDR(sce, "TSNE", cells = 500, features = "type")
+    sce <- runDR(sce, "UMAP", cells = 1e3, features = "type")
+    
+    plotDR(sce, "UMAP", color_by = "sample_id")
+    
   }
   
-  ## load our own data
-  load(file = paste0(RdataDir, '/cytof_mat_metadata.Rdata'))
+  ############
+  ## start with the same table as Meri
+  ############
+  mat = read.csv2(file = '../data/data_metadata_clusterIDs_perCondition_nbClusters_7.csv', 
+                 header = TRUE, row.names = c(1))
   
-  cf <- 5 
-  counts = as.matrix(t(mat))
-  colnames(counts) = paste0('cell_', c(1:ncol(counts)))
-  rownames(metadata) = colnames(counts)
-  metadata = data.frame(cell = rownames(metadata), 
-                        metadata, stringsAsFactors = FALSE)
+  kk = which(mat$condition == 'noRA_d2')
+  mat$treatment[kk] = 'beforeRA'
+  mat$condition[kk] = 'beforeRA_d2'
+  
+  kk = which(mat$treatment != 'noRA')
+  mat = mat[kk, ]
+  
+  counts = as.matrix(t(mat[, c(1:5)]))
+  metadata = mat[, -c(1:5)]
+  metadata$marker_class = 'type'
+  
+  #load(file = paste0(RdataDir, '/cytof_mat_metadata.Rdata'))
+  
+  
+  #counts = as.matrix(t(mat))
+  #colnames(counts) = paste0('cell_', c(1:ncol(counts)))
+  #rownames(metadata) = colnames(counts)
+  metadata = data.frame(metadata, stringsAsFactors = FALSE)
+  
   
   sce <- SingleCellExperiment(assays=list(counts=counts),
                               colData=metadata, 
@@ -322,10 +359,23 @@ if(Use.Robinson.workflow){
   
   # here, x = input SCE with raw data
   # stored in assay "counts"
+  cf <- 5 
   y <- assay(sce, "counts")
   y <- asinh(sweep(y, 1, cf, "/"))
   assay(sce, "exprs", FALSE) <- y
   
+  # res <- normCytof(sce, beads = "dvs", k = 50, 
+  #                  assays = c("counts", "exprs"), overwrite = FALSE)
+  # # check number & percentage of bead / removed events
+  # n <- ncol(sce); ns <- c(ncol(res$beads), ncol(res$removed))
+  # data.frame(
+  #   check.names = FALSE, 
+  #   "#" = c(ns[1], ns[2]), 
+  #   "%" = 100*c(ns[1]/n, ns[2]/n),
+  #   row.names = c("beads", "removed"))
+  # 
+  # sce <- res$data
+  # assayNames(sce)
   
   # load(file = paste0(RdataDir, '/cytof_mat_metadata.Rdata'))
   # metadata$time = gsub('_','.', metadata$time)
@@ -356,24 +406,10 @@ if(Use.Robinson.workflow){
   #                   assayname = 'exprs',
   #                   metadata = metadata)
   
-  sce$sample_id = as.character(sce$cell)
-  sce$treatment = sce$condition
-  sce$time2 = sce$time
-  sce$time[which(sce$time == '48h')] = 'd2'
-  sce$time[which(sce$time == '54h')] = 'd2.6h'
-  sce$time[which(sce$time == '60h')] = 'd2.12h'
-  sce$time[which(sce$time == '66h')] = 'd2.18h'
-  sce$time[which(sce$time == '72h')] = 'd3'
-  sce$time[which(sce$time == '78h')] = 'd3.6h'
-  sce$time[which(sce$time == '84h')] = 'd3.12h'
-  sce$time[which(sce$time == '90h')] = 'd3.18h'
-  sce$time[which(sce$time == '96h')] = 'd4'
-  sce$condition = paste0(sce$treatment, '_', sce$time)
+  sce$sample_id = as.character(sce$condition)
   #sce$condition = gsub('noRA_d2', "beforeRA_d2", sce$condition)
   
-  cc.levels = c("noRA_d2", 
-                "noRA_d2.6h", "noRA_d2.12h", "noRA_d2.18h", "noRA_d3",
-                "noRA_d3.6h", "noRA_d3.12h", "noRA_d3.18h", "noRA_d4", 
+  cc.levels = c("beforeRA_d2",
                 "RA_d2.6h", "RA_d2.12h", "RA_d2.18h", "RA_d3",
                 "RA_d3.6h", "RA_d3.12h", "RA_d3.18h", "RA_d4")
   
@@ -382,64 +418,70 @@ if(Use.Robinson.workflow){
   
   rowData(sce)$marker_name = rownames(sce)
   rowData(sce)$channel_name = NULL
-  rowData(sce)$marker_class = NULL
+  rowData(sce)$marker_class = 'type'
   
   
-  ## data summary
-  n_cells(sce) 
-  
-  plotCounts(sce, group_by = "condition", color_by = "condition")
-  ggsave(filename = paste0(RdataDir, '/QCs_cellNumbers_perCondition.pdf'), width = 12, height = 8)
-  
-  # subsample the data
-  subsample = sample(c(1:ncol(sce)), size = 10000, replace = FALSE)
-  # sce <- importData(x[subsample, ],
-  #                   assayname = 'normcounts',
-  #                   metadata = metadata[subsample, ])
-  # sce
-  subs = sce[, subsample]
-  
-  subs@metadata$condition = as.character(subs$condition)
-  p <- plotExprs(subs, color_by = "condition", assay = 'counts')
+  p <- plotExprs(sce, color_by = "condition")
   p$facet$params$ncol <- 2
   p
   
-  ggsave(filename = paste0(RdataDir, '/QCs_transformed_intensities_distribution.pdf'), width = 12, height = 8)
+  n_cells(sce) 
   
+  plotCounts(sce, group_by = "sample_id", color_by = "condition")
   
-  # MDS plot
-  pbMDS(sce, color_by = "treatment", label_by = "condition")
+  pbMDS(sce, color_by = "condition", label_by = "sample_id")
   
   plotExprHeatmap(sce, scale = "last",
-                  hm_pal = rev(hcl.colors(20, "YlGnBu")))
+                  hm_pal = rev(hcl.colors(10, "YlGnBu")))
   
-  plotNRS(sce, features = NULL, color_by = "condition")
-  
-  
-  set.seed(1234)
-  sce <- CATALYST::cluster(sce, features = NULL,
-                           xdim = 10, ydim = 10, maxK = 20, seed = 1234)
-  
+  # run t-SNE/UMAP on at most 500/1000 cells per sample
   set.seed(1234)
   #sce <- runDR(sce, "TSNE", cells = 500, features = "type")
-  sce <- runDR(sce, "MDS", cells = 100, features = NULL)
-  plotDR(sce, "MDS", color_by = "time", facet_by = 'treatment')
   
-  set.seed(1234)
-  sce <- runDR(sce, "UMAP", cells = 500, features = NULL, scale = FALSE, 
-               n_neighbors = 10, n_threads = 16, min_dist = 0.01)
+  sce <- runDR(sce, "PCA", ncomponents = 5,
+               cells = 2000, features = "type")
   
-  plotDR(sce, "UMAP", color_by = "condition", facet_by = 'treatment')
+  p1 = plotDR(sce, "PCA", color_by = "condition")
+  p1
   
-  plotDR(sce, "UMAP", color_by = "treatment", facet_by = 'time')
-  #plotDR(sce, "UMAP", color_by = "condition")
+  p2 = plotDR(sce, "PCA", color_by = "FoxA2")
+  p3 = plotDR(sce, 'PCA', color_by = 'Pax6')
   
-  plotDR(sce, "UMAP", color_by = "FoxA2")
-  plotDR(sce, 'UMAP', color_by = 'Pax6')
+  p2 + p3
   
   
-}
+  sce <- runDR(sce, "DiffusionMap",
+               features = "type")
+  
+  p1 = plotDR(sce, "DiffusionMap", color_by = "condition")
+  p1
+    
+  p2 = plotDR(sce, "DiffusionMap", color_by = "FoxA2")
+  p3 = plotDR(sce, 'DiffusionMap', color_by = 'Pax6')
+  
+  p2 + p3
+  
+  
+  sce <- runDR(sce, "UMAP", cells = NULL, 
+               features = "type",
+               n_neighbors = 100, scale = FALSE,
+               min_dist = 0.05, metric = "cosine"
+               )
+  
+  
+  p1 = plotDR(sce, "UMAP", color_by = "condition")
+  p1
+  
+  p2 = plotDR(sce, "UMAP", color_by = "FoxA2")
+  p3 = plotDR(sce, 'UMAP', color_by = 'Pax6')
+  
+  p2 + p3
+  
+  saveRDS(sce, file = paste0(RdataDir, '/sce_FACS_RA_umap_saved.rds'))
+  
 
+    
+}
 
 
 ########################################################
