@@ -501,7 +501,6 @@ if(Use.Robinson.workflow){
   
   saveRDS(sce, file = paste0(RdataDir, '/sce_FACS_RA_umap_saved.rds'))
   
-  
     
 }
 

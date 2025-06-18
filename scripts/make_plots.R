@@ -315,6 +315,41 @@ ggsave(paste0("../results/plots_MondaySeminar",
 
 
 
+##########################################
+# redo umap for RA d2.5-d6 
+##########################################
+aa = readRDS(file = paste0(RdataDir, 
+                          'seuratObj_clustersFiltered_umapOverview_selectedUmapParams.rds'))
+
+
+names(cols) = levels
+levels_sels = c("day2.5_RA", "day3_RA.rep1", "day3.5_RA", "day4_RA", "day5_RA", "day6_RA")
+cols_sel = cols[match(levels_sels, names(cols))]
+
+Idents(aa) = factor(aa$condition, levels = levels)
+DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'condition', cols = cols, raster=FALSE)
+
+aa = subset(aa, idents = levels_sels)
+
+source(paste0(functionDir, '/functions_scRNAseq.R'))
+
+outDir = paste0(resDir, '/UMAP_RAsamples/')
+if(!dir.exists(outDir)) dir.create(outDir)
+
+explore.umap.params.combination(sub.obj = aa, resDir = outDir, 
+                                pdfname = 'UMAP_test_RASamples_selectedParameters.pdf',
+                                use.parallelization = FALSE,
+                                group.by = 'condition',
+                                cols = cols, 
+                                weight.by.var = TRUE,
+                                nfeatures.sampling = c(3000, 5000),
+                                nb.pcs.sampling = c(30, 50, 100), 
+                                n.neighbors.sampling = c(30, 50, 100, 200), 
+                                min.dist.sampling = c(0.1)
+                                
+)
+
+
 ########################################################
 ########################################################
 # Section II: RA vs noRA 
