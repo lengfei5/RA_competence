@@ -314,13 +314,18 @@ ggsave(paste0("../results/plots_MondaySeminar",
               '/UMAP_condition_toUse.pdf'),  width=8, height = 6) 
 
 
+########################################################
+########################################################
+# Section : RA samples
+# 
+########################################################
+########################################################
 
 ##########################################
 # redo umap for RA d2.5-d6 
 ##########################################
 aa = readRDS(file = paste0(RdataDir, 
                           'seuratObj_clustersFiltered_umapOverview_selectedUmapParams.rds'))
-
 
 names(cols) = levels
 levels_sels = c("day2.5_RA", "day3_RA.rep1", "day3.5_RA", "day4_RA", "day5_RA", "day6_RA")
@@ -348,6 +353,175 @@ explore.umap.params.combination(sub.obj = aa, resDir = outDir,
                                 min.dist.sampling = c(0.1)
                                 
 )
+
+saveRDS(aa, file = paste0(RdataDir, 'seuratObj_clustersFiltered_umap_RAsamples_nod2.rds'))
+
+##########################################
+# cluster the RA sample sand hightlight the marker genes 
+##########################################
+aa = readRDS(file = paste0(RdataDir, 'seuratObj_clustersFiltered_umap_RAsamples_nod2.rds'))
+
+DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'condition', cols = cols_sel, raster=FALSE)
+
+aa <- FindVariableFeatures(aa, selection.method = "vst", nfeatures = 3000) # find subset-specific HVGs
+
+aa <- RunPCA(aa, features = VariableFeatures(object = aa), verbose = FALSE, weight.by.var = TRUE)
+ElbowPlot(aa, ndims = 50)
+
+Idents(aa) = aa$condition
+
+aa <- RunUMAP(aa, dims = 1:50, n.neighbors = 50, min.dist = 0.1, spread = 1)
+
+DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'condition', cols = cols_sel, raster=FALSE)
+
+ggsave(filename = paste0(resDir, '/scRNAseq_overviewUMAP_RAsamples', version.analysis, '.pdf'), 
+       width = 10, height = 8)
+
+### test some clustering options
+aa <- RunPCA(aa, features = VariableFeatures(object = aa), verbose = FALSE, weight.by.var = FALSE)
+ElbowPlot(aa, ndims = 50)
+
+aa <- FindNeighbors(aa, dims = 1:20)
+aa <- FindClusters(aa, verbose = FALSE, algorithm = 3, resolution = 0.8)
+DimPlot(aa, label = TRUE, repel = TRUE, raster=FALSE)
+
+DimPlot(aa, group.by = "Phase", label = TRUE, repel = TRUE, raster=FALSE)
+
+knownGenes =  c('Pou5f1', 'Sox2', 'Zfp42',
+                'Otx2', 'Cyp26a1', 'Stra8',
+                'Hoxa1', 'Hoxa3', 'Hoxb4',
+                'Sox1', 'Pax6', 'Tubb3', 
+                'Foxa2', 'Shh', 'Arx', 
+                'Nkx2-2', 'Olig2', 'Pax3')
+
+Discard_cellCycle.corrrelatedGenes = TRUE
+if(Discard_cellCycle.corrrelatedGenes){
+  library(scater)
+  Idents(aa) = aa$condition
+  
+  DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'Phase', raster=FALSE)
+  
+  # Identifying the likely cell cycle genes between phases,
+  # using an arbitrary threshold of 5%.
+  scaledMatrix = GetAssayData(aa, slot = c("scale.data"))
+  
+  diff <- getVarianceExplained(scaledMatrix, data.frame(phase = aa$Phase))
+  diff = data.frame(diff, gene = rownames(diff))
+  diff = diff[order(-diff$phase), ]
+  
+  hist(diff$phase, breaks = 100); 
+  abline(v = c(1:5), col = 'red')
+  
+  rm(scaledMatrix)
+  
+  genes_discard = diff$gene[which(diff$phase>5)]
+  cat(length(genes_discard), 'genes to discard \n')
+  
+  tfs_sels = intersect(genes_discard, gene_examples)
+  print(tfs_sels)
+  
+  knownGenes_sels = intersect(genes_discard, knownGenes)
+  print(knownGenes_sels)
+  
+  if(length(knownGenes_sels)>0) genes_discard = setdiff(genes_discard, knownGenes_sels)
+  
+  tfs_sels = intersect(genes_discard, gene_examples)
+  print(tfs_sels)
+  
+  aa = subset(aa, features = setdiff(rownames(aa), genes_discard))
+  
+  aa <- FindVariableFeatures(aa, selection.method = "vst", nfeatures = 2000) # find subset-specific HVGs
+  aa <- RunPCA(aa, features = VariableFeatures(object = aa), verbose = FALSE, weight.by.var = FALSE)
+  ElbowPlot(aa, ndims = 50)
+  
+  aa <- FindNeighbors(aa, dims = 1:30)
+  aa <- FindClusters(aa, verbose = FALSE, algorithm = 3, resolution = 0.7)
+  DimPlot(aa, label = TRUE, repel = TRUE, raster=FALSE)
+  
+  aa$clusters = aa$seurat_clusters
+  aa$clusters[which(aa$seurat_clusters == 3)] = 1
+  aa$clusters[which(aa$seurat_clusters == 0)] = 2
+  aa$clusters[which(aa$seurat_clusters == 1)] = 3
+  aa$clusters[which(aa$seurat_clusters == 6)] = 4
+  aa$clusters[which(aa$seurat_clusters == 2)] = 5
+  aa$clusters[which(aa$seurat_clusters == 4)] = 6
+  aa$clusters[which(aa$seurat_clusters == 5 | aa$clusters == 8)] = 7
+  
+  
+}
+
+cols_cluster = c( "#ff7f00", "#08519c", "#762a83", "chartreuse4", "#e31a1c", "#20b2aa","#b30024")
+DimPlot(aa, label = TRUE, group.by =  'clusters', repel = TRUE, raster=FALSE, 
+        cols = cols_cluster) 
+
+
+ggsave(filename = paste0(resDir, '/scRNAseq_overview_RAsamples_clustering.pdf'), 
+       width = 10, height = 8)
+
+
+# SplitDotPlotGG has been replaced with the `split.by` parameter for DotPlot
+#DotPlot(pbmc3k.final, features = features, split.by = "groups") + RotatedAxis()
+require(data.table)
+
+## show the marker genes https://ouyanglab.com/singlecell/clust.html
+Idents(aa) = factor(aa$clusters)
+oupMarker <- FindAllMarkers(aa, features = knownGenes, min.pct = 0.01, logfc.threshold = 0.01)
+oupMarker <- data.table(oupMarker)
+oupMarker$pct.diff = oupMarker$pct.1 - oupMarker$pct.2
+oupMarker <- oupMarker[, c("cluster","gene","avg_log2FC","pct.1","pct.2",
+                           "pct.diff","p_val","p_val_adj")]
+#fwrite(oupMarker, sep = "\t", file = "images/clustMarkers.txt")
+aa@misc$marker <- oupMarker      # Store markers into Seurat object
+
+# Get top genes for each cluster and do dotplot / violin plot
+#oupMarker$cluster = factor(oupMarker$cluster, levels = reorderCluster)
+oupMarker = oupMarker[order(cluster, -avg_log2FC)]
+genes.to.plot <- knownGenes
+
+
+library(RColorBrewer)
+colGEX = c("grey85", brewer.pal(7, "Reds"))
+DotPlot(aa, group.by = "clusters", features = genes.to.plot) + 
+  coord_flip() + scale_color_gradientn(colors = colGEX) +
+  theme(axis.text.x = element_text(angle = 0, hjust = 0))
+
+ggsave(filename = paste0(resDir, '/scRNAseq_overview_RAsamples_clustering_markers_dotplot.pdf'), 
+       width = 8, height = 4)
+
+nClust = 7
+colCls <- colorRampPalette(brewer.pal(n = 10, name = "Paired"))(nClust)
+VlnPlot(aa, group.by = "clusters", fill.by = "ident", cols = cols_cluster,
+              features = genes.to.plot, stack = TRUE, flip = TRUE)
+
+ggsave(filename = paste0(resDir, '/scRNAseq_overview_RAsamples_clustering_markers_Vlnplot.pdf'), 
+       width = 8, height = 6)
+
+
+##########################################
+# double positive cell in RA samples with scatter plots  
+##########################################
+p1 = FeatureScatter(aa, feature1 = "Pax6", feature2 = "Foxa2", group.by = "condition", cols = cols_sel,
+                    smooth = FALSE)
+p2 = FeatureScatter(aa, feature1 = "Pax6", feature2 = "Foxa2", group.by = "clusters", cols = cols_cluster,
+                    smooth = FALSE)
+
+## see help from https://github.com/satijalab/seurat/issues/3544
+data <- FetchData(aa, vars = c('Pax6', 'Foxa2', 'Sox1'))
+# Use position = 'jitter' to apply a slight jitter to the points, makes it look nicer
+# c('lightgrey', 'blue') are the standard FeaturePlot colors
+# cowplot::theme_cowplot() is the the standard theme used in Seurat
+p3 = ggplot(data = data) +
+  geom_point(mapping = aes(x = Pax6, y = Foxa2, color = Sox1), position = 'jitter') +
+  scale_color_gradientn(
+    colors = c('lightgrey', "maroon4")
+    #colors = viridis::magma(9)
+    ) +
+  cowplot::theme_cowplot()
+
+p1 + p2 + p3
+
+ggsave(filename = paste0(resDir, '/scRNAseq_RAsamples_FoxA2_Pax6_coexpression.pdf'), 
+       width = 20, height = 6)
 
 
 ########################################################
@@ -955,10 +1129,12 @@ ggplot(hete, aes(x= condition, y=dists, fill = treament)) +
 ggsave(filename = paste0(resDir, '/pairwise_distance_pst.palantir.Bins_', length(bins), 
                          '.bins.pdf'), width = 12, height = 8) 
 
-
-##########################################
-# plot the feature selection outcome 
-##########################################
+########################################################
+########################################################
+# Section : plot the feature selection outcome 
+# 
+########################################################
+########################################################
 dataDir = "../results/scRNAseq_R13547_10x_mNT_20220813/RA_symetryBreaking/sparse_featureSelection_d2_d2.5_d3_d3.5_d4_d5/"
 
 ggs = c()

@@ -352,7 +352,6 @@ if(Use.Robinson.workflow){
   #rownames(metadata) = colnames(counts)
   metadata = data.frame(metadata, stringsAsFactors = FALSE)
   
-  
   sce <- SingleCellExperiment(assays=list(counts=counts),
                               colData=metadata, 
                               metadata = metadata)
