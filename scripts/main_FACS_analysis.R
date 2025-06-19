@@ -328,16 +328,18 @@ if(Use.Robinson.workflow){
   }
   
   ############
-  ## start with the same table as Meri
+  ## start with the same table as Meri shared by Hannah 
   ############
-  mat = read.csv2(file = '../data/data_metadata_clusterIDs_perCondition_nbClusters_7.csv', 
-                 header = TRUE, row.names = c(1))
+  #mat = read.csv2(file = '../data/data_metadata_clusterIDs_perCondition_nbClusters_7.csv', 
+  #               header = TRUE, row.names = c(1))
+  mat = read.csv(file = '../data/Original_6hRA_Clustered-final-Attractors.csv', 
+                  header = TRUE, row.names = c(1))
   
   kk = which(mat$condition == 'noRA_d2')
   mat$treatment[kk] = 'beforeRA'
   mat$condition[kk] = 'beforeRA_d2'
   
-  kk = which(mat$treatment != 'noRA')
+  kk = which(mat$treatment != 'noRA' & mat$time != 'd2')
   mat = mat[kk, ]
   
   counts = as.matrix(t(mat[, c(1:5)]))
@@ -345,7 +347,6 @@ if(Use.Robinson.workflow){
   metadata$marker_class = 'type'
   
   #load(file = paste0(RdataDir, '/cytof_mat_metadata.Rdata'))
-  
   
   #counts = as.matrix(t(mat))
   #colnames(counts) = paste0('cell_', c(1:ncol(counts)))
@@ -408,8 +409,7 @@ if(Use.Robinson.workflow){
   sce$sample_id = as.character(sce$condition)
   #sce$condition = gsub('noRA_d2', "beforeRA_d2", sce$condition)
   
-  cc.levels = c("beforeRA_d2",
-                "RA_d2.6h", "RA_d2.12h", "RA_d2.18h", "RA_d3",
+  cc.levels = c("RA_d2.6h", "RA_d2.12h", "RA_d2.18h", "RA_d3",
                 "RA_d3.6h", "RA_d3.12h", "RA_d3.18h", "RA_d4")
   
   sce$condition = factor(sce$condition, levels = cc.levels)
@@ -418,7 +418,6 @@ if(Use.Robinson.workflow){
   rowData(sce)$marker_name = rownames(sce)
   rowData(sce)$channel_name = NULL
   rowData(sce)$marker_class = 'type'
-  
   
   p <- plotExprs(sce, color_by = "condition")
   p$facet$params$ncol <- 2
@@ -446,42 +445,39 @@ if(Use.Robinson.workflow){
   pcs = reducedDim(sce, 'PCA')
   
   ### filter outliers cells
-  sels = which(pcs[ ,1] < 2 & pcs[ ,2] <2)
+  dim(sce)
+  sels = which(pcs[ ,1] < 2 & pcs[ , 2] > -2)
+  length(sels)
+  
   sce = sce[, sels]
   
   p1 = plotDR(sce, "PCA", color_by = "condition")
   p1
   
-  cf <- 5 
-  y <- assay(sce, "counts")
-  #y <- asinh(sweep(y, 1, cf, "/"))
-  assay(sce, "exprs", FALSE) <- y
-  
-  
-  #p2 = plotDR(sce, "PCA", color_by = "FoxA2")
-  #p3 = plotDR(sce, 'PCA', color_by = 'Pax6')
-  #p2 + p3
-  
-  
-  sce <- runDR(sce, "DiffusionMap", cells = 2000,
-               features = "type")
-  
-  p1 = plotDR(sce, "DiffusionMap", color_by = "condition")
-  p1
+  notUse.Robinson.Normalization = TRUE
+  if(notUse.Robinson.Normalization){
+    cf <- 5 
+    y <- assay(sce, "counts")
+    #y <- asinh(sweep(y, 1, cf, "/"))
+    assay(sce, "exprs", FALSE) <- y
     
-  p2 = plotDR(sce, "DiffusionMap", color_by = "FoxA2")
-  p3 = plotDR(sce, 'DiffusionMap', color_by = 'Pax6')
-  
-  p2 + p3
+  }
   
   set.seed(1234)
   sce <- runDR(sce, "UMAP", cells = 3000, 
                features = "type",
-               n_neighbors = 50, scale = TRUE,
-               min_dist = 0.05, metric = "cosine"
-               )
+               n_neighbors = 30, scale = FALSE,
+               min_dist = 0.05, 
+               #metric = "cosine",
+               metric = "euclidean"
+               #metric = "cosine"
+               #metric = "correlation"
+  )
   
-  figureDir = "../results/figures_tables_R13547_10x_mNT_20240522/"
+  plotDR(sce, "UMAP", color_by = "condition")
+  
+  
+  
   
   p1 = plotDR(sce, "UMAP", color_by = "condition")
   p1
@@ -495,10 +491,52 @@ if(Use.Robinson.workflow){
   
   (p2 + p3)/(p4 + p5)
   
-  ggsave(paste0(figureDir, 'FACS_RA_umap_genes.pdf'), width=16, height = 12) 
+  ggsave(paste0(figureDir, 'FACS_RA_umap_genes.pdf'), width=16, height = 12)
   
   
-  saveRDS(sce, file = paste0(RdataDir, '/sce_FACS_RA_umap_saved.rds'))
+  #p2 = plotDR(sce, "PCA", color_by = "FoxA2")
+  #p3 = plotDR(sce, 'PCA', color_by = 'Pax6')
+  #p2 + p3
+  figureDir = "../results/figures_tables_R13547_10x_mNT_20240522/"
+  sce <- runDR(sce, dr = "DiffusionMap", 
+               cells = 2000,
+               #cells = NULL,
+               assay = "exprs", scale = TRUE, ## scaling make DM better
+               distance = c('cosine'), 
+               sigma = "local",
+               k = 50, ## 50, 100, 200 do not change too much
+               #n_eigs = 4,  
+               features = "type")
+  plotDR(sce, "DiffusionMap", color_by = "condition")
+  
+  sce = readRDS(file = paste0(RdataDir, '/sce_FACS_RA_nod2_DiffusionMap_saved.rds'))
+  
+  p0 = plotDR(sce, "DiffusionMap", color_by = "condition")
+  
+  sce$clusters = factor(sce$clusters)
+  
+  p1 = plotDR(sce, "DiffusionMap", color_by = "clusters") +
+    theme_classic() + 
+    scale_colour_manual(values = c("#464646", "#7F7F7F", "#CD00CF", "#FFC000", "#70AD47"))
+  p0 + p1 
+  
+  ggsave(paste0(figureDir, 'FACS_RA_DiffusionMap_timePoints_clusters.pdf'), width=14, height = 6)
+  
+  #drs = reducedDim(sce, 'DiffusionMap')
+  
+  
+  p2 = plotDR(sce, "DiffusionMap", color_by = "FoxA2")
+  p3 = plotDR(sce, 'DiffusionMap', color_by = 'Pax6')
+  p4 = plotDR(sce, 'DiffusionMap', color_by = 'Sox1')
+  p5 = plotDR(sce, 'DiffusionMap', color_by = 'Sox2')
+  p6 = plotDR(sce, 'DiffusionMap', color_by = 'Oct4')
+  
+  p2 + p3 + p4 + p5 + p6 
+  
+  ggsave(paste0(figureDir, 'FACS_RA_DiffusionMap_geneExpression.pdf'), width=16, height = 8)
+  
+  
+  saveRDS(sce, file = paste0(RdataDir, '/sce_FACS_RA_nod2_DiffusionMap_saved_v2.rds'))
   
     
 }
