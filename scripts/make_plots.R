@@ -228,9 +228,9 @@ Idents(aa) = aa$condition
 
 aa <- RunUMAP(aa, dims = 1:30, n.neighbors = 100, min.dist = 0.1, spread = 1)
 
-DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'condition', cols = cols, raster=FALSE)
+DimPlot(aa, label = FALSE, repel = TRUE, group.by = 'condition', cols = cols, raster=FALSE)
 
-ggsave(filename = paste0(resDir, '/scRNAseq_overview_allSamples', version.analysis, '.pdf'), 
+ggsave(filename = paste0(resDir, '/scRNAseq_overview_allSamples.noLabels', version.analysis, '.pdf'), 
        width = 10, height = 8)
 
 saveRDS(aa, file = paste0(RdataDir, 
@@ -361,6 +361,9 @@ saveRDS(aa, file = paste0(RdataDir, 'seuratObj_clustersFiltered_umap_RAsamples_n
 ##########################################
 aa = readRDS(file = paste0(RdataDir, 'seuratObj_clustersFiltered_umap_RAsamples_nod2.rds'))
 
+levels_sels = c("day2.5_RA", "day3_RA.rep1", "day3.5_RA", "day4_RA", "day5_RA", "day6_RA")
+cols_sel = cols[match(levels_sels, names(cols))]
+
 DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'condition', cols = cols_sel, raster=FALSE)
 
 aa <- FindVariableFeatures(aa, selection.method = "vst", nfeatures = 3000) # find subset-specific HVGs
@@ -370,12 +373,18 @@ ElbowPlot(aa, ndims = 50)
 
 Idents(aa) = aa$condition
 
-aa <- RunUMAP(aa, dims = 1:50, n.neighbors = 50, min.dist = 0.1, spread = 1)
+aa <- RunUMAP(aa, dims = 1:50, n.neighbors = 30, min.dist = 0.1, spread = 1, seed.use = 45)
 
-DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'condition', cols = cols_sel, raster=FALSE)
+DimPlot(aa, label = FALSE, repel = TRUE, group.by = 'condition', cols = cols_sel, raster=FALSE) +
+  coord_flip() + scale_x_reverse()
+
 
 ggsave(filename = paste0(resDir, '/scRNAseq_overviewUMAP_RAsamples', version.analysis, '.pdf'), 
        width = 10, height = 8)
+
+
+saveRDS(aa, file = paste0(RdataDir, 
+                          'seuratObj_clustersFiltered_umap_RAsamples_selectUMAPparam.rds'))
 
 ### test some clustering options
 aa <- RunPCA(aa, features = VariableFeatures(object = aa), verbose = FALSE, weight.by.var = FALSE)
@@ -447,22 +456,51 @@ if(Discard_cellCycle.corrrelatedGenes){
   aa$clusters[which(aa$seurat_clusters == 4)] = 6
   aa$clusters[which(aa$seurat_clusters == 5 | aa$clusters == 8)] = 7
   
-  
 }
 
 cols_cluster = c( "#ff7f00", "#08519c", "#762a83", "chartreuse4", "#e31a1c", "#20b2aa","#b30024")
 DimPlot(aa, label = TRUE, group.by =  'clusters', repel = TRUE, raster=FALSE, 
         cols = cols_cluster) 
 
-
 ggsave(filename = paste0(resDir, '/scRNAseq_overview_RAsamples_clustering.pdf'), 
        width = 10, height = 8)
+
+saveRDS(aa, file = paste0(RdataDir, 
+                          'seuratObj_clustersFiltered_umap_RAsamples_selectUMAPparam',
+                          '_clustered.discardCellcycle.corrrelatedGenes.rds'))
+
+Idents(aa) = factor(aa$clusters)
+allMarker <- FindAllMarkers(aa, only.pos = TRUE)
+
+saveRDS(allMarker, file = paste0(RdataDir, 
+                                  'seuratObj_clustersFiltered_umap_RAsamples_selectUMAPparam',
+                                  '_clustered.discardCellcycle.corrrelatedGenes_markerGenes.rds'))
+
+
+Idents(aa) = factor(aa$condition)
+xx = subset(x = aa, downsample = 2000)
+
+allMarker %>%
+  group_by(cluster) %>%
+  dplyr::filter(avg_log2FC > 1) %>%
+  slice_head(n = 20) %>%
+  ungroup() -> top10
+
+xx$clusters = droplevels(xx$clusters)
+
+DoHeatmap(xx, group.by = 'clusters', features = top10$gene, draw.lines = TRUE, disp.min = -2.,
+          group.colors = cols_cluster, angle = 0) + 
+  #NoLegend() +
+  scale_fill_viridis_c(option = "magma")
+
+  scale_fill_viridis_c() 
+  scico::scale_fill_scico(palette = "vik")
+  scale_fill_viridis(option = "D") 
 
 
 # SplitDotPlotGG has been replaced with the `split.by` parameter for DotPlot
 #DotPlot(pbmc3k.final, features = features, split.by = "groups") + RotatedAxis()
 require(data.table)
-
 ## show the marker genes https://ouyanglab.com/singlecell/clust.html
 Idents(aa) = factor(aa$clusters)
 oupMarker <- FindAllMarkers(aa, features = knownGenes, min.pct = 0.01, logfc.threshold = 0.01)
