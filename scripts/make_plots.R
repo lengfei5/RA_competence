@@ -357,7 +357,7 @@ explore.umap.params.combination(sub.obj = aa, resDir = outDir,
 saveRDS(aa, file = paste0(RdataDir, 'seuratObj_clustersFiltered_umap_RAsamples_nod2.rds'))
 
 ##########################################
-# cluster the RA sample sand hightlight the marker genes 
+# cluster the RA sample 
 ##########################################
 aa = readRDS(file = paste0(RdataDir, 'seuratObj_clustersFiltered_umap_RAsamples_nod2.rds'))
 
@@ -469,13 +469,27 @@ saveRDS(aa, file = paste0(RdataDir,
                           'seuratObj_clustersFiltered_umap_RAsamples_selectUMAPparam',
                           '_clustered.discardCellcycle.corrrelatedGenes.rds'))
 
-Idents(aa) = factor(aa$clusters)
-allMarker <- FindAllMarkers(aa, only.pos = TRUE)
+##########################################
+# highlight the marker genes or specified genes
+##########################################
+aa = readRDS(file = paste0(RdataDir, 
+                           'seuratObj_clustersFiltered_umap_RAsamples_selectUMAPparam',
+                           '_clustered.discardCellcycle.corrrelatedGenes.rds'))
 
-saveRDS(allMarker, file = paste0(RdataDir, 
-                                  'seuratObj_clustersFiltered_umap_RAsamples_selectUMAPparam',
-                                  '_clustered.discardCellcycle.corrrelatedGenes_markerGenes.rds'))
-
+Run_allMarkerGene_searching = FALSE
+if(Run_allMarkerGene_searching){
+  Idents(aa) = factor(aa$clusters)
+  allMarker <- FindAllMarkers(aa, only.pos = TRUE)
+  
+  saveRDS(allMarker, file = paste0(RdataDir, 
+                                   'seuratObj_clustersFiltered_umap_RAsamples_selectUMAPparam',
+                                   '_clustered.discardCellcycle.corrrelatedGenes_markerGenes.rds'))
+}else{
+  allMarker = readRDS(file = paste0(RdataDir, 
+                                    'seuratObj_clustersFiltered_umap_RAsamples_selectUMAPparam',
+                                    '_clustered.discardCellcycle.corrrelatedGenes_markerGenes.rds'))
+  
+}
 
 Idents(aa) = factor(aa$condition)
 xx = subset(x = aa, downsample = 2000)
@@ -489,14 +503,16 @@ allMarker %>%
 xx$clusters = droplevels(xx$clusters)
 
 DoHeatmap(xx, group.by = 'clusters', features = top10$gene, draw.lines = TRUE, disp.min = -2.,
-          group.colors = cols_cluster, angle = 0) + 
+          group.colors = cols_cluster, angle = 0, size = 5) + 
+  theme(text = element_text(size = 6)) +
   #NoLegend() +
   scale_fill_viridis_c(option = "magma")
 
-  scale_fill_viridis_c() 
-  scico::scale_fill_scico(palette = "vik")
-  scale_fill_viridis(option = "D") 
-
+  #scale_fill_viridis_c() 
+  #scico::scale_fill_scico(palette = "vik")
+  #scale_fill_viridis(option = "D") 
+ggsave(filename = paste0(resDir, '/scRNAseq_RAsamples_clustering_allMarkers.pdf'), 
+       width = 10, height = 6)
 
 # SplitDotPlotGG has been replaced with the `split.by` parameter for DotPlot
 #DotPlot(pbmc3k.final, features = features, split.by = "groups") + RotatedAxis()
@@ -519,11 +535,11 @@ genes.to.plot <- knownGenes
 
 library(RColorBrewer)
 colGEX = c("grey85", brewer.pal(7, "Reds"))
-DotPlot(aa, group.by = "clusters", features = genes.to.plot) + 
+DotPlot(aa, group.by = "clusters", features = genes.to.plot[length(genes.to.plot):1]) + 
   coord_flip() + scale_color_gradientn(colors = colGEX) +
   theme(axis.text.x = element_text(angle = 0, hjust = 0))
 
-ggsave(filename = paste0(resDir, '/scRNAseq_overview_RAsamples_clustering_markers_dotplot.pdf'), 
+ggsave(filename = paste0(resDir, '/scRNAseq_overview_RAsamples_clustering_markers_dotplot_sorted.pdf'), 
        width = 8, height = 4)
 
 nClust = 7
@@ -539,7 +555,8 @@ ggsave(filename = paste0(resDir, '/scRNAseq_overview_RAsamples_clustering_marker
 # double positive cell in RA samples with scatter plots  
 ##########################################
 p1 = FeatureScatter(aa, feature1 = "Pax6", feature2 = "Foxa2", group.by = "condition", cols = cols_sel,
-                    smooth = FALSE)
+                    smooth = FALSE, shuffle = TRUE)
+
 p2 = FeatureScatter(aa, feature1 = "Pax6", feature2 = "Foxa2", group.by = "clusters", cols = cols_cluster,
                     smooth = FALSE)
 
@@ -558,8 +575,35 @@ p3 = ggplot(data = data) +
 
 p1 + p2 + p3
 
-ggsave(filename = paste0(resDir, '/scRNAseq_RAsamples_FoxA2_Pax6_coexpression.pdf'), 
+ggsave(filename = paste0(resDir, '/scRNAseq_RAsamples_FoxA2_Pax6_coexpression_shuffled.pdf'), 
        width = 20, height = 6)
+
+### counting the double positive cells 
+cc = unique(aa$condition)
+counts = rep(NA, length(cc))
+names(counts) = cc
+
+kk = match(c('Foxa2', 'Pax6'), rownames(aa))
+for(n in 1:length(counts))
+{
+  jj = which(aa$condition == cc[n])
+  counts[n] = length(which(aa@assays$RNA@data[kk[1], jj] >0 & aa@assays$RNA@data[kk[2], jj] >0))/length(jj)
+}
+
+df = data.frame(condition = names(counts), counts)
+
+ggplot(data=df, aes(x=condition, y=counts, fill=condition)) +
+  geom_bar(stat="identity")+
+  #geom_text(aes(label=condition), vjust=1.6, color="white", size=3.5)+
+  scale_fill_manual(values=cols_sel) +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 0, size = 10, vjust = 0.4),
+        axis.text.y = element_text(angle = 45, size = 10)) +
+  labs( x = '', y = '% of FoxA2+ & Pax6+' )
+
+ggsave(filename = paste0(resDir, '/scRNAseq_RAsamples_FoxA2_Pax6_percentage.pdf'), 
+       width = 8, height = 6)
+
 
 
 ########################################################
