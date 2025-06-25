@@ -624,10 +624,8 @@ sce$clusters = factor(sce$clusters)
 
 p0 = plotDR(sce, "DiffusionMap", color_by = "condition") +
   theme_classic() +
-  scale_colour_manual(values = c("lightyellow2", "#FEF0D9", 
-                                 "burlywood", "#FDD49E", 
-                                 "#FDBB84", "#FC8D59", 
-                                 "chocolate3", "#EF6548"))
+  scale_colour_manual(values = c('#fee8c8', '#fdd49e', '#fdbb84', '#fc8d59', '#ef6548', '#d7301f',
+                                 '#b30000', '#7f0000'))
 
 p1 = plotDR(sce, "DiffusionMap", color_by = "clusters") +
   theme_classic() + 
@@ -636,6 +634,159 @@ p1 = plotDR(sce, "DiffusionMap", color_by = "clusters") +
 p0 + p1 
 
 ggsave(paste0(figureDir, 'FACS_RA_DiffusionMap_timePoints_clusters_colors.pdf'), width=14, height = 6)
+
+
+########################################################
+########################################################
+# Section : plot the feature selection outcome 
+# 
+########################################################
+########################################################
+Merge_sparseFeatures_mutlipleMethods = FALSE
+if(Merge_sparseFeatures_mutlipleMethods){
+  dataDir = paste0("../results/scRNAseq_R13547_10x_mNT_20220813/",
+                   "RA_symetryBreaking/sparse_featureSelection_d2_d2.5_d3_d3.5_d4_d5/")
+  
+  ggs = c()
+  xx = read.csv(file = paste0(dataDir, 'geneBasis_top50_tfs_sps_final.csv'), sep = ";")
+  ggs = unique(c(ggs, xx[, 2]))
+  
+  write.csv(xx, file = paste0(resDir, '/geneBasis_top50_tfs_sps_final.csv'), row.names = FALSE)
+  
+  xx = read.csv(file = paste0(dataDir, 'dubstep_sparse_74.tfs.sps_final.csv'))
+  ggs = unique(c(ggs, xx[, 1]))
+  
+  write.csv(xx, file = paste0(resDir, '/dubstep_sparse_74.tfs.sps_final.csv'), row.names = FALSE)
+  
+  xx = read.csv(file = paste0(dataDir, 'SMD_sparse_31tfs.sps_final.csv'))
+  ggs = unique(c(ggs, xx[c(1:31), 1]))
+  write.csv(xx[c(1:31), ], 
+            file = paste0(resDir, '/SMD_sparse_31tfs.sps_final.csv'), row.names = FALSE)
+  
+  aa = readRDS(paste0('/groups/tanaka/Collaborations/Jingkui-Hannah/',
+                      'RA_competence/scRNAseq_mNT/saved_seuratObj/',
+                      'RAsamples_d2_d6_UMAP_selectedParam.rds'))
+  
+  ggs = ggs[which(!is.na(match(ggs, rownames(aa))))]
+  
+  
+  levels_sels = c("day2_beforeRA",  
+                  "day2.5_RA", "day3_RA.rep1", "day3.5_RA",   "day4_RA", "day5_RA")
+  
+  #levels_sels = unique(aa$condition)
+  cols_sel = cols[match(levels_sels, names(cols))]
+  Idents(aa) = as.factor(aa$condition)
+  
+  aa = subset(aa, idents = levels_sels)
+  aa <- RunPCA(aa, features = ggs, verbose = FALSE, weight.by.var = TRUE)
+  ElbowPlot(aa, ndims = 50)
+  
+  
+  aa <- RunUMAP(aa, dims = 1:20, n.neighbors = 100, min.dist = 0.1)
+  DimPlot(aa, group.by = 'condition', label = TRUE, cols = cols_sel)
+  
+  ggsave(filename = paste0(resDir, '/RA_umap_with_selectedFeatures.pdf'), width = 8, height = 6) 
+  
+  saveRDS(ggs, file = paste0(resDir, '/geneList_sparseFeatureSelection.rds'))
+  
+}
+
+##########################################
+# Visualising RA-specific expression pattern / kinetics (feature plots / exp vs pseudotime?  
+# by Hannah
+##########################################
+aa = readRDS(paste0('/groups/tanaka/Collaborations/Jingkui-Hannah/RA_competence/',
+                    'scRNAseq_mNT/saved_seuratObj/',
+                    'RA_noRAsamples_d2_d6_UMAP_selectedParam.rds'))
+
+ggs = readRDS(file = paste0(resDir, '/geneList_sparseFeatureSelection.rds'))
+
+levels_sels = c("day2.5_RA", "day3_RA.rep1", "day3.5_RA",   "day4_RA", "day5_RA", "day6_RA", 
+                "day2.5_noRA", "day3_noRA",  "day3.5_noRA", "day4_noRA", "day5_noRA", "day6_noRA")
+
+Idents(aa) = as.factor(aa$condition)
+aa = subset(aa, idents = levels_sels)
+
+levels_sels = unique(aa$condition)
+cols_sel = cols[match(levels_sels, names(cols))]
+
+DimPlot(aa, cols = cols_sel)
+
+aa$groups = NA
+aa$groups[grep('_RA', aa$condition)] = 'RA'
+aa$groups[grep('_noRA', aa$condition)] = 'noRA'
+aa$groups = factor(aa$groups, levels = c('RA', 'noRA'))
+
+aa$condition = droplevels(aa$condition)
+
+aa$time = sapply(aa$condition, function(x) {unlist(strsplit(as.character(x), '_'))[1]})
+
+features =c('Foxa2', 'Pax6', 'Pou5f1', 'Sox1')
+VlnPlot(aa, features = features, split.by = "groups", group.by = 'time', log = FALSE, 
+        same.y.lims = TRUE, ncol = 2, pt.size = 0, 
+        cols = c("#EF6548", "#6BAED6"))
+
+ggsave(filename = paste0(resDir, '/RAspecific_geneExpression_kinetics_noDot_v2.pdf'), 
+       width = 16, height = 8) 
+
+
+##########################################
+# Dotplot for RA vs noRA
+##########################################
+# SplitDotPlotGG has been replaced with the `split.by` parameter for DotPlot
+aa = readRDS(paste0('/groups/tanaka/Collaborations/Jingkui-Hannah/RA_competence/',
+                    'scRNAseq_mNT/saved_seuratObj/',
+                    'RA_noRAsamples_d2_d6_UMAP_selectedParam.rds'))
+
+ggs = readRDS(file = paste0(resDir, '/geneList_sparseFeatureSelection.rds'))
+
+levels_sels = c("day2_beforeRA",
+                "day2.5_RA", "day3_RA.rep1", "day3.5_RA",   "day4_RA", "day5_RA", "day6_RA", 
+                "day2.5_noRA", "day3_noRA",  "day3.5_noRA", "day4_noRA", "day5_noRA", "day6_noRA")
+
+Idents(aa) = as.factor(aa$condition)
+aa = subset(aa, idents = levels_sels)
+
+levels_sels = unique(aa$condition)
+cols_sel = cols[match(levels_sels, names(cols))]
+
+DimPlot(aa, cols = cols_sel)
+
+
+aa$condition = droplevels(aa$condition)
+
+aa$condition = factor(as.character(aa$condition), 
+                      levels = c("day6_noRA", "day5_noRA", "day4_noRA", 
+                                 "day3.5_noRA", "day3_noRA",  "day2.5_noRA",
+                                 "day2_beforeRA", 
+                                 "day2.5_RA", "day3_RA.rep1", "day3.5_RA",   
+                                 "day4_RA", "day5_RA", "day6_RA")
+)
+
+#Idents(aa) = factor(aa$time) 
+DotPlot(aa, features = ggs, 
+        group.by = "condition"
+) +
+  geom_point(aes(size=pct.exp), shape = 21, colour="black", stroke=0.5) +
+  scale_colour_viridis(option="magma") +
+  guides(size=guide_legend(override.aes=list(shape=21, colour="black", fill="white"))) +
+  RotatedAxis() + 
+  coord_flip() 
+
+ggsave(filename = paste0(resDir, '/RA_vs_noRA_sparseFeatures.pdf'), width = 8, height = 28) 
+
+#DotPlot_scCustom(aa, features = ggs[c(1:20)], split.by = "groups",  flip_axes = TRUE)
+
+
+test_scCutomize_clustering = FALSE
+if(test_scCutomize_clustering){
+  require(scCustomize)
+  aa$orig.ident = factor(aa$condition)
+  Clustered_DotPlot(aa, features = c('Pax6', 'Sox1'), split.by = 'condition',
+                    plot_km_elbow = FALSE)
+  
+}
+
 
 
 ########################################################
@@ -1243,155 +1394,3 @@ ggplot(hete, aes(x= condition, y=dists, fill = treament)) +
 ggsave(filename = paste0(resDir, '/pairwise_distance_pst.palantir.Bins_', length(bins), 
                          '.bins.pdf'), width = 12, height = 8) 
 
-########################################################
-########################################################
-# Section : plot the feature selection outcome 
-# 
-########################################################
-########################################################
-dataDir = "../results/scRNAseq_R13547_10x_mNT_20220813/RA_symetryBreaking/sparse_featureSelection_d2_d2.5_d3_d3.5_d4_d5/"
-
-ggs = c()
-xx = read.csv(file = paste0(dataDir, 'geneBasis_top50_tfs_sps_final.csv'), sep = ";")
-ggs = unique(c(ggs, xx[, 2]))
-
-write.csv(xx, file = paste0(resDir, '/geneBasis_top50_tfs_sps_final.csv'), row.names = FALSE)
-
-xx = read.csv(file = paste0(dataDir, 'dubstep_sparse_74.tfs.sps_final.csv'))
-ggs = unique(c(ggs, xx[, 1]))
-
-write.csv(xx, file = paste0(resDir, '/dubstep_sparse_74.tfs.sps_final.csv'), row.names = FALSE)
-
-xx = read.csv(file = paste0(dataDir, 'SMD_sparse_31tfs.sps_final.csv'))
-ggs = unique(c(ggs, xx[c(1:31), 1]))
-write.csv(xx[c(1:31), ], 
-          file = paste0(resDir, '/SMD_sparse_31tfs.sps_final.csv'), row.names = FALSE)
-
-aa = readRDS(paste0('/groups/tanaka/Collaborations/Jingkui-Hannah/RA_competence/scRNAseq_mNT/saved_seuratObj/',
-                    'RAsamples_d2_d6_UMAP_selectedParam.rds'))
-
-ggs = ggs[which(!is.na(match(ggs, rownames(aa))))]
-
-
-levels_sels = c("day2_beforeRA",  
-                "day2.5_RA", "day3_RA.rep1", "day3.5_RA",   "day4_RA", "day5_RA")
-
-#levels_sels = unique(aa$condition)
-cols_sel = cols[match(levels_sels, names(cols))]
-Idents(aa) = as.factor(aa$condition)
-
-aa = subset(aa, idents = levels_sels)
-aa <- RunPCA(aa, features = ggs, verbose = FALSE, weight.by.var = TRUE)
-ElbowPlot(aa, ndims = 50)
-
-
-aa <- RunUMAP(aa, dims = 1:20, n.neighbors = 100, min.dist = 0.1)
-DimPlot(aa, group.by = 'condition', label = TRUE, cols = cols_sel)
-
-ggsave(filename = paste0(resDir, '/RA_umap_with_selectedFeatures.pdf'), width = 8, height = 6) 
-
-saveRDS(ggs, file = paste0(resDir, '/geneList_sparseFeatureSelection.rds'))
-
-##########################################
-# Visualising RA-specific expression pattern / kinetics (feature plots / exp vs pseudotime?  
-# by Hannah
-##########################################
-aa = readRDS(paste0('/groups/tanaka/Collaborations/Jingkui-Hannah/RA_competence/scRNAseq_mNT/saved_seuratObj/',
-                    'RA_noRAsamples_d2_d6_UMAP_selectedParam.rds'))
-
-ggs = readRDS(file = paste0(resDir, '/geneList_sparseFeatureSelection.rds'))
-
-levels_sels = c("day2.5_RA", "day3_RA.rep1", "day3.5_RA",   "day4_RA", "day5_RA", "day6_RA", 
-                "day2.5_noRA", "day3_noRA",  "day3.5_noRA", "day4_noRA", "day5_noRA", "day6_noRA")
-
-Idents(aa) = as.factor(aa$condition)
-aa = subset(aa, idents = levels_sels)
-
-levels_sels = unique(aa$condition)
-cols_sel = cols[match(levels_sels, names(cols))]
-
-DimPlot(aa, cols = cols_sel)
-
-aa$groups = NA
-aa$groups[grep('_RA', aa$condition)] = 'RA'
-aa$groups[grep('_noRA', aa$condition)] = 'noRA'
-aa$groups = factor(aa$groups, levels = c('RA', 'noRA'))
-
-aa$condition = droplevels(aa$condition)
-
-aa$time = sapply(aa$condition, function(x) {unlist(strsplit(as.character(x), '_'))[1]})
-
-features =c('Foxa2', 'Pax6', 'Pou5f1', 'Sox1')
-VlnPlot(aa, features = features, split.by = "groups", group.by = 'time', log = FALSE, 
-        same.y.lims = TRUE, ncol = 2, pt.size = 0, 
-        cols = c("#EF6548", "#6BAED6"))
-
-ggsave(filename = paste0(resDir, '/RAspecific_geneExpression_kinetics_noDot_v2.pdf'), 
-       width = 16, height = 8) 
-
-
-##########################################
-# Dotplot for RA vs noRA
-##########################################
-# SplitDotPlotGG has been replaced with the `split.by` parameter for DotPlot
-aa = readRDS(paste0('/groups/tanaka/Collaborations/Jingkui-Hannah/RA_competence/scRNAseq_mNT/saved_seuratObj/',
-                    'RA_noRAsamples_d2_d6_UMAP_selectedParam.rds'))
-
-ggs = readRDS(file = paste0(resDir, '/geneList_sparseFeatureSelection.rds'))
-
-levels_sels = c("day2_beforeRA",
-  "day2.5_RA", "day3_RA.rep1", "day3.5_RA",   "day4_RA", "day5_RA", "day6_RA", 
-                "day2.5_noRA", "day3_noRA",  "day3.5_noRA", "day4_noRA", "day5_noRA", "day6_noRA")
-
-Idents(aa) = as.factor(aa$condition)
-aa = subset(aa, idents = levels_sels)
-
-levels_sels = unique(aa$condition)
-cols_sel = cols[match(levels_sels, names(cols))]
-
-DimPlot(aa, cols = cols_sel)
-
-# aa$groups = NA
-# aa$groups[grep('_RA', aa$condition)] = 'RA'
-# aa$groups[grep('_noRA', aa$condition)] = 'noRA'
-# aa$groups = factor(aa$groups, levels = c('RA', 'noRA'))
-# 
-# aa$condition = droplevels(aa$condition)
-# 
-# aa$time = sapply(aa$condition, function(x) {unlist(strsplit(as.character(x), '_'))[1]})
-
-#levels(aa$condition) = c("day6_noRA", "day5_noRA", "day4_noRA", "day3.5_noRA", "day3_noRA",  "day2.5_noRA",
-#                      "day2_beforeRA",
-#                      "day2.5_RA", "day3_RA.rep1", "day3.5_RA",   "day4_RA", "day5_RA", "day6_RA"
-#                          )
-
-aa$condition = droplevels(aa$condition)
-
-aa$condition = factor(as.character(aa$condition), 
-                      levels = c("day6_noRA", "day5_noRA", "day4_noRA", "day3.5_noRA", "day3_noRA",  "day2.5_noRA",
-                                 "day2_beforeRA", 
-                                 "day2.5_RA", "day3_RA.rep1", "day3.5_RA",   "day4_RA", "day5_RA", "day6_RA")
-)
-
-#Idents(aa) = factor(aa$time) 
-DotPlot(aa, features = ggs, 
-        group.by = "condition"
-        ) +
-  geom_point(aes(size=pct.exp), shape = 21, colour="black", stroke=0.5) +
-  scale_colour_viridis(option="magma") +
-  guides(size=guide_legend(override.aes=list(shape=21, colour="black", fill="white"))) +
-  RotatedAxis() + 
-  coord_flip() 
-
-ggsave(filename = paste0(resDir, '/RA_vs_noRA_sparseFeatures.pdf'), width = 8, height = 28) 
-
-#DotPlot_scCustom(aa, features = ggs[c(1:20)], split.by = "groups",  flip_axes = TRUE)
-
-test_scCutomize_clustering = FALSE
-if(test_scCutomize_clustering){
-  require(scCustomize)
-  aa$orig.ident = factor(aa$condition)
-  Clustered_DotPlot(aa, features = c('Pax6', 'Sox1'), split.by = 'condition',
-                    plot_km_elbow = FALSE)
-  
-}
