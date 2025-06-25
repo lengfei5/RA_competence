@@ -602,13 +602,45 @@ ggplot(data=df, aes(x=condition, y=counts, fill=condition)) +
   labs( x = '', y = '% of FoxA2+ & Pax6+' )
 
 ggsave(filename = paste0(resDir, '/scRNAseq_RAsamples_FoxA2_Pax6_percentage.pdf'), 
-       width = 8, height = 6)
+       width = 8, height = 5)
 
 
 
 ########################################################
 ########################################################
-# Section II: RA vs noRA 
+# Section : FACS data diffusion map for RA samples
+# 
+########################################################
+########################################################
+library(CATALYST)
+library(SingleCellExperiment)
+
+RdataDir_facsData = paste0('../results/FACS_analysis_clusteringWT', '/Rdata')
+
+sce = readRDS(file = paste0(RdataDir_facsData, '/sce_FACS_RA_nod2_DiffusionMap_saved.rds'))
+
+sce$clusters = factor(sce$clusters)
+
+
+p0 = plotDR(sce, "DiffusionMap", color_by = "condition") +
+  theme_classic() +
+  scale_colour_manual(values = c("lightyellow2", "#FEF0D9", 
+                                 "burlywood", "#FDD49E", 
+                                 "#FDBB84", "#FC8D59", 
+                                 "chocolate3", "#EF6548"))
+
+p1 = plotDR(sce, "DiffusionMap", color_by = "clusters") +
+  theme_classic() + 
+  scale_colour_manual(values = c("#464646", "#7F7F7F", "#CD00CF", "#FFC000", "#70AD47"))
+
+p0 + p1 
+
+ggsave(paste0(figureDir, 'FACS_RA_DiffusionMap_timePoints_clusters_colors.pdf'), width=14, height = 6)
+
+
+########################################################
+########################################################
+# Section II: RA vs noRA
 # 
 ########################################################
 ########################################################
