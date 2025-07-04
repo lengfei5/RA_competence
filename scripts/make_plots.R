@@ -469,6 +469,7 @@ saveRDS(aa, file = paste0(RdataDir,
                           'seuratObj_clustersFiltered_umap_RAsamples_selectUMAPparam',
                           '_clustered.discardCellcycle.corrrelatedGenes.rds'))
 
+
 ##########################################
 # highlight the marker genes or specified genes
 ##########################################
@@ -624,15 +625,19 @@ sce$clusters = factor(sce$clusters)
 p0 = plotDR(sce, "DiffusionMap", color_by = "condition") +
   theme_classic() +
   scale_colour_manual(values = c('#fee8c8', '#fdd49e', '#fdbb84', '#fc8d59', '#ef6548', '#d7301f',
-                                 '#b30000', '#7f0000'))
+                                 '#b30000', '#7f0000')) +
+  theme(axis.text.x = element_text(angle = 0, size = 12, vjust = 0.4),
+        axis.text.y = element_text(angle = 0, size = 12))
 
 p1 = plotDR(sce, "DiffusionMap", color_by = "clusters") +
   theme_classic() + 
-  scale_colour_manual(values = c("#464646", "#7F7F7F", "#CD00CF", "#FFC000", "#70AD47"))
+  scale_colour_manual(values = c("#464646", "#7F7F7F", "#CD00CF", "#FFC000", "#70AD47"))+
+  theme(axis.text.x = element_text(angle = 0, size = 12, vjust = 0.4),
+        axis.text.y = element_text(angle = 0, size = 12))
 
 p0 + p1 
 
-ggsave(paste0(figureDir, 'FACS_RA_DiffusionMap_timePoints_clusters_colors.pdf'), width=14, height = 6)
+ggsave(paste0(resDir, '/FACS_RA_DiffusionMap_timePoints_clusters_colors.pdf'), width=14, height = 6)
 
 
 ########################################################
@@ -1272,7 +1277,7 @@ if(Test_moduleScoring){
 
 ########################################################
 ########################################################
-# Section II: RA vs noRA
+# Section: RA vs noRA
 # 
 ########################################################
 ########################################################
