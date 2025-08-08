@@ -179,6 +179,7 @@ table(aa$condition)
 
 Filter_weirdCluster = FALSE
 if(Filter_weirdCluster){
+  
   cells_2filter = readRDS(file = paste0(RdataDir, 'subObj_clusters_to_filter.rds'))
   mm = match(colnames(aa), colnames(cells_2filter))
   
@@ -320,11 +321,53 @@ ggsave(paste0("../results/plots_MondaySeminar",
 # 
 ########################################################
 ########################################################
+outDir = paste0(resDir, '/UMAP_allSamples/')
+if(!dir.exists(outDir)) dir.create(outDir)
+
+aa =  readRDS(file = paste0('../results/Rdata/',
+                            'seuratObject_merged_cellFiltered_doublet.rm_mt.ribo.geneFiltered_regressout.nCounts_',
+                            'cellCycleScoring_annot.v1_',
+                            species, '_R13547_10x_mNT_20220813', '.rds'))
+
+Idents(aa) = factor(aa$condition, levels = levels)
+table(aa$condition)
+
+DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'condition', cols = cols, raster=FALSE)
+
+
+Filter_weirdCluster_7_8_old = FALSE
+if(Filter_weirdCluster_7_8){
+  cells_2filter = readRDS(paste0(RdataDir, 'cellNames_weirdClusters_7_8.rds'))
+  mm = match(colnames(aa), cells_2filter)
+  aa = subset(aa, cells = colnames(aa)[which(is.na(mm))])
+}
+
+Filter_weirdCluster_new = FALSE
+if(Filter_weirdCluster){
+  
+  cells_2filter = readRDS(file = paste0(RdataDir, 'subObj_clusters_to_filter.rds'))
+  mm = match(colnames(aa), colnames(cells_2filter))
+  
+  aa = subset(aa, cells = colnames(aa)[which(is.na(mm))])
+  
+  aa <- FindVariableFeatures(aa, selection.method = "vst", nfeatures = 3000) # find subset-specific HVGs
+  ## because the data was regressed and scaled already, only the HVGs were used to calculate PCA
+  aa <- RunPCA(aa, features = VariableFeatures(object = aa), verbose = FALSE, weight.by.var = TRUE)
+  ElbowPlot(aa, ndims = 50)
+  
+  Idents(aa) = aa$condition
+  
+  aa <- RunUMAP(aa, dims = 1:30, n.neighbors = 50, min.dist = 0.1)
+  DimPlot(aa, cols = cols, group.by = 'condition', label = TRUE, repel = TRUE, raster = FALSE)
+  
+  saveRDS(aa, file = paste0(RdataDir, 'seuratObj_clustersFiltered_umapOverview.rds'))
+  
+}
 
 ##########################################
 # redo umap for RA d2.5-d6 
 ##########################################
-aa = readRDS(file = paste0(RdataDir, 
+bb= readRDS(file = paste0(RdataDir, 
                           'seuratObj_clustersFiltered_umapOverview_selectedUmapParams.rds'))
 
 names(cols) = levels
@@ -342,17 +385,17 @@ outDir = paste0(resDir, '/UMAP_RAsamples/')
 if(!dir.exists(outDir)) dir.create(outDir)
 
 explore.umap.params.combination(sub.obj = aa, resDir = outDir, 
-                                pdfname = 'UMAP_test_RASamples_selectedParameters.pdf',
+                                pdfname = 'UMAP_test_RASamples_selectedParameters_v2.pdf',
                                 use.parallelization = FALSE,
                                 group.by = 'condition',
                                 cols = cols, 
                                 weight.by.var = TRUE,
-                                nfeatures.sampling = c(3000, 5000),
-                                nb.pcs.sampling = c(30, 50, 100), 
-                                n.neighbors.sampling = c(30, 50, 100, 200), 
+                                nfeatures.sampling = c(3000),
+                                nb.pcs.sampling = c(50), 
+                                n.neighbors.sampling = c(30), 
                                 min.dist.sampling = c(0.1)
-                                
 )
+
 
 saveRDS(aa, file = paste0(RdataDir, 'seuratObj_clustersFiltered_umap_RAsamples_nod2.rds'))
 
@@ -368,15 +411,16 @@ DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'condition', cols = cols_sel,
 
 aa <- FindVariableFeatures(aa, selection.method = "vst", nfeatures = 3000) # find subset-specific HVGs
 
-aa <- RunPCA(aa, features = VariableFeatures(object = aa), verbose = FALSE, weight.by.var = TRUE)
+aa <- RunPCA(aa, features = VariableFeatures(object = aa), verbose = FALSE,
+             npcs = 50, weight.by.var = TRUE)
+
 ElbowPlot(aa, ndims = 50)
 
 Idents(aa) = aa$condition
 
-aa <- RunUMAP(aa, dims = 1:50, n.neighbors = 30, min.dist = 0.1, spread = 1, seed.use = 45)
+aa <- RunUMAP(aa, dims = 1:50, n.neighbors = 30, min.dist = 0.1, spread = 1)
 
-DimPlot(aa, label = FALSE, repel = TRUE, group.by = 'condition', cols = cols_sel, raster=FALSE) +
-  coord_flip() + scale_x_reverse()
+DimPlot(aa, label = FALSE, repel = TRUE, group.by = 'condition', cols = cols_sel, raster=FALSE) 
 
 
 ggsave(filename = paste0(resDir, '/scRNAseq_overviewUMAP_RAsamples', version.analysis, '.pdf'), 
@@ -458,7 +502,8 @@ if(Discard_cellCycle.corrrelatedGenes){
   
 }
 
-cols_cluster = c( "#ff7f00", "#08519c", "#762a83", "chartreuse4", "#e31a1c", "#20b2aa","#b30024")
+cols_cluster = c( "#7f7f7f", "#ffc000", "#70ad47", "#337f01", "#cd00cf", "#265401","#800080")
+
 DimPlot(aa, label = TRUE, group.by =  'clusters', repel = TRUE, raster=FALSE, 
         cols = cols_cluster) 
 
@@ -468,7 +513,6 @@ ggsave(filename = paste0(resDir, '/scRNAseq_overview_RAsamples_clustering.pdf'),
 saveRDS(aa, file = paste0(RdataDir, 
                           'seuratObj_clustersFiltered_umap_RAsamples_selectUMAPparam',
                           '_clustered.discardCellcycle.corrrelatedGenes.rds'))
-
 
 ##########################################
 # highlight the marker genes or specified genes
@@ -551,6 +595,47 @@ VlnPlot(aa, group.by = "clusters", fill.by = "ident", cols = cols_cluster,
 ggsave(filename = paste0(resDir, '/scRNAseq_overview_RAsamples_clustering_markers_Vlnplot.pdf'), 
        width = 8, height = 6)
 
+
+##########################################
+# highlight the DE genes in cluster 3 and 5 to characterize the cell states in salt-and-pepper  
+##########################################
+aa = readRDS(file = paste0(RdataDir, 
+                           'seuratObj_clustersFiltered_umap_RAsamples_selectUMAPparam',
+                           '_clustered.discardCellcycle.corrrelatedGenes.rds'))
+
+DimPlot(aa, group.by = 'clusters', label = TRUE)
+
+Idents(aa) = factor(aa$clusters)
+
+cluster5.markers <- FindMarkers(aa, ident.1 = 5, ident.2 = c(3), 
+                                logfc.threshold = 0.2, only.pos = TRUE)
+
+cluster3.markers <- FindMarkers(aa, ident.1 = 3, ident.2 = c(5), logfc.threshold = 0.2, only.pos = TRUE)
+
+head(cluster5.markers, n = 10)
+head(cluster3.markers, n = 10)
+
+marker_clusters_3_5 = c(rownames(cluster5.markers)[1:20], rownames(cluster3.markers)[1:20])
+
+library(RColorBrewer)
+colGEX = c("grey85", brewer.pal(7, "Reds"))
+DotPlot(aa, group.by = "clusters", idents = c(3, 5),
+        features = marker_clusters_3_5) + 
+  coord_flip() + scale_color_gradientn(colors = colGEX) +
+  theme(axis.text.x = element_text(angle = 0, hjust = 0))
+
+ggsave(filename = paste0(resDir, '/scRNAseq_overview_RAsamples_clustering_markers_dotplot_sorted.pdf'), 
+       width = 8, height = 4)
+
+#nClust = 7
+#colCls <- colorRampPalette(brewer.pal(n = 10, name = "Paired"))(nClust)
+VlnPlot(aa, group.by = "clusters", fill.by = "ident", 
+        idents = c(3, 5), 
+        cols = cols_cluster[c(3, 5)],
+        features = marker_clusters_3_5, stack = TRUE, flip = TRUE)
+
+ggsave(filename = paste0(resDir, '/scRNAseq_RAsamples_clusterMarkers_3vs5_Vlnplot.pdf'), 
+       width = 4, height = 8)
 
 ##########################################
 # double positive cell in RA samples with scatter plots  
