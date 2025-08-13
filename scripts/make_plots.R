@@ -337,9 +337,11 @@ DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'condition', cols = cols, ras
 
 Filter_weirdCluster_7_8_old = FALSE
 if(Filter_weirdCluster_7_8){
+  
   cells_2filter = readRDS(paste0(RdataDir, 'cellNames_weirdClusters_7_8.rds'))
   mm = match(colnames(aa), cells_2filter)
   aa = subset(aa, cells = colnames(aa)[which(is.na(mm))])
+  
 }
 
 Filter_weirdCluster_new = FALSE
@@ -350,25 +352,27 @@ if(Filter_weirdCluster){
   
   aa = subset(aa, cells = colnames(aa)[which(is.na(mm))])
   
-  aa <- FindVariableFeatures(aa, selection.method = "vst", nfeatures = 3000) # find subset-specific HVGs
-  ## because the data was regressed and scaled already, only the HVGs were used to calculate PCA
-  aa <- RunPCA(aa, features = VariableFeatures(object = aa), verbose = FALSE, weight.by.var = TRUE)
-  ElbowPlot(aa, ndims = 50)
-  
-  Idents(aa) = aa$condition
-  
-  aa <- RunUMAP(aa, dims = 1:30, n.neighbors = 50, min.dist = 0.1)
-  DimPlot(aa, cols = cols, group.by = 'condition', label = TRUE, repel = TRUE, raster = FALSE)
-  
-  saveRDS(aa, file = paste0(RdataDir, 'seuratObj_clustersFiltered_umapOverview.rds'))
+  # aa <- FindVariableFeatures(aa, selection.method = "vst", nfeatures = 3000) # find subset-specific HVGs
+  # ## because the data was regressed and scaled already, only the HVGs were used to calculate PCA
+  # aa <- RunPCA(aa, features = VariableFeatures(object = aa), verbose = FALSE, weight.by.var = TRUE)
+  # ElbowPlot(aa, ndims = 50)
+  # 
+  # Idents(aa) = aa$condition
+  # 
+  # aa <- RunUMAP(aa, dims = 1:30, n.neighbors = 50, min.dist = 0.1)
+  # DimPlot(aa, cols = cols, group.by = 'condition', label = TRUE, repel = TRUE, raster = FALSE)
+  #saveRDS(aa, file = paste0(RdataDir, 'seuratObj_clustersFiltered_umapOverview.rds'))
   
 }
 
 ##########################################
 # redo umap for RA d2.5-d6 
 ##########################################
-bb= readRDS(file = paste0(RdataDir, 
-                          'seuratObj_clustersFiltered_umapOverview_selectedUmapParams.rds'))
+#bb = readRDS(file = paste0(RdataDir, 
+#                          'seuratObj_clustersFiltered_umapOverview_selectedUmapParams.rds'))
+
+aa = readRDS(file = paste0(RdataDir, 
+                           'seuratObj_clustersFiltered_umapOverview_selectedUmapParams.rds'))
 
 names(cols) = levels
 levels_sels = c("day2.5_RA", "day3_RA.rep1", "day3.5_RA", "day4_RA", "day5_RA", "day6_RA")
@@ -385,24 +389,24 @@ outDir = paste0(resDir, '/UMAP_RAsamples/')
 if(!dir.exists(outDir)) dir.create(outDir)
 
 explore.umap.params.combination(sub.obj = aa, resDir = outDir, 
-                                pdfname = 'UMAP_test_RASamples_selectedParameters_v2.pdf',
+                                pdfname = 'UMAP_test_RASamples_selectedParameters_seurat5_v4.pdf',
                                 use.parallelization = FALSE,
                                 group.by = 'condition',
                                 cols = cols, 
                                 weight.by.var = TRUE,
                                 nfeatures.sampling = c(3000),
                                 nb.pcs.sampling = c(50), 
-                                n.neighbors.sampling = c(30), 
+                                n.neighbors.sampling = c(30, 50), 
                                 min.dist.sampling = c(0.1)
 )
 
 
-saveRDS(aa, file = paste0(RdataDir, 'seuratObj_clustersFiltered_umap_RAsamples_nod2.rds'))
+saveRDS(aa, file = paste0(RdataDir, 'seuratObj_clustersFiltered_umap_RAsamples_4save.rds'))
 
 ##########################################
-# cluster the RA sample 
+# UMAP visualization of the RA sample 
 ##########################################
-aa = readRDS(file = paste0(RdataDir, 'seuratObj_clustersFiltered_umap_RAsamples_nod2.rds'))
+aa = readRDS(file = paste0(RdataDir, 'seuratObj_clustersFiltered_umap_RAsamples_4save.rds'))
 
 levels_sels = c("day2.5_RA", "day3_RA.rep1", "day3.5_RA", "day4_RA", "day5_RA", "day6_RA")
 cols_sel = cols[match(levels_sels, names(cols))]
@@ -418,17 +422,21 @@ ElbowPlot(aa, ndims = 50)
 
 Idents(aa) = aa$condition
 
-aa <- RunUMAP(aa, dims = 1:50, n.neighbors = 30, min.dist = 0.1, spread = 1)
+aa <- RunUMAP(aa, dims = 1:50, n.neighbors = 50, min.dist = 0.1, spread = 1)
 
-DimPlot(aa, label = FALSE, repel = TRUE, group.by = 'condition', cols = cols_sel, raster=FALSE) 
+DimPlot(aa, label = FALSE, repel = TRUE, group.by = 'condition', cols = cols_sel, raster=FALSE)  
 
-
-ggsave(filename = paste0(resDir, '/scRNAseq_overviewUMAP_RAsamples', version.analysis, '.pdf'), 
+ggsave(filename = paste0(resDir, '/scRNAseq_overviewUMAP_RAsamples_seurat5.0.2_final_v1.pdf'), 
        width = 10, height = 8)
 
-
 saveRDS(aa, file = paste0(RdataDir, 
-                          'seuratObj_clustersFiltered_umap_RAsamples_selectUMAPparam.rds'))
+                          'seuratObj_clustersFiltered_umap_RAsamples_selectUMAPparam_s5.rds'))
+
+##########################################
+# Fig 1C clustering of RA samples
+##########################################
+aa = readRDS(file = paste0(RdataDir, 
+                           'seuratObj_clustersFiltered_umap_RAsamples_selectUMAPparam_s5.rds'))
 
 ### test some clustering options
 aa <- RunPCA(aa, features = VariableFeatures(object = aa), verbose = FALSE, weight.by.var = FALSE)
@@ -440,12 +448,12 @@ DimPlot(aa, label = TRUE, repel = TRUE, raster=FALSE)
 
 DimPlot(aa, group.by = "Phase", label = TRUE, repel = TRUE, raster=FALSE)
 
-knownGenes =  c('Pou5f1', 'Sox2', 'Zfp42',
+knownGenes =  c('Pou5f1', 'Sox2', 'Zfp42', 'Utf1',
                 'Otx2', 'Cyp26a1', 'Stra8',
                 'Hoxa1', 'Hoxa3', 'Hoxb4',
-                'Sox1', 'Pax6', 'Tubb3', 
-                'Foxa2', 'Shh', 'Arx', 
-                'Nkx2-2', 'Olig2', 'Pax3')
+                'Sox1', 'Pax6', 'Tubb3', 'Elavl4', 'Neurod4',
+                'Foxa2', 'Shh', 'Arx', 'Vtn', "Spon1", 'Slit2', "Ntn1",
+                'Nkx2-2', 'Olig2', 'Pax3', 'Pax7', 'Nkx6-1')
 
 Discard_cellCycle.corrrelatedGenes = TRUE
 if(Discard_cellCycle.corrrelatedGenes){
@@ -502,24 +510,87 @@ if(Discard_cellCycle.corrrelatedGenes){
   
 }
 
-cols_cluster = c( "#7f7f7f", "#ffc000", "#70ad47", "#337f01", "#cd00cf", "#265401","#800080")
+bb = readRDS(file = paste0(RdataDir, 
+                          'seuratObj_clustersFiltered_umap_RAsamples_selectUMAPparam',
+                          '_clustered.discardCellcycle.corrrelatedGenes.rds'))
 
-DimPlot(aa, label = TRUE, group.by =  'clusters', repel = TRUE, raster=FALSE, 
+aa$clusters = bb$clusters[match(colnames(aa), colnames(bb))]
+
+cols_cluster = c( "#7F7F7F", "#FFC000", "#70AD47", "#337f01", "#CD00CF", "#265401","#800080")
+# = c( "#7f7f7f", "#ffc000", "#70ad47", "#337f01", "#cd00cf", "#265401","#800080")
+
+DimPlot(aa, label = FALSE, group.by =  'clusters', repel = TRUE, raster=FALSE, 
         cols = cols_cluster) 
 
-ggsave(filename = paste0(resDir, '/scRNAseq_overview_RAsamples_clustering.pdf'), 
+ggsave(filename = paste0(resDir, '/scRNAseq_overview_RAsamples_clustering_final_v1.pdf'), 
        width = 10, height = 8)
 
 saveRDS(aa, file = paste0(RdataDir, 
-                          'seuratObj_clustersFiltered_umap_RAsamples_selectUMAPparam',
-                          '_clustered.discardCellcycle.corrrelatedGenes.rds'))
+                          'seuratObj_clustersFiltered_umap_RAsamples_selectUMAPparam_clusters_4save.rds'))
+
+
+##########################################
+# timpe point contribution of clusters 
+##########################################
+pcts = table(aa$clusters, aa$condition)
+pcts = pcts[!is.na(match(rownames(pcts), c(1:7))), ]
+for(n in 1:nrow(pcts)) pcts[n, ] = pcts[n, ]/sum(pcts[n, ])
+pcts = as.matrix(pcts)
+
+clusters = rep(rownames(pcts), each = 6)
+samples = rep(colnames(pcts), nrow(pcts))
+freqs = as.numeric(t(pcts))
+
+pcts = data.frame(clusters, samples, freqs)
+
+library(ggplot2)
+levels_sels = c("day2.5_RA", "day3_RA.rep1", "day3.5_RA", "day4_RA", "day5_RA", "day6_RA")
+cols_sel = cols[match(levels_sels, names(cols))]
+
+
+ggplot(pcts, aes(x = factor(clusters, levels = c(7:1)), y = freqs, fill = samples)) + 
+  geom_bar(position="stack", stat="identity") +
+  coord_flip() +
+  scale_fill_manual(values=cols_sel) + 
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 0, size = 12, vjust = 0.4),
+        axis.text.y = element_text(angle = 0, size = 12)) +
+  labs( x = 'Clusters', y = '% of cells from each time points' )
+
+ggsave(filename = 
+         paste0(resDir, '/scRNAseq_overview_RAsamples_clusters_timePointsContribution_v1.pdf'), 
+       width = 8, height = 8)
+
+
+##########################################
+# highlight the co-expression of FoxA2 and Pax6 
+##########################################
+feature_blend = FeaturePlot(aa, features = c('Foxa2', 'Pax6'),
+                            blend = TRUE, blend.threshold = 0.1, alpha = 0.4, order = TRUE, 
+                            cols = c("#F0F0F0", "green", "magenta"))
+
+
+blend_only = feature_blend[[3]] + theme_void() + theme(legend.position = "none")
+blend_legend = feature_blend[[4]] 
+#rel_widths = c(0.7, 0.3), nrow = 1)
+
+ggsave(filename = file.path(resDir, "FeaturePlot_RAonly_FoxA2-Pax6-blend_LEGEND.pdf"), 
+       plot = blend_legend, width = 4, height = 4, units = "in")
+
+ggsave(filename = file.path(resDir, "FeaturePlot_RAonly_FoxA2-Pax6-blend_UMAP.pdf"), 
+       plot = blend_only, width = 8, height = 6, units = "in")
+
+#Cairo::CairoPNG(filename = file.path(resDir, "FeaturePlot_RAonly_FoxA2-Pax6-blend_UMAP.png"), 
+#                width = 8, height = 6, units = "in", dpi = 300)
+#print(blend_only)
+#dev.off()
+
 
 ##########################################
 # highlight the marker genes or specified genes
 ##########################################
 aa = readRDS(file = paste0(RdataDir, 
-                           'seuratObj_clustersFiltered_umap_RAsamples_selectUMAPparam',
-                           '_clustered.discardCellcycle.corrrelatedGenes.rds'))
+                           'seuratObj_clustersFiltered_umap_RAsamples_selectUMAPparam_clusters_4save.rds'))
 
 Run_allMarkerGene_searching = FALSE
 if(Run_allMarkerGene_searching){
@@ -529,6 +600,7 @@ if(Run_allMarkerGene_searching){
   saveRDS(allMarker, file = paste0(RdataDir, 
                                    'seuratObj_clustersFiltered_umap_RAsamples_selectUMAPparam',
                                    '_clustered.discardCellcycle.corrrelatedGenes_markerGenes.rds'))
+  
 }else{
   allMarker = readRDS(file = paste0(RdataDir, 
                                     'seuratObj_clustersFiltered_umap_RAsamples_selectUMAPparam',
@@ -547,16 +619,20 @@ allMarker %>%
 
 xx$clusters = droplevels(xx$clusters)
 
+xx$clusters = factor(xx$clusters, levels = c(1, 2, 3, 4, 6, 5, 7))
+
+cols_cluster = c( "#7F7F7F", "#FFC000", "#70AD47", "#337f01", "#265401", "#CD00CF", "#800080")
+#cols_cluster = c("#F0F0F0", "#EFFAB6", "#69C6BE", "#007BB7", "#121D60")
 DoHeatmap(xx, group.by = 'clusters', features = top10$gene, draw.lines = TRUE, disp.min = -2.,
           group.colors = cols_cluster, angle = 0, size = 5) + 
   theme(text = element_text(size = 6)) +
   #NoLegend() +
+  #scale_fill_gradientn(colors = feat_cols)
   scale_fill_viridis_c(option = "magma")
-
   #scale_fill_viridis_c() 
   #scico::scale_fill_scico(palette = "vik")
   #scale_fill_viridis(option = "D") 
-ggsave(filename = paste0(resDir, '/scRNAseq_RAsamples_clustering_allMarkers.pdf'), 
+ggsave(filename = paste0(resDir, '/scRNAseq_RAsamples_clustering_allMarkers_v2.pdf'), 
        width = 10, height = 6)
 
 # SplitDotPlotGG has been replaced with the `split.by` parameter for DotPlot
@@ -575,17 +651,35 @@ aa@misc$marker <- oupMarker      # Store markers into Seurat object
 # Get top genes for each cluster and do dotplot / violin plot
 #oupMarker$cluster = factor(oupMarker$cluster, levels = reorderCluster)
 oupMarker = oupMarker[order(cluster, -avg_log2FC)]
+
+knownGenes =  c('Zfp42', 'Utf1', 'Pou5f1',  
+                 'Cyp26a1', 'Stra8','Hoxa1', 'Hoxa3', 'Hoxb4', 'Sox2',
+                'Pax6', 'Sox1', 'Pax3',   'Irx3', 'Irx5',
+                'Foxa2', 'Shh', 'Arx', "Spon1", 'Slit2', "Ntn1",
+                'Nkx6-1', 'Nkx2-2',  'Olig2',  
+                 'Tubb3',  'Neurod4', 'Elavl4', 'Pou3f2')
 genes.to.plot <- knownGenes
 
-
 library(RColorBrewer)
-colGEX = c("grey85", brewer.pal(7, "Reds"))
-DotPlot(aa, group.by = "clusters", features = genes.to.plot[length(genes.to.plot):1]) + 
-  coord_flip() + scale_color_gradientn(colors = colGEX) +
-  theme(axis.text.x = element_text(angle = 0, hjust = 0))
+feat_cols = c("#F0F0F0", "#EFFAB6", "#69C6BE", "#007BB7", "#121D60")
+#to set the gradient of the colour scale from min to max
+feat_values = c(-1, -0.5, 0.5, 1.5)
+#colGEX = c("grey85", brewer.pal(7, "Reds"))
+aa$clusters = factor(aa$clusters, levels = c(7, 5, 6, 4, 3, 2, 1))
 
-ggsave(filename = paste0(resDir, '/scRNAseq_overview_RAsamples_clustering_markers_dotplot_sorted.pdf'), 
-       width = 8, height = 4)
+DotPlot(aa, group.by = "clusters", features = genes.to.plot) + 
+  geom_point(aes(size=pct.exp), shape = 21, colour="black", stroke=0.5) +
+  #scale_colour_viridis(option="magma") +
+  #guides(size=guide_legend(override.aes=list(shape=21, colour="black", fill="white"))) + 
+  scale_color_gradientn(colors = feat_cols) +
+  theme(axis.text.x = element_text(angle = 0, hjust = 0)) +
+  theme(axis.text.x = element_text(angle = 90, size = 12, vjust = 0.),
+        axis.text.y = element_text(angle = 0, size = 14)) +
+  labs( x = '', y = 'Clusters' )
+
+ggsave(filename = paste0(resDir, '/scRNAseq_overview_RAsamples_clustering_markers_dotplot_sorted_v2.pdf'), 
+       width = 8, height = 5)
+
 
 nClust = 7
 colCls <- colorRampPalette(brewer.pal(n = 10, name = "Paired"))(nClust)
@@ -777,6 +871,9 @@ if(Merge_sparseFeatures_mutlipleMethods){
   ggsave(filename = paste0(resDir, '/RA_umap_with_selectedFeatures.pdf'), width = 8, height = 6) 
   
   saveRDS(ggs, file = paste0(resDir, '/geneList_sparseFeatureSelection.rds'))
+  
+  ggs = readRDS(file = paste0(resDir, '/geneList_sparseFeatureSelection.rds'))
+  
   
 }
 
