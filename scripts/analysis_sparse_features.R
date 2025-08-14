@@ -514,6 +514,7 @@ if(Test_SMD){
   ## save the final list of smd
   Save_final.list_SMD = FALSE
   if(Save_final.list_SMD){
+    
     smd = readRDS(file = paste0(outDir, '/output_SMD_12k.cells_tfs_v3.rds'))
     genes.smd = smd$gene[which(smd$SMD_z>0.5)]
     

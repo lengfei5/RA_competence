@@ -45,6 +45,7 @@ levels = c("day0_beforeRA", "day1_beforeRA",
 cols = readRDS(file = '../results/Rdata/color_scheme_4scRNAseq.rds')
 load(file = '../results/Rdata/tfs_sps_geneExamples_4scRNAseq.Rdata')
 
+feat_cols = c("#F0F0F0", "#EFFAB6", "#69C6BE", "#007BB7", "#121D60")
 
 ########################################################
 ########################################################
@@ -617,6 +618,12 @@ allMarker %>%
   slice_head(n = 20) %>%
   ungroup() -> top10
 
+write.csv(allMarker, file = paste0(resDir, '/Table_S1_clusters_markerGenes_all.csv'),
+          row.names = FALSE)
+
+write.csv(top10, file = paste0(resDir, '/Table_S1_clusters_markerGenes_top20_FigS1D.csv'),
+          row.names = FALSE)
+
 xx$clusters = droplevels(xx$clusters)
 
 xx$clusters = factor(xx$clusters, levels = c(1, 2, 3, 4, 6, 5, 7))
@@ -819,6 +826,17 @@ p0 + p1
 ggsave(paste0(resDir, '/FACS_RA_DiffusionMap_timePoints_clusters_colors.pdf'), width=14, height = 6)
 
 
+p2 = plotDR(sce, "DiffusionMap", color_by = "Oct4") + theme_classic() + scale_color_gradientn(colors = feat_cols)
+p3 = plotDR(sce, 'DiffusionMap', color_by = 'Pax6') + theme_classic() + scale_color_gradientn(colors = feat_cols)
+p4 = plotDR(sce, 'DiffusionMap', color_by = 'FoxA2') + theme_classic() + scale_color_gradientn(colors = feat_cols)
+p5 = plotDR(sce, 'DiffusionMap', color_by = 'Sox1') + theme_classic() + scale_color_gradientn(colors = feat_cols)
+p6 = plotDR(sce, 'DiffusionMap', color_by = 'Sox2') + theme_classic() + scale_color_gradientn(colors = feat_cols)
+
+p2 + p3 + p4 + p5 + p6 
+
+ggsave(paste0(resDir, '/FACS_RA_DiffusionMap_geneExpression_v2.pdf'), width=16, height = 8)
+
+
 ########################################################
 ########################################################
 # Section : plot the feature selection outcome 
@@ -830,28 +848,63 @@ if(Merge_sparseFeatures_mutlipleMethods){
   dataDir = paste0("../results/scRNAseq_R13547_10x_mNT_20220813/",
                    "RA_symetryBreaking/sparse_featureSelection_d2_d2.5_d3_d3.5_d4_d5/")
   
-  ggs = c()
-  xx = read.csv(file = paste0(dataDir, 'geneBasis_top50_tfs_sps_final.csv'), sep = ";")
-  ggs = unique(c(ggs, xx[, 2]))
-  
-  write.csv(xx, file = paste0(resDir, '/geneBasis_top50_tfs_sps_final.csv'), row.names = FALSE)
-  
-  xx = read.csv(file = paste0(dataDir, 'dubstep_sparse_74.tfs.sps_final.csv'))
-  ggs = unique(c(ggs, xx[, 1]))
-  
-  write.csv(xx, file = paste0(resDir, '/dubstep_sparse_74.tfs.sps_final.csv'), row.names = FALSE)
-  
-  xx = read.csv(file = paste0(dataDir, 'SMD_sparse_31tfs.sps_final.csv'))
-  ggs = unique(c(ggs, xx[c(1:31), 1]))
-  write.csv(xx[c(1:31), ], 
-            file = paste0(resDir, '/SMD_sparse_31tfs.sps_final.csv'), row.names = FALSE)
-  
   aa = readRDS(paste0('/groups/tanaka/Collaborations/Jingkui-Hannah/',
                       'RA_competence/scRNAseq_mNT/saved_seuratObj/',
                       'RAsamples_d2_d6_UMAP_selectedParam.rds'))
   
-  ggs = ggs[which(!is.na(match(ggs, rownames(aa))))]
   
+  ggs = c()
+  xx = read.csv(file = paste0(dataDir, 'geneBasis_top50_tfs_sps_final.csv'), sep = ";")
+  ggs = unique(c(ggs, xx[, 2]))
+  
+  #write.csv(xx, file = paste0(resDir, '/geneBasis_top50_tfs_sps_final.csv'), row.names = FALSE)
+  
+  xx = read.csv(file = paste0(dataDir, 'dubstep_sparse_74.tfs.sps_final.csv'))
+  ggs = unique(c(ggs, xx[, 1]))
+  
+  #write.csv(xx, file = paste0(resDir, '/dubstep_sparse_74.tfs.sps_final.csv'), row.names = FALSE)
+  
+  xx = c('Mdk', 'Sox11', 'Cdh1', 'Shh', 'Pou3f2', 'Rfx4', 'Cyp26a1', 'Apoe', 'Nedd4', 'Meis2', 'Cdh2', 'Foxa1',
+         'Tshz1', 'Peg10', 'Pax6', 'Pou3f3', 'Tfap2c', 'Cebpb', 'Dll1', 'Gpc3', 'Peg3', 'Vcp', 'Ddx3x', 'Zic1',
+         'Wnt6', 'Pfdn5', 'Rack1', 'Foxa2', 'Nkx6-2', 'Prrx2', 'Plagl1')
+  
+  match(xx, rownames(aa))
+  
+  ggs = unique(c(ggs, xx))
+    
+  ggs = ggs[which(!is.na(match(ggs, rownames(aa))))]
+  saveRDS(ggs, file = paste0(resDir, '/geneList_sparseFeatureSelection_v2.rds'))
+  
+  ### save the sparse features for Table_S1
+  ggs = readRDS(file = paste0(resDir, '/geneList_sparseFeatureSelection_v2.rds'))
+  
+  ggs = data.frame(features = ggs, geneBasis = rep(NA, length(ggs)), 
+                   dubstep = rep(NA, length(ggs)), SMD = rep(NA, length(ggs)))
+  
+  ggs$SMD[!is.na(match(ggs$features, xx))] = 'yes' 
+  
+  xx = read.csv(file = paste0(dataDir, 'geneBasis_top50_tfs_sps_final.csv'), sep = ";")
+  
+  ggs$geneBasis[!is.na(match(ggs$features, xx$gene))] = 'yes'
+  
+  xx = read.csv(file = paste0(dataDir, 'dubstep_sparse_74.tfs.sps_final.csv'))
+  ggs$dubstep[!is.na(match(ggs$features, xx[,1]))] = 'yes'
+  
+  rm(xx)
+  
+  nb_pre = c()
+  for(n in 1:nrow(ggs)) nb_pre = c(nb_pre, length(which(ggs[n, c(2:4)] == 'yes')))
+  
+  o1 = order(-nb_pre)
+  
+  ggs = ggs[o1, ]
+  
+  write.csv(ggs, file = paste0(resDir, '/Table_S1_sparseFeatures.csv'),
+            row.names = FALSE)
+  
+  
+  #### umap of samples only using selected sparse features
+  ggs = readRDS(file = paste0(resDir, '/geneList_sparseFeatureSelection_v2.rds'))
   
   levels_sels = c("day2_beforeRA",  
                   "day2.5_RA", "day3_RA.rep1", "day3.5_RA",   "day4_RA", "day5_RA")
@@ -861,8 +914,29 @@ if(Merge_sparseFeatures_mutlipleMethods){
   Idents(aa) = as.factor(aa$condition)
   
   aa = subset(aa, idents = levels_sels)
+  
+  aa$condition = droplevels(aa$condition)
+  
   aa <- RunPCA(aa, features = ggs, verbose = FALSE, weight.by.var = TRUE)
   ElbowPlot(aa, ndims = 50)
+  
+  outDir = paste0(resDir, '/UMAP_RAsamples_sparseFeatures/')
+  if(!dir.exists(outDir)) dir.create(outDir)
+  
+  source(paste0(functionDir, '/functions_scRNAseq.R'))
+  explore.umap.params.combination(sub.obj = aa, 
+                                  resDir = outDir, 
+                                  pdfname = 'UMAP_test_RASamples_sparseFeatures_v1.pdf',
+                                  use.parallelization = FALSE,
+                                  group.by = 'condition',
+                                  cols = cols, 
+                                  weight.by.var = TRUE,
+                                  #nfeatures.sampling = c(3000, 5000),
+                                  features = ggs,
+                                  nb.pcs.sampling = c(30, 50), 
+                                  n.neighbors.sampling = c(30, 50, 100), 
+                                  min.dist.sampling = c(0.1, 0.3)
+  )
   
   
   aa <- RunUMAP(aa, dims = 1:20, n.neighbors = 100, min.dist = 0.1)
@@ -870,9 +944,6 @@ if(Merge_sparseFeatures_mutlipleMethods){
   
   ggsave(filename = paste0(resDir, '/RA_umap_with_selectedFeatures.pdf'), width = 8, height = 6) 
   
-  saveRDS(ggs, file = paste0(resDir, '/geneList_sparseFeatureSelection.rds'))
-  
-  ggs = readRDS(file = paste0(resDir, '/geneList_sparseFeatureSelection.rds'))
   
   
 }
@@ -884,8 +955,6 @@ if(Merge_sparseFeatures_mutlipleMethods){
 aa = readRDS(paste0('/groups/tanaka/Collaborations/Jingkui-Hannah/RA_competence/',
                     'scRNAseq_mNT/saved_seuratObj/',
                     'RA_noRAsamples_d2_d6_UMAP_selectedParam.rds'))
-
-ggs = readRDS(file = paste0(resDir, '/geneList_sparseFeatureSelection.rds'))
 
 levels_sels = c("day2.5_RA", "day3_RA.rep1", "day3.5_RA",   "day4_RA", "day5_RA", "day6_RA", 
                 "day2.5_noRA", "day3_noRA",  "day3.5_noRA", "day4_noRA", "day5_noRA", "day6_noRA")
@@ -901,19 +970,21 @@ DimPlot(aa, cols = cols_sel)
 aa$groups = NA
 aa$groups[grep('_RA', aa$condition)] = 'RA'
 aa$groups[grep('_noRA', aa$condition)] = 'noRA'
-aa$groups = factor(aa$groups, levels = c('RA', 'noRA'))
 
 aa$condition = droplevels(aa$condition)
 
 aa$time = sapply(aa$condition, function(x) {unlist(strsplit(as.character(x), '_'))[1]})
 
-features =c('Foxa2', 'Pax6', 'Pou5f1', 'Sox1')
-VlnPlot(aa, features = features, split.by = "groups", group.by = 'time', log = FALSE, 
-        same.y.lims = TRUE, ncol = 2, pt.size = 0, 
-        cols = c("#EF6548", "#6BAED6"))
+features =c('Pou5f1', 'Foxa2', 'Pax6',  'Sox1')
 
-ggsave(filename = paste0(resDir, '/RAspecific_geneExpression_kinetics_noDot_v2.pdf'), 
-       width = 16, height = 8) 
+aa$groups = factor(aa$groups, levels = c('noRA', 'RA'))
+
+VlnPlot(aa, features = features, split.by = "groups", group.by = 'time', log = FALSE, 
+        same.y.lims = TRUE, ncol = 1, pt.size = 0, 
+        cols = c("#6BAED6", "#EF6548"))
+
+ggsave(filename = paste0(resDir, '/RAspecific_geneExpression_kinetics_noDot_v3.pdf'), 
+       width = 6, height = 14) 
 
 
 ##########################################
@@ -924,7 +995,7 @@ aa = readRDS(paste0('/groups/tanaka/Collaborations/Jingkui-Hannah/RA_competence/
                     'scRNAseq_mNT/saved_seuratObj/',
                     'RA_noRAsamples_d2_d6_UMAP_selectedParam.rds'))
 
-ggs = readRDS(file = paste0(resDir, '/geneList_sparseFeatureSelection.rds'))
+ggs = readRDS(file = paste0(resDir, '/geneList_sparseFeatureSelection_v2.rds'))
 
 levels_sels = c("day2_beforeRA",
                 "day2.5_RA", "day3_RA.rep1", "day3.5_RA",   "day4_RA", "day5_RA", "day6_RA", 
@@ -951,7 +1022,7 @@ aa$condition = factor(as.character(aa$condition),
 )
 
 
-clustering_DotPlot = TRUE
+clustering_DotPlot = FALSE
 if(clustering_DotPlot){
   ## this pacakge is installed in R_4.3.2 and Seurat_5.0.2
   # can't be install in lower versions
@@ -981,17 +1052,27 @@ if(clustering_DotPlot){
   
 }else{
   
-  #Idents(aa) = factor(aa$time) 
-  DotPlot(aa, features = ggs, 
-          group.by = "condition"
-  ) +
+  #Idents(aa) = factor(aa$time)
+  gene_sels = c('Zfp42', 'Pou5f1', 'Utf1', 'Pou3f1', 'Rarg', 'Tcf15', 'Otx2', 'Sox2', 'Pax6', 
+                'Cdh1', 'Cdh2', 'Fbn2', 'Spry4', 'Fgf4', 'Etv5', 'Id1', 'Cyp26a1', 'Hoxa1', 'Zfp703', 
+                'Tshz1', 'Msx1', 'Sox17', 'Foxa2', 'Foxa1', 'Nkx6-1', 'Shh')
+  gene_sels = gene_sels[!is.na(match(gene_sels, ggs))]
+  gene_sels = gene_sels[c(length(gene_sels):1)]
+  
+  feat_cols = c("#F0F0F0", "#EFFAB6", "#69C6BE", "#007BB7", "#121D60")
+  
+  DotPlot(aa, group.by = "condition", features = gene_sels) +
     geom_point(aes(size=pct.exp), shape = 21, colour="black", stroke=0.5) +
-    scale_colour_viridis(option="magma") +
+    scale_color_gradientn(colors = feat_cols) +
     guides(size=guide_legend(override.aes=list(shape=21, colour="black", fill="white"))) +
     RotatedAxis() + 
-    coord_flip() 
+    coord_flip()  +
+    theme(axis.text.x = element_text(angle = 0, hjust = 0)) +
+    theme(axis.text.x = element_text(angle = 90, size = 12, vjust = -0.4),
+          axis.text.y = element_text(angle = 0, size = 12)) +
+    labs( x = 'Sparse features', y = '' )
   
-  ggsave(filename = paste0(resDir, '/RA_vs_noRA_sparseFeatures.pdf'), width = 8, height = 28)
+  ggsave(filename = paste0(resDir, '/RA_vs_noRA_sparseFeatures_v2.pdf'), width = 8, height = 10)
   
   
 }
@@ -1768,6 +1849,14 @@ pheatmap(heatmap_matrix[sels, ], #ph$tree_row$order
 ########################################################
 Use_pseudotime_palantir = FALSE
 if(Use_pseudotime_palantir){
+  aa = readRDS(file = paste0(RdataDir, 
+                             'seuratObj_clustersFiltered_umapOverview_selectedUmapParams.rds'))
+  
+  Idents(aa) = aa$condition
+  
+  DimPlot(aa, cols = cols, group.by = 'condition', label = TRUE, repel = TRUE, raster = FALSE)
+  
+  
   outDir = paste0('../results/scRNAseq_R13547_10x_mNT_20220813/RA_symetryBreaking/',
                   'dataIntegration_timePoints_4pseudotime/')
   aa = readRDS(file = paste0(outDir, 
