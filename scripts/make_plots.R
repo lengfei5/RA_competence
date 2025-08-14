@@ -1085,8 +1085,9 @@ if(clustering_DotPlot){
 ########################################################
 ########################################################
 
-header
-
+##########################################
+# calculate the pseudo-time with palantir  
+##########################################
 Use_pseudotime_palantir = TRUE
 if(Use_pseudotime_palantir){
   #aa = readRDS(file = paste0(RdataDir, 
@@ -1231,12 +1232,8 @@ ggsave(filename = paste0(figureDir, 'RA_noRA_d2_d5_condition_pseudotime.pdf'), w
 
 saveRDS(aa, file = paste0(RdataDir, 'RA_noRA_d2_d5_condition_pseudotimePalantir_saved4heterogeity.rds'))
 
-##########################################
-###### test heterogeneity quantification by binning pseudotime
-##########################################
-bb = readRDS(file = paste0(RdataDir, 'RA_noRA_d2_d5_condition_pseudotime_saved4heterogeity.rds'))
 
-
+### make plot for palantir pseudotime
 levels_sels = c("day2_beforeRA",  
                 "day2.5_RA", "day3_RA.rep1", "day3.5_RA",   "day4_RA", "day5_RA",
                 "day2.5_noRA", "day3_noRA",  "day3.5_noRA", "day4_noRA", "day5_noRA")
@@ -1244,22 +1241,36 @@ levels_sels = c("day2_beforeRA",
 cols_sel = cols[match(levels_sels, names(cols))]
 
 
-p1 = DimPlot(aa, group.by = 'condition', label = TRUE, cols = cols_sel)
+p1 = DimPlot(aa, group.by = 'condition', label = FALSE, cols = cols_sel) +
+  scale_y_reverse() +
+  scale_x_reverse()
+
 p2 = FeaturePlot(aa, features = 'pseudot', cols = c('lightgray', 'blue')) +
   ggtitle(label = 'pseudo time') +
-  scale_color_viridis_c(direction = -1)
+  scale_color_viridis_c(direction = -1) +
+  scale_y_reverse() +
+  scale_x_reverse()
 
 p1 + p2
 
-ggsave(filename = paste0(resDir, '/RA_noRA_d2_d5_condition_pseudotime_palantir_v2.pdf'), 
+ggsave(filename = paste0(resDir, '/RA_noRA_d2_d5_condition_pseudotimePalantir_v3.pdf'), 
        width = 10, height = 6) 
-
 
 VlnPlot(aa, features = 'pseudot', group.by = 'condition', pt.size = 0.00, cols = cols_sel) +
   geom_hline(yintercept = c(0.05), col = 'red') +
   ggtitle(label = 'pseudotime distribution per condition')
 
 ggsave(filename = paste0(resDir, '/RA_noRA_d2_d5_condition_pseudotime_v2.pdf'), width = 10, height = 6) 
+
+bb = aa
+
+
+
+##########################################
+###### test heterogeneity quantification by binning pseudotime
+##########################################
+aa = readRDS(file = paste0(RdataDir, 'RA_noRA_d2_d5_condition_pseudotimePalantir_saved4heterogeity.rds'))
+
 
 ## specify the bins manually
 #jj = intersect(which(!is.na(aa$pseudot_RA)))
