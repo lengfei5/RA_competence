@@ -49,6 +49,19 @@ feat_cols = c("#F0F0F0", "#EFFAB6", "#69C6BE", "#007BB7", "#121D60")
 
 ########################################################
 ########################################################
+# Section 0: the starting data object 
+# saved in the following directory and 
+# also in "../results/Rdata/"
+########################################################
+########################################################
+aa = readRDS(paste0('/groups/tanaka/Collaborations/Jingkui-Hannah/RA_competence/',
+                    'scRNAseq_mNT/saved_seuratObj/',
+                    'RA_noRAsamples_d2_d6_UMAP_selectedParam.rds'))
+
+DimPlot(aa, group.by = 'condition')
+
+########################################################
+########################################################
 # Section I: overview of scRNA-seq data and feature highlight
 # 
 ########################################################
@@ -956,6 +969,8 @@ aa = readRDS(paste0('/groups/tanaka/Collaborations/Jingkui-Hannah/RA_competence/
                     'scRNAseq_mNT/saved_seuratObj/',
                     'RA_noRAsamples_d2_d6_UMAP_selectedParam.rds'))
 
+DimPlot(aa, group.by = 'condition', label = TRUE)
+
 levels_sels = c("day2.5_RA", "day3_RA.rep1", "day3.5_RA",   "day4_RA", "day5_RA", "day6_RA", 
                 "day2.5_noRA", "day3_noRA",  "day3.5_noRA", "day4_noRA", "day5_noRA", "day6_noRA")
 
@@ -1262,8 +1277,31 @@ VlnPlot(aa, features = 'pseudot', group.by = 'condition', pt.size = 0.00, cols =
 
 ggsave(filename = paste0(resDir, '/RA_noRA_d2_d5_condition_pseudotime_v2.pdf'), width = 10, height = 6) 
 
-bb = aa
+## plot the pseudo-time in the original UMAP
+aa = readRDS(paste0(RdataDir, 'RA_noRAsamples_d2_d6_UMAP_selectedParam.rds'))
 
+DimPlot(aa, group.by = 'condition')
+
+xx = readRDS(file = paste0(RdataDir, 'RA_noRA_d2_d5_condition_pseudotimePalantir_saved4heterogeity.rds'))
+
+FeaturePlot(xx, features = 'pseudot', cols = c('lightgray', 'blue')) +
+  ggtitle(label = 'pseudo time') +
+  scale_color_viridis_c(direction = -1)
+
+aa$pseudot = NA
+mm = match(colnames(aa), colnames(xx))
+jj = which(!is.na(mm))
+aa$pseudot[jj] = xx$pseudot[mm[jj]]
+
+FeaturePlot(aa, cells = colnames(aa)[which(!is.na(aa$pseudot))], 
+            features = 'pseudot', cols = c('lightgray', 'blue')) +
+  ggtitle(label = 'pseudo time') +
+  #scale_color_viridis_c(option = "magma")
+  #scico::scale_color_scico(palette = "vik")
+  scale_color_viridis_c(direction = -1)
+
+ggsave(filename = paste0(resDir, '/Palantir_pseudotime_RAnonRA_umap.pdf'), 
+       width = 8, height = 6) 
 
 
 ##########################################
@@ -1403,6 +1441,309 @@ ggplot(hete, aes(x= condition, y=dists, fill = treament)) +
 
 ggsave(filename = paste0(resDir, '/pairwise_distance_pst.palantir.Bins_', length(bins), 
                          '.bins.pdf'), width = 12, height = 8) 
+
+
+########################################################
+########################################################
+# Section: RA vs noRA
+# 
+########################################################
+########################################################
+saveRDS(aa, file = paste0(RdataDir, 
+                          'seuratObject_RA.vs.noRA.bifurcation_doublet.rm_mt.ribo.filtered_regressout.nCounts_',
+                          'cellCycleScoring_annot.v1_reduction.DM_princurves_',
+                          species, version.analysis, '.rds'))
+
+saveRDS(res_kmean, file = paste0(RdataDir, 'DM_princurves_clusterCenter.rds'))
+
+##########################################
+# try to merge two principle curves 
+##########################################
+pcurve_noRA = readRDS(file = paste0(outDir, 'principle_curve_noRA_v2.rds'))
+pcurve_RA = readRDS(file = paste0(outDir, 'principle_curve_RA_borderCellsSelected_v3.rds'))
+res_kmean = readRDS(file = paste0(RdataDir, 'DM_princurves_clusterCenter.rds'))
+
+dcs_all = data.frame(aa[['DC']]@cell.embeddings[, c(1,2)])
+
+cluster_sels = unique(aa$dc_clusters[!is.na(aa$dc_clusters)])
+mm = which(!is.na(match(aa$dc_clusters, cluster_sels)))
+dcs = dcs_all[mm, ]
+
+
+#cols = c(brewer.pal(9,"Set1"), brewer.pal(8,"Set2"))[aa$dc_clusters[mm]]
+mm = match(rownames(dcs), colnames(aa))
+cols = cols_sel[match(aa$condition[mm], names(cols_sel))]
+
+pdf(paste0(outDir, "Two_principleCurves_noRA_RA_v3.pdf"),
+    height = 8, width =10, useDingbats = FALSE)
+par(cex = 1.0, las = 1, mgp = c(2,0.2,0), mar = c(3, 4, 2, 1), tcl = -0.1)
+
+plot(dcs, col = cols, cex = 0.1, main = 'RA vs. noRA trajectories')
+lines(pcurve_RA$s[order(pcurve_RA$lambda),], lty=1,lwd=4,col="red",type = "l")
+
+xx = pcurve_noRA$s[order(pcurve_noRA$lambda), ]
+#pt = pseudotime.scaling(pcurve_noRA$lambda[order(pcurve_noRA$lambda)])
+jj = which(xx[, 1] <  min(pcurve_RA$s))
+
+lines(xx[jj, ], lty=1,lwd=4,col="black",type = "l")
+lines(xx[-jj, ], lty=1,lwd=4,col="blue",type = "l")
+
+
+dev.off()
+
+
+##########################################
+# plot heatmap  
+##########################################
+aa = readRDS(file = paste0(RdataDir, 
+                           'seuratObject_RA.vs.noRA.bifurcation_doublet.rm_mt.ribo.filtered_regressout.nCounts_',
+                           'cellCycleScoring_annot.v1_reduction.DM_princurves_pseudotime_',
+                           species, version.analysis, '.rds'))
+
+candidates = readRDS(file = paste0(outDir, 'DElist_1932genes_pairwiseComaprison_v2.rds'))
+
+candidates = unique(candidates$gene)
+
+DimPlot(aa, cols = cols_sel, group.by = 'condition', reduction = 'DC')
+FeaturePlot(aa, features = candidates[1])
+
+source('functions_utility.R')
+aa = readRDS(file = paste0(RdataDir, 
+                           'seuratObject_RA.vs.noRA.bifurcation_doublet.rm_mt.ribo.filtered_regressout.nCounts_',
+                           'cellCycleScoring_annot.v1_reduction.DM_princurves_pseudotime_',
+                           species, version.analysis, '.rds'))
+
+candidates = readRDS(file = paste0(outDir, 'DElist_1932genes_pairwiseComaprison_v2.rds'))
+
+candidates = unique(candidates$gene)
+
+DimPlot(aa, cols = cols_sel, group.by = 'condition', reduction = 'DC')
+FeaturePlot(aa, features = candidates[1])
+
+source('functions_utility.R')
+# seuratObj = aa; nbCell_condition = 100;scale_max=3; scale_min=-3;hmcols = NULL; Get.Smooth.Curve = TRUE;
+# gene_subset = candidates;hclust_method = "ward.D2";num_clusters = 6
+library(VGAM) # an example code from https://online.stat.psu.edu/stat504/lesson/8/8.2/8.2.2
+library(MASS)
+library(tidyr)
+require(colorRamps)
+require(pheatmap)
+
+cell_beforeRA = colnames(seuratObj)[which(!is.na(seuratObj$pseudot) & 
+                                            seuratObj$condition == 'day2_beforeRA')]
+cell_noRA = colnames(seuratObj)[which(!is.na(seuratObj$pseudot) & grepl('_noRA', seuratObj$condition))]
+cell_RA = colnames(seuratObj)[which(!is.na(seuratObj$pseudot) & grepl('_RA', seuratObj$condition))]
+
+cat('subsampling ', nbCell_condition, ' cells\n')
+cell.sels = c()
+cc = unique(seuratObj$condition)
+cc = cc[which(cc != "day3_RA.rep2")]
+
+for(n in 1:length(cc))
+{
+  cell.sels = c(cell.sels, sample(colnames(seuratObj)[which(seuratObj$condition == cc[n] & 
+                                                              !is.na(seuratObj$pseudot))], 
+                                  size = nbCell_condition, 
+                                  replace = FALSE))
+}
+
+subs = subset(seuratObj, cells = cell.sels)
+
+get_smooth_curve_spline = function(x, t, newt, downsample = TRUE)
+{
+  # x = as.numeric(cds[1, jj]); t = Pseudotime; newt = pseudot_comomon;
+  if(downsample){
+    nb_t = min(5000, length(t))
+    nn = sample(1:length(t), size = nb_t, replace = FALSE)
+    t = t[nn]
+    x = x[nn]
+  }
+  
+  fit_sel = smooth.spline(t, x, df = 3)
+  
+  #plot(Pseudotime, cds_sel, cex = 0.5)
+  #lines(fit_sel, col = 'red', lwd =2.0)
+  newx = predict(fit_sel, newt)
+  return(newx$y)
+  #VGAM::vglm(~sm.ns(Pseudotime, df=3), family = 'gaussian', data = cds_sel)
+  
+}
+
+if(Get.Smooth.Curve){
+  cds <- seuratObj@assays$RNA@scale.data
+  cds = cds[which(!is.na(match(rownames(cds), gene_subset))), ]
+  cat(' -- smoothing the single cell data for subsampled cells -- \n')  
+  
+  # before RA
+  jj = match(cell_beforeRA, colnames(seuratObj))
+  jj = jj[which(!is.na(seuratObj$pseudot[jj]))]
+  Pseudotime = as.numeric(seuratObj$pseudot[jj])
+  kk_common = which(subs$condition == 'day2_beforeRA')
+  kk_common = kk_common[order(subs$pseudot[kk_common])]
+  pseudot_comomon = subs$pseudot[kk_common]
+  
+  common_ancestor_cells = t(apply(cds[ ,jj], 1, get_smooth_curve_spline, t = Pseudotime, newt = pseudot_comomon))
+  
+  jj = grep('_RA$|_RA.rep1', seuratObj$condition)
+  jj = jj[which(!is.na(seuratObj$pseudot[jj]))]
+  Pseudotime = as.numeric(seuratObj$pseudot[jj])
+  
+  kk_BrachA = grep('_RA$|_RA.rep1', subs$condition)
+  kk_BrachA = kk_BrachA[order(subs$pseudot[kk_BrachA])]
+  pseudot_BrachA = subs$pseudot[kk_BrachA]
+  
+  BranchA_exprs <- t(apply(cds[ ,jj], 1, get_smooth_curve_spline, t = Pseudotime, newt = pseudot_BrachA))
+  
+  jj = grep('_noRA', seuratObj$condition)
+  jj = jj[which(!is.na(seuratObj$pseudot[jj]))]
+  Pseudotime = as.numeric(seuratObj$pseudot[jj])
+  
+  kk_BrachB = grep('_noRA', subs$condition)
+  kk_BrachB = kk_BrachB[order(subs$pseudot[kk_BrachB])]
+  pseudot_BrachB = subs$pseudot[kk_BrachB]
+  
+  BranchB_exprs <- t(apply(cds[ ,jj], 1, get_smooth_curve_spline, t = Pseudotime, newt = pseudot_BrachB))
+  
+}
+
+col_gap_ind <- c(length(kk_BrachB), length(kk_BrachB) + length(kk_common), 
+                 length(kk_BrachB) + 2*length(kk_common))
+
+heatmap_matrix <- cbind(BranchB_exprs[, ncol(BranchB_exprs):1], 
+                        common_ancestor_cells[, ncol(common_ancestor_cells):1],
+                        common_ancestor_cells,
+                        BranchA_exprs)
+
+indexs = c(kk_BrachB[ncol(BranchB_exprs):1], 
+           kk_common[ncol(common_ancestor_cells):1], 
+           kk_common,
+           kk_BrachA)
+
+heatmap_matrix=heatmap_matrix[!apply(heatmap_matrix, 1, sd)==0,]
+heatmap_matrix=Matrix::t(scale(Matrix::t(heatmap_matrix), center=TRUE))
+heatmap_matrix=heatmap_matrix[is.na(row.names(heatmap_matrix)) == FALSE, ]
+heatmap_matrix[is.nan(heatmap_matrix)] = 0
+heatmap_matrix[heatmap_matrix>scale_max] = scale_max
+heatmap_matrix[heatmap_matrix<scale_min] = scale_min
+
+saveRDS(heatmap_matrix, file = paste0(outDir, "/heatmap_matrix_forPlot.rds"))
+#heatmap_matrix_ori <- heatmap_matrix
+#heatmap_matrix <- heatmap_matrix[is.finite(heatmap_matrix[, 1]) & is.finite(heatmap_matrix[, col_gap_ind]), ] #remove the NA fitting failure genes for each branch 
+
+row_dist <- as.dist((1 - cor(Matrix::t(heatmap_matrix)))/2)
+row_dist[is.na(row_dist)] <- 1
+
+exp_rng <- range(heatmap_matrix) #bks is based on the expression range
+
+bks <- seq(exp_rng[1] - 0.1, exp_rng[2] + 0.1, by=0.1)
+if(is.null(hmcols)) {
+  hmcols <- blue2green2red(length(bks) - 1)
+}
+
+# prin  t(hmcols)
+ph <- pheatmap(heatmap_matrix, 
+               useRaster = T,
+               cluster_cols=FALSE, 
+               cluster_rows=TRUE, 
+               show_rownames=F, 
+               show_colnames=F, 
+               #scale="row",
+               clustering_distance_rows=row_dist, #row_dist
+               clustering_method = hclust_method,
+               cutree_rows=num_clusters,
+               silent=TRUE,
+               #filename=NA,
+               breaks=bks,
+               color=hmcols
+               #color=hmcols#
+)
+
+annotation_row <- data.frame(Cluster=factor(cutree(ph$tree_row, num_clusters)))
+colnames(heatmap_matrix) <- c(1:ncol(heatmap_matrix))
+annotation_col <- data.frame(row.names = c(1:ncol(heatmap_matrix)),
+                             pseudot = subs$pseudot[indexs],
+                             condition = subs$condition[indexs])
+#names(annotation_colors$`Cell Type`) = c('Pre-branch', branch_labels)
+feature_label <- row.names(heatmap_matrix)
+row_ann_labels <- row.names(annotation_row)
+
+row.names(heatmap_matrix) <- feature_label
+row.names(annotation_row) <- row_ann_labels
+
+##########################################
+# DE TFs and signaling pathways 
+##########################################
+tfs = readRDS(file = paste0('../data/annotations/curated_human_TFs_Lambert.rds'))
+tfs = unique(tfs$`HGNC symbol`)
+tfs = as.character(unlist(sapply(tfs, firstup)))
+sps = readRDS(file = paste0('../data/annotations/curated_signaling.pathways_gene.list_v2.rds'))
+targets = unique(c(tfs, sps$gene))
+xx = read.table('../data/annotations/GO_term_summary_RAR_signalingPathway.txt', header = TRUE, sep = '\t', 
+                row.names = NULL)
+targets = unique(c(targets, xx[,2]))
+xx = read.table('../data/annotations/GO_term_summary_TGFb.txt', header = TRUE, sep = '\t', 
+                row.names = NULL)
+targets = unique(c(targets, xx[,2]))
+#sps = toupper(unique(sps$gene))
+#sps = setdiff(sps, tfs)
+
+sels = which(!is.na(match(rownames(heatmap_matrix), targets)))
+row_dist <- as.dist((1 - cor(Matrix::t(heatmap_matrix[sels,])))/2)
+row_dist[is.na(row_dist)] <- 1
+annotation_rowSel = data.frame(Cluster = annotation_row[sels, ])
+rownames(annotation_rowSel) = rownames(annotation_row)[sels]
+
+pheatmap(heatmap_matrix[sels, ], #ph$tree_row$order
+         useRaster = T,
+         cluster_cols=FALSE, 
+         cluster_rows=TRUE, 
+         show_rownames=FALSE,
+         show_colnames=FALSE, 
+         scale='none',
+         clustering_distance_rows=row_dist, #row_dist
+         clustering_method = hclust_method, #ward.D2
+         cutree_rows=num_clusters,
+         # cutree_cols = 2,
+         annotation_row=annotation_rowSel,
+         annotation_col=annotation_col,
+         annotation_colors=annotation_colors,
+         gaps_col = col_gap_ind,
+         treeheight_row = 30, 
+         breaks=bks,
+         fontsize = 6,
+         color=hmcols, 
+         border_color = NA,
+         silent=TRUE, 
+         filename=paste0(outDir, "/expression_pseudotime_pheatmap_allDEgenes_TF.SP.pdf"),
+         width = 6, height = 12
+)
+
+pheatmap(heatmap_matrix[sels, ], #ph$tree_row$order
+         useRaster = T,
+         cluster_cols=FALSE, 
+         cluster_rows=TRUE, 
+         show_rownames=TRUE,
+         show_colnames=FALSE, 
+         scale='none',
+         clustering_distance_rows=row_dist, #row_dist
+         clustering_method = hclust_method, #ward.D2
+         cutree_rows=num_clusters,
+         # cutree_cols = 2,
+         annotation_row=annotation_rowSel,
+         annotation_col=annotation_col,
+         annotation_colors=annotation_colors,
+         gaps_col = col_gap_ind,
+         treeheight_row = 30, 
+         breaks=bks,
+         fontsize_row = 4,
+         #fontsize = 4,
+         color=hmcols, 
+         border_color = NA,
+         silent=TRUE, 
+         filename=paste0(outDir, "/expression_pseudotime_pheatmap_allDEgenes_TF.SP",
+                         "_withgeneNames.pdf"),
+         width = 8, height = 20
+)
 
 
 ########################################################
@@ -1866,304 +2207,3 @@ if(Test_moduleScoring){
   
 }
 
-########################################################
-########################################################
-# Section: RA vs noRA
-# 
-########################################################
-########################################################
-saveRDS(aa, file = paste0(RdataDir, 
-                          'seuratObject_RA.vs.noRA.bifurcation_doublet.rm_mt.ribo.filtered_regressout.nCounts_',
-                          'cellCycleScoring_annot.v1_reduction.DM_princurves_',
-                          species, version.analysis, '.rds'))
-
-saveRDS(res_kmean, file = paste0(RdataDir, 'DM_princurves_clusterCenter.rds'))
-
-##########################################
-# try to merge two principle curves 
-##########################################
-pcurve_noRA = readRDS(file = paste0(outDir, 'principle_curve_noRA_v2.rds'))
-pcurve_RA = readRDS(file = paste0(outDir, 'principle_curve_RA_borderCellsSelected_v3.rds'))
-res_kmean = readRDS(file = paste0(RdataDir, 'DM_princurves_clusterCenter.rds'))
-
-dcs_all = data.frame(aa[['DC']]@cell.embeddings[, c(1,2)])
-
-cluster_sels = unique(aa$dc_clusters[!is.na(aa$dc_clusters)])
-mm = which(!is.na(match(aa$dc_clusters, cluster_sels)))
-dcs = dcs_all[mm, ]
-
-
-#cols = c(brewer.pal(9,"Set1"), brewer.pal(8,"Set2"))[aa$dc_clusters[mm]]
-mm = match(rownames(dcs), colnames(aa))
-cols = cols_sel[match(aa$condition[mm], names(cols_sel))]
-
-pdf(paste0(outDir, "Two_principleCurves_noRA_RA_v3.pdf"),
-    height = 8, width =10, useDingbats = FALSE)
-par(cex = 1.0, las = 1, mgp = c(2,0.2,0), mar = c(3, 4, 2, 1), tcl = -0.1)
-
-plot(dcs, col = cols, cex = 0.1, main = 'RA vs. noRA trajectories')
-lines(pcurve_RA$s[order(pcurve_RA$lambda),], lty=1,lwd=4,col="red",type = "l")
-
-xx = pcurve_noRA$s[order(pcurve_noRA$lambda), ]
-#pt = pseudotime.scaling(pcurve_noRA$lambda[order(pcurve_noRA$lambda)])
-jj = which(xx[, 1] <  min(pcurve_RA$s))
-
-lines(xx[jj, ], lty=1,lwd=4,col="black",type = "l")
-lines(xx[-jj, ], lty=1,lwd=4,col="blue",type = "l")
-
-
-dev.off()
-
-
-##########################################
-# plot heatmap  
-##########################################
-aa = readRDS(file = paste0(RdataDir, 
-                           'seuratObject_RA.vs.noRA.bifurcation_doublet.rm_mt.ribo.filtered_regressout.nCounts_',
-                           'cellCycleScoring_annot.v1_reduction.DM_princurves_pseudotime_',
-                           species, version.analysis, '.rds'))
-
-candidates = readRDS(file = paste0(outDir, 'DElist_1932genes_pairwiseComaprison_v2.rds'))
-
-candidates = unique(candidates$gene)
-
-DimPlot(aa, cols = cols_sel, group.by = 'condition', reduction = 'DC')
-FeaturePlot(aa, features = candidates[1])
-
-source('functions_utility.R')
-aa = readRDS(file = paste0(RdataDir, 
-                           'seuratObject_RA.vs.noRA.bifurcation_doublet.rm_mt.ribo.filtered_regressout.nCounts_',
-                           'cellCycleScoring_annot.v1_reduction.DM_princurves_pseudotime_',
-                           species, version.analysis, '.rds'))
-
-candidates = readRDS(file = paste0(outDir, 'DElist_1932genes_pairwiseComaprison_v2.rds'))
-
-candidates = unique(candidates$gene)
-
-DimPlot(aa, cols = cols_sel, group.by = 'condition', reduction = 'DC')
-FeaturePlot(aa, features = candidates[1])
-
-source('functions_utility.R')
-# seuratObj = aa; nbCell_condition = 100;scale_max=3; scale_min=-3;hmcols = NULL; Get.Smooth.Curve = TRUE;
-# gene_subset = candidates;hclust_method = "ward.D2";num_clusters = 6
-library(VGAM) # an example code from https://online.stat.psu.edu/stat504/lesson/8/8.2/8.2.2
-library(MASS)
-library(tidyr)
-require(colorRamps)
-require(pheatmap)
-
-cell_beforeRA = colnames(seuratObj)[which(!is.na(seuratObj$pseudot) & 
-                                            seuratObj$condition == 'day2_beforeRA')]
-cell_noRA = colnames(seuratObj)[which(!is.na(seuratObj$pseudot) & grepl('_noRA', seuratObj$condition))]
-cell_RA = colnames(seuratObj)[which(!is.na(seuratObj$pseudot) & grepl('_RA', seuratObj$condition))]
-
-cat('subsampling ', nbCell_condition, ' cells\n')
-cell.sels = c()
-cc = unique(seuratObj$condition)
-cc = cc[which(cc != "day3_RA.rep2")]
-
-for(n in 1:length(cc))
-{
-  cell.sels = c(cell.sels, sample(colnames(seuratObj)[which(seuratObj$condition == cc[n] & 
-                                                              !is.na(seuratObj$pseudot))], 
-                                  size = nbCell_condition, 
-                                  replace = FALSE))
-}
-
-subs = subset(seuratObj, cells = cell.sels)
-
-get_smooth_curve_spline = function(x, t, newt, downsample = TRUE)
-{
-  # x = as.numeric(cds[1, jj]); t = Pseudotime; newt = pseudot_comomon;
-  if(downsample){
-    nb_t = min(5000, length(t))
-    nn = sample(1:length(t), size = nb_t, replace = FALSE)
-    t = t[nn]
-    x = x[nn]
-  }
-  
-  fit_sel = smooth.spline(t, x, df = 3)
-  
-  #plot(Pseudotime, cds_sel, cex = 0.5)
-  #lines(fit_sel, col = 'red', lwd =2.0)
-  newx = predict(fit_sel, newt)
-  return(newx$y)
-  #VGAM::vglm(~sm.ns(Pseudotime, df=3), family = 'gaussian', data = cds_sel)
-  
-}
-
-if(Get.Smooth.Curve){
-  cds <- seuratObj@assays$RNA@scale.data
-  cds = cds[which(!is.na(match(rownames(cds), gene_subset))), ]
-  cat(' -- smoothing the single cell data for subsampled cells -- \n')  
-  
-  # before RA
-  jj = match(cell_beforeRA, colnames(seuratObj))
-  jj = jj[which(!is.na(seuratObj$pseudot[jj]))]
-  Pseudotime = as.numeric(seuratObj$pseudot[jj])
-  kk_common = which(subs$condition == 'day2_beforeRA')
-  kk_common = kk_common[order(subs$pseudot[kk_common])]
-  pseudot_comomon = subs$pseudot[kk_common]
-  
-  common_ancestor_cells = t(apply(cds[ ,jj], 1, get_smooth_curve_spline, t = Pseudotime, newt = pseudot_comomon))
-  
-  jj = grep('_RA$|_RA.rep1', seuratObj$condition)
-  jj = jj[which(!is.na(seuratObj$pseudot[jj]))]
-  Pseudotime = as.numeric(seuratObj$pseudot[jj])
-  
-  kk_BrachA = grep('_RA$|_RA.rep1', subs$condition)
-  kk_BrachA = kk_BrachA[order(subs$pseudot[kk_BrachA])]
-  pseudot_BrachA = subs$pseudot[kk_BrachA]
-  
-  BranchA_exprs <- t(apply(cds[ ,jj], 1, get_smooth_curve_spline, t = Pseudotime, newt = pseudot_BrachA))
-  
-  jj = grep('_noRA', seuratObj$condition)
-  jj = jj[which(!is.na(seuratObj$pseudot[jj]))]
-  Pseudotime = as.numeric(seuratObj$pseudot[jj])
-  
-  kk_BrachB = grep('_noRA', subs$condition)
-  kk_BrachB = kk_BrachB[order(subs$pseudot[kk_BrachB])]
-  pseudot_BrachB = subs$pseudot[kk_BrachB]
-  
-  BranchB_exprs <- t(apply(cds[ ,jj], 1, get_smooth_curve_spline, t = Pseudotime, newt = pseudot_BrachB))
-  
-}
-
-col_gap_ind <- c(length(kk_BrachB), length(kk_BrachB) + length(kk_common), 
-                 length(kk_BrachB) + 2*length(kk_common))
-
-heatmap_matrix <- cbind(BranchB_exprs[, ncol(BranchB_exprs):1], 
-                        common_ancestor_cells[, ncol(common_ancestor_cells):1],
-                        common_ancestor_cells,
-                        BranchA_exprs)
-
-indexs = c(kk_BrachB[ncol(BranchB_exprs):1], 
-           kk_common[ncol(common_ancestor_cells):1], 
-           kk_common,
-           kk_BrachA)
-
-heatmap_matrix=heatmap_matrix[!apply(heatmap_matrix, 1, sd)==0,]
-heatmap_matrix=Matrix::t(scale(Matrix::t(heatmap_matrix), center=TRUE))
-heatmap_matrix=heatmap_matrix[is.na(row.names(heatmap_matrix)) == FALSE, ]
-heatmap_matrix[is.nan(heatmap_matrix)] = 0
-heatmap_matrix[heatmap_matrix>scale_max] = scale_max
-heatmap_matrix[heatmap_matrix<scale_min] = scale_min
-
-saveRDS(heatmap_matrix, file = paste0(outDir, "/heatmap_matrix_forPlot.rds"))
-#heatmap_matrix_ori <- heatmap_matrix
-#heatmap_matrix <- heatmap_matrix[is.finite(heatmap_matrix[, 1]) & is.finite(heatmap_matrix[, col_gap_ind]), ] #remove the NA fitting failure genes for each branch 
-
-row_dist <- as.dist((1 - cor(Matrix::t(heatmap_matrix)))/2)
-row_dist[is.na(row_dist)] <- 1
-
-exp_rng <- range(heatmap_matrix) #bks is based on the expression range
-
-bks <- seq(exp_rng[1] - 0.1, exp_rng[2] + 0.1, by=0.1)
-if(is.null(hmcols)) {
-  hmcols <- blue2green2red(length(bks) - 1)
-}
-
-# prin  t(hmcols)
-ph <- pheatmap(heatmap_matrix, 
-               useRaster = T,
-               cluster_cols=FALSE, 
-               cluster_rows=TRUE, 
-               show_rownames=F, 
-               show_colnames=F, 
-               #scale="row",
-               clustering_distance_rows=row_dist, #row_dist
-               clustering_method = hclust_method,
-               cutree_rows=num_clusters,
-               silent=TRUE,
-               #filename=NA,
-               breaks=bks,
-               color=hmcols
-               #color=hmcols#
-)
-
-annotation_row <- data.frame(Cluster=factor(cutree(ph$tree_row, num_clusters)))
-colnames(heatmap_matrix) <- c(1:ncol(heatmap_matrix))
-annotation_col <- data.frame(row.names = c(1:ncol(heatmap_matrix)),
-                             pseudot = subs$pseudot[indexs],
-                             condition = subs$condition[indexs])
-#names(annotation_colors$`Cell Type`) = c('Pre-branch', branch_labels)
-feature_label <- row.names(heatmap_matrix)
-row_ann_labels <- row.names(annotation_row)
-
-row.names(heatmap_matrix) <- feature_label
-row.names(annotation_row) <- row_ann_labels
-
-##########################################
-# DE TFs and signaling pathways 
-##########################################
-tfs = readRDS(file = paste0('../data/annotations/curated_human_TFs_Lambert.rds'))
-tfs = unique(tfs$`HGNC symbol`)
-tfs = as.character(unlist(sapply(tfs, firstup)))
-sps = readRDS(file = paste0('../data/annotations/curated_signaling.pathways_gene.list_v2.rds'))
-targets = unique(c(tfs, sps$gene))
-xx = read.table('../data/annotations/GO_term_summary_RAR_signalingPathway.txt', header = TRUE, sep = '\t', 
-                row.names = NULL)
-targets = unique(c(targets, xx[,2]))
-xx = read.table('../data/annotations/GO_term_summary_TGFb.txt', header = TRUE, sep = '\t', 
-                row.names = NULL)
-targets = unique(c(targets, xx[,2]))
-#sps = toupper(unique(sps$gene))
-#sps = setdiff(sps, tfs)
-
-sels = which(!is.na(match(rownames(heatmap_matrix), targets)))
-row_dist <- as.dist((1 - cor(Matrix::t(heatmap_matrix[sels,])))/2)
-row_dist[is.na(row_dist)] <- 1
-annotation_rowSel = data.frame(Cluster = annotation_row[sels, ])
-rownames(annotation_rowSel) = rownames(annotation_row)[sels]
-
-pheatmap(heatmap_matrix[sels, ], #ph$tree_row$order
-         useRaster = T,
-         cluster_cols=FALSE, 
-         cluster_rows=TRUE, 
-         show_rownames=FALSE,
-         show_colnames=FALSE, 
-         scale='none',
-         clustering_distance_rows=row_dist, #row_dist
-         clustering_method = hclust_method, #ward.D2
-         cutree_rows=num_clusters,
-         # cutree_cols = 2,
-         annotation_row=annotation_rowSel,
-         annotation_col=annotation_col,
-         annotation_colors=annotation_colors,
-         gaps_col = col_gap_ind,
-         treeheight_row = 30, 
-         breaks=bks,
-         fontsize = 6,
-         color=hmcols, 
-         border_color = NA,
-         silent=TRUE, 
-         filename=paste0(outDir, "/expression_pseudotime_pheatmap_allDEgenes_TF.SP.pdf"),
-         width = 6, height = 12
-)
-
-pheatmap(heatmap_matrix[sels, ], #ph$tree_row$order
-         useRaster = T,
-         cluster_cols=FALSE, 
-         cluster_rows=TRUE, 
-         show_rownames=TRUE,
-         show_colnames=FALSE, 
-         scale='none',
-         clustering_distance_rows=row_dist, #row_dist
-         clustering_method = hclust_method, #ward.D2
-         cutree_rows=num_clusters,
-         # cutree_cols = 2,
-         annotation_row=annotation_rowSel,
-         annotation_col=annotation_col,
-         annotation_colors=annotation_colors,
-         gaps_col = col_gap_ind,
-         treeheight_row = 30, 
-         breaks=bks,
-         fontsize_row = 4,
-         #fontsize = 4,
-         color=hmcols, 
-         border_color = NA,
-         silent=TRUE, 
-         filename=paste0(outDir, "/expression_pseudotime_pheatmap_allDEgenes_TF.SP",
-                         "_withgeneNames.pdf"),
-         width = 8, height = 20
-)

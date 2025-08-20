@@ -221,6 +221,25 @@ saveRDS(aa, file = paste0(RdataDir,
                           'seuratObject_merged_cellFiltered_doublet.rm_mt.ribo.geneFiltered_regressout.nCounts_',
                           'cellCycleScoring_annot.v1_savedUMAP.v1_', species, version.analysis, '.rds'))
 
+version.analysis = '_R13547_10x_mNT_20240522'
+species = 'mNT_scRNAseq'
+
+aa = readRDS(file = paste0(RdataDir, 
+                           'seuratObject_merged_cellFiltered_doublet.rm_mt.ribo.geneFiltered_regressout.nCounts_',
+                           'cellCycleScoring_annot.v1_savedUMAP.v1_mNT_scRNAseq_R13547_10x_mNT_20220813.rds'))
+
+
+DimPlot(aa, cols = cols, group.by = 'condition', label = FALSE, repel = TRUE, raster = FALSE) +
+  theme(axis.text.x = element_text(angle = 0, size = 14), 
+        axis.text.y = element_text(angle = 0, size = 14), 
+        axis.title =  element_text(size = 14),
+        legend.text = element_text(size=12),
+        legend.title = element_text(size = 14)
+        #legend.position=c(0.2, 0.8),
+        #plot.margin = margin()
+        #legend.key.size = unit(1, 'cm')
+        #legend.key.width= unit(1, 'cm')
+  )
 
 ##########################################
 # features and TF activity overlaying UMAP 
