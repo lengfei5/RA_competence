@@ -83,6 +83,7 @@ merge_sparseFeatures = function(gene.list = list(genes.dub, genes.basis, genes.s
 ## original functions from Monocle
 ## https://github.com/cole-trapnell-lab/monocle-release/blob/master/R/plotting.R
 plot_genes_branched_heatmap <- function(seuratObj = aa,
+                                        outDir = "../results/scRNAseq_R13547_10x_mNT_20220813/RA.vs.noRA_firstBifurcation/",
                                         gene_subset = candidates,
                                         nbCell_condition = 50,
                                         Get.Smooth.Curve = TRUE, 

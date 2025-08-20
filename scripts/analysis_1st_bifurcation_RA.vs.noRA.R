@@ -821,7 +821,8 @@ source('functions_utility.R')
 
 plot_genes_branched_heatmap(seuratObj = aa, 
                             gene_subset = candidates,
-                            nbCell_condition = 50)
+                            nbCell_condition = 50
+                            )
 
 
 
