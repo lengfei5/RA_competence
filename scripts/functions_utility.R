@@ -86,6 +86,7 @@ plot_genes_branched_heatmap <- function(seuratObj = aa,
                                         outDir = "../results/scRNAseq_R13547_10x_mNT_20220813/RA.vs.noRA_firstBifurcation/",
                                         gene_subset = candidates,
                                         nbCell_condition = 50,
+                                        cols_sel = cols_sel,
                                         Get.Smooth.Curve = TRUE, 
                                         scale_max=3, 
                                         scale_min=-3, 
@@ -97,7 +98,7 @@ plot_genes_branched_heatmap <- function(seuratObj = aa,
                                         show_rownames = TRUE
                                         ) 
 {
-  # seuratObj = aa; nbCell_condition = 100;scale_max=3; scale_min=-3;hmcols = NULL; Get.Smooth.Curve = TRUE;
+  # seuratObj = aa; nbCell_condition = 50;scale_max=3; scale_min=-3;hmcols = NULL; Get.Smooth.Curve = TRUE;
   # gene_subset = candidates;hclust_method = "ward.D2";num_clusters = 6
   library(VGAM) # an example code from https://online.stat.psu.edu/stat504/lesson/8/8.2/8.2.2
   library(MASS)
@@ -105,8 +106,12 @@ plot_genes_branched_heatmap <- function(seuratObj = aa,
   require(colorRamps)
   require(pheatmap)
   
+  if(!dir.exists(outDir)) dir.create(outDir)
+  cat('output dir --  ', outDir, '\n')
+  
   cell_beforeRA = colnames(seuratObj)[which(!is.na(seuratObj$pseudot) & 
                                               seuratObj$condition == 'day2_beforeRA')]
+  
   cell_noRA = colnames(seuratObj)[which(!is.na(seuratObj$pseudot) & grepl('_noRA', seuratObj$condition))]
   cell_RA = colnames(seuratObj)[which(!is.na(seuratObj$pseudot) & grepl('_RA', seuratObj$condition))]
   
@@ -240,7 +245,7 @@ plot_genes_branched_heatmap <- function(seuratObj = aa,
                                pseudot = subs$pseudot[indexs],
                                condition = subs$condition[indexs])
   
-  write.csv2(annotation_row, file = paste0(outDir, 'gene_clusters.csv'), row.names = TRUE, quote = FALSE)
+  write.csv2(annotation_row, file = paste0(outDir, '/gene_clusters.csv'), row.names = TRUE, quote = FALSE)
   
   #colnames(annotation_col) <- "Cell Type"  
   #if(!is.null(add_annotation_col)) {
@@ -314,198 +319,202 @@ plot_genes_branched_heatmap <- function(seuratObj = aa,
   )
   
   
-  ##########################################
-  # all DE genes intersected with RAR target
-  ##########################################
-  targets = readRDS('../results/RA_targets_L118404_smartseq3_20221117/Rdata/RAR_targets_chip_chiapet.rds')
-  
-  sels = which(!is.na(match(rownames(heatmap_matrix), targets)))
-  row_dist <- as.dist((1 - cor(Matrix::t(heatmap_matrix[sels,])))/2)
-  row_dist[is.na(row_dist)] <- 1
-  annotation_rowSel = data.frame(Cluster = annotation_row[sels, ])
-  rownames(annotation_rowSel) = rownames(annotation_row)[sels]
-  
-  
-  pheatmap(heatmap_matrix[sels, ], #ph$tree_row$order
-           useRaster = T,
-           cluster_cols=FALSE, 
-           cluster_rows=TRUE, 
-           show_rownames=FALSE,
-           show_colnames=FALSE, 
-           scale='none',
-           clustering_distance_rows=row_dist, #row_dist
-           clustering_method = hclust_method, #ward.D2
-           cutree_rows=num_clusters,
-           # cutree_cols = 2,
-           annotation_row=annotation_rowSel,
-           annotation_col=annotation_col,
-           annotation_colors=annotation_colors,
-           gaps_col = col_gap_ind,
-           treeheight_row = 30, 
-           breaks=bks,
-           fontsize = 6,
-           color=hmcols, 
-           border_color = NA,
-           silent=TRUE, 
-           filename=paste0(outDir, "/expression_pseudotime_pheatmap_allDEgenes_intersectedRARtarget.pdf"),
-           width = 6, height = 12
-  )
-  
-  pheatmap(heatmap_matrix[sels, ], #ph$tree_row$order
-           useRaster = T,
-           cluster_cols=FALSE, 
-           cluster_rows=TRUE, 
-           show_rownames=TRUE,
-           show_colnames=FALSE, 
-           scale='none',
-           clustering_distance_rows=row_dist, #row_dist
-           clustering_method = hclust_method, #ward.D2
-           cutree_rows=num_clusters,
-           # cutree_cols = 2,
-           annotation_row=annotation_rowSel,
-           annotation_col=annotation_col,
-           annotation_colors=annotation_colors,
-           gaps_col = col_gap_ind,
-           treeheight_row = 30, 
-           breaks=bks,
-           fontsize = 2,
-           color=hmcols, 
-           border_color = NA,
-           silent=TRUE, 
-           filename=paste0(outDir, "/expression_pseudotime_pheatmap_allDEgenes_intersectedRARtarget",
-                           "_withgeneNames.pdf"),
-           width = 8, height = 20
-  )
-  
-  
-  
-  ##########################################
-  # DE TFs and signaling pathways 
-  ##########################################
-  tfs = readRDS(file = paste0('../data/annotations/curated_human_TFs_Lambert.rds'))
-  tfs = unique(tfs$`HGNC symbol`)
-  tfs = as.character(unlist(sapply(tfs, firstup)))
-  sps = readRDS(file = paste0('../data/annotations/curated_signaling.pathways_gene.list_v2.rds'))
-  targets = unique(c(tfs, sps$gene))
-  xx = read.table('../data/annotations/GO_term_summary_RAR_signalingPathway.txt', header = TRUE, sep = '\t', 
-                  row.names = NULL)
-  targets = unique(c(targets, xx[,2]))
-  xx = read.table('../data/annotations/GO_term_summary_TGFb.txt', header = TRUE, sep = '\t', 
-                  row.names = NULL)
-  targets = unique(c(targets, xx[,2]))
-  #sps = toupper(unique(sps$gene))
-  #sps = setdiff(sps, tfs)
-  
-  sels = which(!is.na(match(rownames(heatmap_matrix), targets)))
-  row_dist <- as.dist((1 - cor(Matrix::t(heatmap_matrix[sels,])))/2)
-  row_dist[is.na(row_dist)] <- 1
-  annotation_rowSel = data.frame(Cluster = annotation_row[sels, ])
-  rownames(annotation_rowSel) = rownames(annotation_row)[sels]
-  
-  pheatmap(heatmap_matrix[sels, ], #ph$tree_row$order
-           useRaster = T,
-           cluster_cols=FALSE, 
-           cluster_rows=TRUE, 
-           show_rownames=FALSE,
-           show_colnames=FALSE, 
-           scale='none',
-           clustering_distance_rows=row_dist, #row_dist
-           clustering_method = hclust_method, #ward.D2
-           cutree_rows=num_clusters,
-           # cutree_cols = 2,
-           annotation_row=annotation_rowSel,
-           annotation_col=annotation_col,
-           annotation_colors=annotation_colors,
-           gaps_col = col_gap_ind,
-           treeheight_row = 30, 
-           breaks=bks,
-           fontsize = 6,
-           color=hmcols, 
-           border_color = NA,
-           silent=TRUE, 
-           filename=paste0(outDir, "/expression_pseudotime_pheatmap_allDEgenes_TF.SP.pdf"),
-           width = 6, height = 12
-  )
-  
-  pheatmap(heatmap_matrix[sels, ], #ph$tree_row$order
-           useRaster = T,
-           cluster_cols=FALSE, 
-           cluster_rows=TRUE, 
-           show_rownames=TRUE,
-           show_colnames=FALSE, 
-           scale='none',
-           clustering_distance_rows=row_dist, #row_dist
-           clustering_method = hclust_method, #ward.D2
-           cutree_rows=num_clusters,
-           # cutree_cols = 2,
-           annotation_row=annotation_rowSel,
-           annotation_col=annotation_col,
-           annotation_colors=annotation_colors,
-           gaps_col = col_gap_ind,
-           treeheight_row = 30, 
-           breaks=bks,
-           fontsize_row = 4,
-           #fontsize = 4,
-           color=hmcols, 
-           border_color = NA,
-           silent=TRUE, 
-           filename=paste0(outDir, "/expression_pseudotime_pheatmap_allDEgenes_TF.SP",
-                           "_withgeneNames.pdf"),
-           width = 8, height = 20
-  )
-  
-  
-  
-  ##########################################
-  # DE TFs and signaling pathways intersected with RAR target
-  ##########################################
-  targets = readRDS('../results/RA_targets_L118404_smartseq3_20221117/Rdata/RAR_targets_chip_chiapet.rds')
-  
-  tfs = readRDS(file = paste0('../data/annotations/curated_human_TFs_Lambert.rds'))
-  tfs = unique(tfs$`HGNC symbol`)
-  tfs = as.character(unlist(sapply(tfs, firstup)))
-  sps = readRDS(file = paste0('../data/annotations/curated_signaling.pathways_gene.list_v2.rds'))
-  tf.sp = unique(c(tfs, sps$gene))
-  xx = read.table('../data/annotations/GO_term_summary_RAR_signalingPathway.txt', header = TRUE, sep = '\t', 
-                  row.names = NULL)
-  tf.sp = unique(c(tf.sp, xx[,2]))
-  xx = read.table('../data/annotations/GO_term_summary_TGFb.txt', header = TRUE, sep = '\t', 
-                  row.names = NULL)
-  tf.sp = unique(c(tf.sp, xx[,2]))
-  
-  targets = intersect(targets, tf.sp)
+  Intersect_genesets_with_RARtargets_TFsSPs = FALSE
+  if(Intersect_genesets_with_RARtargets_TFsSPs){
+    ##########################################
+    # all DE genes intersected with RAR target
+    ##########################################
+    targets = readRDS('../results/RA_targets_L118404_smartseq3_20221117/Rdata/RAR_targets_chip_chiapet.rds')
     
-  sels = which(!is.na(match(rownames(heatmap_matrix), targets)))
-  row_dist <- as.dist((1 - cor(Matrix::t(heatmap_matrix[sels,])))/2)
-  row_dist[is.na(row_dist)] <- 1
-  annotation_rowSel = data.frame(Cluster = annotation_row[sels, ])
-  rownames(annotation_rowSel) = rownames(annotation_row)[sels]
-  
-  pheatmap(heatmap_matrix[sels, ], #ph$tree_row$order
-           useRaster = T,
-           cluster_cols=FALSE, 
-           cluster_rows=TRUE, 
-           show_rownames=TRUE,
-           show_colnames=FALSE, 
-           scale='none',
-           clustering_distance_rows=row_dist, #row_dist
-           clustering_method = hclust_method, #ward.D2
-           cutree_rows=num_clusters,
-           # cutree_cols = 2,
-           annotation_row=annotation_rowSel,
-           annotation_col=annotation_col,
-           annotation_colors=annotation_colors,
-           gaps_col = col_gap_ind,
-           treeheight_row = 30, 
-           breaks=bks,
-           fontsize = 6,
-           color=hmcols, 
-           border_color = NA,
-           silent=TRUE, 
-           filename=paste0(outDir, "/expression_pseudotime_pheatmap_all.TF.SP_intersectedRARtargets",
-                           "_withgeneNames.pdf"),
-           width = 6, height = 12
-  )
+    sels = which(!is.na(match(rownames(heatmap_matrix), targets)))
+    row_dist <- as.dist((1 - cor(Matrix::t(heatmap_matrix[sels,])))/2)
+    row_dist[is.na(row_dist)] <- 1
+    annotation_rowSel = data.frame(Cluster = annotation_row[sels, ])
+    rownames(annotation_rowSel) = rownames(annotation_row)[sels]
+    
+    
+    pheatmap(heatmap_matrix[sels, ], #ph$tree_row$order
+             useRaster = T,
+             cluster_cols=FALSE, 
+             cluster_rows=TRUE, 
+             show_rownames=FALSE,
+             show_colnames=FALSE, 
+             scale='none',
+             clustering_distance_rows=row_dist, #row_dist
+             clustering_method = hclust_method, #ward.D2
+             cutree_rows=num_clusters,
+             # cutree_cols = 2,
+             annotation_row=annotation_rowSel,
+             annotation_col=annotation_col,
+             annotation_colors=annotation_colors,
+             gaps_col = col_gap_ind,
+             treeheight_row = 30, 
+             breaks=bks,
+             fontsize = 6,
+             color=hmcols, 
+             border_color = NA,
+             silent=TRUE, 
+             filename=paste0(outDir, "/expression_pseudotime_pheatmap_allDEgenes_intersectedRARtarget.pdf"),
+             width = 6, height = 12
+    )
+    
+    pheatmap(heatmap_matrix[sels, ], #ph$tree_row$order
+             useRaster = T,
+             cluster_cols=FALSE, 
+             cluster_rows=TRUE, 
+             show_rownames=TRUE,
+             show_colnames=FALSE, 
+             scale='none',
+             clustering_distance_rows=row_dist, #row_dist
+             clustering_method = hclust_method, #ward.D2
+             cutree_rows=num_clusters,
+             # cutree_cols = 2,
+             annotation_row=annotation_rowSel,
+             annotation_col=annotation_col,
+             annotation_colors=annotation_colors,
+             gaps_col = col_gap_ind,
+             treeheight_row = 30, 
+             breaks=bks,
+             fontsize = 2,
+             color=hmcols, 
+             border_color = NA,
+             silent=TRUE, 
+             filename=paste0(outDir, "/expression_pseudotime_pheatmap_allDEgenes_intersectedRARtarget",
+                             "_withgeneNames.pdf"),
+             width = 8, height = 20
+    )
+    
+    
+    
+    ##########################################
+    # DE TFs and signaling pathways 
+    ##########################################
+    tfs = readRDS(file = paste0('../data/annotations/curated_human_TFs_Lambert.rds'))
+    tfs = unique(tfs$`HGNC symbol`)
+    tfs = as.character(unlist(sapply(tfs, firstup)))
+    sps = readRDS(file = paste0('../data/annotations/curated_signaling.pathways_gene.list_v2.rds'))
+    targets = unique(c(tfs, sps$gene))
+    xx = read.table('../data/annotations/GO_term_summary_RAR_signalingPathway.txt', header = TRUE, sep = '\t', 
+                    row.names = NULL)
+    targets = unique(c(targets, xx[,2]))
+    xx = read.table('../data/annotations/GO_term_summary_TGFb.txt', header = TRUE, sep = '\t', 
+                    row.names = NULL)
+    targets = unique(c(targets, xx[,2]))
+    #sps = toupper(unique(sps$gene))
+    #sps = setdiff(sps, tfs)
+    
+    sels = which(!is.na(match(rownames(heatmap_matrix), targets)))
+    row_dist <- as.dist((1 - cor(Matrix::t(heatmap_matrix[sels,])))/2)
+    row_dist[is.na(row_dist)] <- 1
+    annotation_rowSel = data.frame(Cluster = annotation_row[sels, ])
+    rownames(annotation_rowSel) = rownames(annotation_row)[sels]
+    
+    pheatmap(heatmap_matrix[sels, ], #ph$tree_row$order
+             useRaster = T,
+             cluster_cols=FALSE, 
+             cluster_rows=TRUE, 
+             show_rownames=FALSE,
+             show_colnames=FALSE, 
+             scale='none',
+             clustering_distance_rows=row_dist, #row_dist
+             clustering_method = hclust_method, #ward.D2
+             cutree_rows=num_clusters,
+             # cutree_cols = 2,
+             annotation_row=annotation_rowSel,
+             annotation_col=annotation_col,
+             annotation_colors=annotation_colors,
+             gaps_col = col_gap_ind,
+             treeheight_row = 30, 
+             breaks=bks,
+             fontsize = 6,
+             color=hmcols, 
+             border_color = NA,
+             silent=TRUE, 
+             filename=paste0(outDir, "/expression_pseudotime_pheatmap_allDEgenes_TF.SP.pdf"),
+             width = 6, height = 12
+    )
+    
+    pheatmap(heatmap_matrix[sels, ], #ph$tree_row$order
+             useRaster = T,
+             cluster_cols=FALSE, 
+             cluster_rows=TRUE, 
+             show_rownames=TRUE,
+             show_colnames=FALSE, 
+             scale='none',
+             clustering_distance_rows=row_dist, #row_dist
+             clustering_method = hclust_method, #ward.D2
+             cutree_rows=num_clusters,
+             # cutree_cols = 2,
+             annotation_row=annotation_rowSel,
+             annotation_col=annotation_col,
+             annotation_colors=annotation_colors,
+             gaps_col = col_gap_ind,
+             treeheight_row = 30, 
+             breaks=bks,
+             fontsize_row = 4,
+             #fontsize = 4,
+             color=hmcols, 
+             border_color = NA,
+             silent=TRUE, 
+             filename=paste0(outDir, "/expression_pseudotime_pheatmap_allDEgenes_TF.SP",
+                             "_withgeneNames.pdf"),
+             width = 8, height = 20
+    )
+    
+    
+    
+    ##########################################
+    # DE TFs and signaling pathways intersected with RAR target
+    ##########################################
+    targets = readRDS('../results/RA_targets_L118404_smartseq3_20221117/Rdata/RAR_targets_chip_chiapet.rds')
+    
+    tfs = readRDS(file = paste0('../data/annotations/curated_human_TFs_Lambert.rds'))
+    tfs = unique(tfs$`HGNC symbol`)
+    tfs = as.character(unlist(sapply(tfs, firstup)))
+    sps = readRDS(file = paste0('../data/annotations/curated_signaling.pathways_gene.list_v2.rds'))
+    tf.sp = unique(c(tfs, sps$gene))
+    xx = read.table('../data/annotations/GO_term_summary_RAR_signalingPathway.txt', header = TRUE, sep = '\t', 
+                    row.names = NULL)
+    tf.sp = unique(c(tf.sp, xx[,2]))
+    xx = read.table('../data/annotations/GO_term_summary_TGFb.txt', header = TRUE, sep = '\t', 
+                    row.names = NULL)
+    tf.sp = unique(c(tf.sp, xx[,2]))
+    
+    targets = intersect(targets, tf.sp)
+    
+    sels = which(!is.na(match(rownames(heatmap_matrix), targets)))
+    row_dist <- as.dist((1 - cor(Matrix::t(heatmap_matrix[sels,])))/2)
+    row_dist[is.na(row_dist)] <- 1
+    annotation_rowSel = data.frame(Cluster = annotation_row[sels, ])
+    rownames(annotation_rowSel) = rownames(annotation_row)[sels]
+    
+    pheatmap(heatmap_matrix[sels, ], #ph$tree_row$order
+             useRaster = T,
+             cluster_cols=FALSE, 
+             cluster_rows=TRUE, 
+             show_rownames=TRUE,
+             show_colnames=FALSE, 
+             scale='none',
+             clustering_distance_rows=row_dist, #row_dist
+             clustering_method = hclust_method, #ward.D2
+             cutree_rows=num_clusters,
+             # cutree_cols = 2,
+             annotation_row=annotation_rowSel,
+             annotation_col=annotation_col,
+             annotation_colors=annotation_colors,
+             gaps_col = col_gap_ind,
+             treeheight_row = 30, 
+             breaks=bks,
+             fontsize = 6,
+             color=hmcols, 
+             border_color = NA,
+             silent=TRUE, 
+             filename=paste0(outDir, "/expression_pseudotime_pheatmap_all.TF.SP_intersectedRARtargets",
+                             "_withgeneNames.pdf"),
+             width = 6, height = 12
+    )
+    
+  }
   
 }
 

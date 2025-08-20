@@ -1450,11 +1450,21 @@ ggsave(filename = paste0(resDir, '/pairwise_distance_pst.palantir.Bins_', length
 ########################################################
 ########################################################
 aa = readRDS(file = paste0(RdataDir, 
-                           'seuratObject_RA.vs.noRA.bifurcation_doublet.rm_mt.ribo.filtered_regressout.nCounts_',
-                           'cellCycleScoring_annot.v1_reduction.DM_princurves_',
-                           'mNT_scRNAseq_R13547_10x_mNT_20220813.rds'
-                          ))
-                          
+                           'RA_noRA_d2_d5_condition_pseudotimePalantir_saved4heterogeity.rds'))
+
+# aa = readRDS(file = paste0(RdataDir, 
+#                            'seuratObject_RA.vs.noRA.bifurcation_doublet.rm_mt.ribo.filtered_regressout.nCounts_',
+#                            'cellCycleScoring_annot.v1_reduction.DM_princurves_pseudotime_',
+#                            'mNT_scRNAseq_R13547_10x_mNT_20220813.rds'))
+
+candidates = readRDS(file = paste0('../results/scRNAseq_R13547_10x_mNT_20220813', 
+                                   '/RA.vs.noRA_firstBifurcation/', 
+                                   'DElist_1932genes_pairwiseComaprison_v2.rds'))
+candidates = unique(candidates$gene)
+
+DimPlot(aa, cols = cols_sel, group.by = 'condition', reduction = 'dm')
+#FeaturePlot(aa, features = candidates[1])
+
 names(cols) = levels
 levels_sels = c("day2_beforeRA",  
                 "day2.5_RA", "day3_RA.rep1", "day3_RA.rep2", "day3.5_RA",   "day4_RA", "day5_RA",
@@ -1462,34 +1472,15 @@ levels_sels = c("day2_beforeRA",
 
 cols_sel = cols[match(levels_sels, names(cols))]
 
-outDir = paste0('../results/scRNAseq_R13547_10x_mNT_20220813', '/RA.vs.noRA_firstBifurcation/')
-
-##########################################
-# plot heatmap  
-##########################################
-source('functions_utility.R')
-aa = readRDS(file = paste0(RdataDir, 
-                           'seuratObject_RA.vs.noRA.bifurcation_doublet.rm_mt.ribo.filtered_regressout.nCounts_',
-                           'cellCycleScoring_annot.v1_reduction.DM_princurves_pseudotime_',
-                           'mNT_scRNAseq_R13547_10x_mNT_20220813.rds'))
-
-candidates = readRDS(file = paste0(outDir, 'DElist_1932genes_pairwiseComaprison_v2.rds'))
-
-candidates = unique(candidates$gene)
-
-DimPlot(aa, cols = cols_sel, group.by = 'condition', reduction = 'DC')
-FeaturePlot(aa, features = candidates[1])
 
 source('functions_utility.R')
 
 plot_genes_branched_heatmap(seuratObj = aa, 
+                            outDir = resDir,
                             gene_subset = candidates,
-                            nbCell_condition = 50)
-
-
-
-
-
+                            nbCell_condition = 50,
+                            cols_sel = cols_sel
+                            )
 
 
 ########################################################
