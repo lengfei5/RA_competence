@@ -1521,84 +1521,6 @@ ggsave(filename = paste0(resDir, '/scRNAseq_RAsamples_signalingPathways_clusterA
        width = 14, height = 5)
 
 
-Use_scFates_selectClusters = FALSE
-if(Use_scFates_selectClusters){
-  ##########################################
-  # select the time points and clusters 
-  ##########################################
-  
-  dataDir = paste0("../results/scRNAseq_R13547_10x_mNT_20220813/RA_symetryBreaking/TF_modules/",
-                   'd2.5_d5_TFs_SPs_regressed.CellCycle_v1/')
-  
-  aa = readRDS(file = paste0(dataDir, 
-                             'seuratObject_RA.symmetry.breaking_doublet.rm_mt.ribo.filtered',
-                             '_regressout.nCounts_cellCycleScoring_annot.v2_newUMAP_clusters_time_',
-                             'd2.5_d5_regressed.CellCycle_v1.rds'))
-  
-  pst = read.csv(file = paste0(dataDir, 'annData_pseudotime_segments_milestones.csv'), header = TRUE,
-                 row.names = c(1))
-  
-  levels_sels = unique(aa$condition)
-  
-  names(cols) = levels
-  cols_sel = cols[match(levels_sels, names(cols))]
-  
-  DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'condition', raster=FALSE)
-  
-  p1 = DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'condition', raster=FALSE)
-  p2 = DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'seurat_clusters', raster=FALSE)
-  p1 + p2
-  
-  mm = match(colnames(aa), rownames(pst))
-  aa = AddMetaData(aa, metadata = pst[mm, ])
-  
-  p1 = DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'condition', raster=FALSE, cols = cols_sel)
-  p2 = DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'seg', raster=FALSE)
-  p1 + p2
-  
-  assign = read.csv(file = paste0(dataDir, 'annData_cellAssignment_to_nonIntersectingWindows_8.csv'),
-                    header = TRUE, row.names = c(1))
-  #assign = t(assign)
-  assignment = rownames(assign)[apply(assign, 2, which.max)] 
-  names(assignment) = gsub('[.]','-', colnames(assign))
-  
-  aa$windows = assignment[match(colnames(aa), names(assignment))]
-  
-  p1 = DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'milestones', raster=FALSE)
-  p2 = DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'windows', raster=FALSE)
-  p1 + p2
-  
-  p1 = DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'condition', raster=FALSE, cols = cols_sel)
-  
-  p2 = DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'windows', raster=FALSE) +
-    scale_colour_brewer(palette = "Set1") +
-    theme(axis.text.x = element_text(angle = 0, size = 12, vjust = 0.4),
-          axis.text.y = element_text(angle = 0, size = 12)) +
-    ggtitle('scFates windows')
-  #labs( x = '', y = '% of FoxA2+ & Pax6+' )
-  
-  p1 + p2
-  
-  ggsave(filename = paste0(resDir, '/scRNAseq_RAsamples_signalingPathways_scFatesWindows.pdf'), 
-         width = 14, height = 5)
-  
-  xx = aa
-  
-  aa = readRDS(file = paste0(RdataDir, 
-                             'seuratObj_clustersFiltered_umap_RAsamples_selectUMAPparam',
-                             '_clustered.discardCellcycle.corrrelatedGenes.rds'))
-  
-  aa = subset(aa, cells = colnames(xx))
-  
-  aa$windows = xx$windows[match(colnames(aa), colnames(xx))]
-  rm(xx)
-  
-  saveRDS(aa, file = paste0(RdataDir, 
-                            'seuratObj_clustersFiltered_umap_RAsamples_selectUMAPparam',
-                            '_clustered.discardCellcycle.corrrelatedGenes_forSignalingPathways.rds'))
-  
-}
-
 ##########################################
 # test cellchat for pathway activity 
 # https://htmlpreview.github.io/?https://github.com/
@@ -1736,5 +1658,295 @@ dev.off()
 
 
 ##########################################
-# test global pathway activities with ReactomeGSA 
+# L-R analysis for clusters 3 and 5
 ##########################################
+##########################################
+# LIANA test 
+##########################################
+require(liana)
+require(Seurat)
+require(scater)
+require(scran)
+
+subref = subset(aa, cells = colnames(aa)[which(aa$windows == '6'|aa$windows == '4')]); 
+
+additionalLabel = '_fixedCelltypes'; 
+subref$celltypes = subref$windows
+celltypes = unique(subref$celltypes)
+
+system(paste0('mkdir -p ', paste0(outDir, '/LR_analysis_LIANA')))
+# source('functions_scRNAseq.R') 
+
+sce <- as.SingleCellExperiment(subref)
+colLabels(sce) = as.factor(sce$celltypes)
+rownames(sce) = toupper(rownames(sce))
+
+ave.counts <- calculateAverage(sce, assay.type = "counts")
+
+#hist(log10(ave.counts), breaks=100, main="", col="grey80",
+#     xlab=expression(Log[10]~"average count"))
+
+num.cells <- nexprs(sce, byrow=TRUE)
+#smoothScatter(log10(ave.counts), num.cells, ylab="Number of cells",
+#              xlab=expression(Log[10]~"average count"))
+
+# detected in >= 5 cells, ave.counts >=5 but not too high
+genes.to.keep <- num.cells > 5 & ave.counts >= 10^-4  & ave.counts <10^2  
+summary(genes.to.keep)
+
+sce <- sce[genes.to.keep, ]
+
+## run the liana wrap function by specifying resource and methods
+# Resource currently included in OmniPathR (and hence `liana`) include:
+show_resources()
+# Resource currently included in OmniPathR (and hence `liana`) include:
+show_methods()
+
+liana_test <- liana_wrap(sce,  
+                         method = c("natmi", "connectome", "logfc", "sca", "cytotalk"  
+                                    #'cellphonedb'
+                         ),
+                         resource = c("Consensus", 'CellPhoneDB', "OmniPath", "LRdb",
+                                      "CellChatDB",  "CellTalkDB"), 
+                         assay.type = "logcounts", 
+                         idents_col = 'celltypes')
+
+# Liana returns a list of results, each element of which corresponds to a method
+liana_test %>% glimpse
+
+# We can aggregate these results into a tibble with consensus ranks
+saveRDS(liana_test, file = paste0(outDir, '/LR_analysis_LIANA/res_lianaTest_Consensus', 
+                                  additionalLabel, '.rds'))
+
+liana_test = readRDS(file = paste0(outDir, '/LR_analysis_LIANA/res_lianaTest_Consensus', 
+                                   additionalLabel, '.rds'))
+
+liana_test <- liana_test %>%
+  liana_aggregate(resource = 'Consensus')
+
+if(is.na(receiver_cells)){ # loop over all cell type candidates
+  celltypes = as.character(celltypes)
+  receiver_cells = as.character(celltypes)
+}
+
+ntop = 300
+#' manually_specifying_sender_receiver = FALSE
+#' if(manually_specifying_sender_receiver){
+#'   ntop = 100
+#'   sender_cells = c('3', '4')
+#'   receiver_cells = sender_cells
+#'   
+#'   liana_test %>%
+#'     liana_dotplot(source_groups = sender_cells,
+#'                   target_groups = receiver_cells,
+#'                   ntop = ntop)
+#'   ggsave(filename = paste0(outDir, '/LR_analysis_LIANA_v2/liana_LR_prediction_cluster3.vs.cluster4', 
+#'                            additionalLabel, 
+#'                            #'_receiverCells.', receiver_cells[m], 
+#'                            '_ntop.', ntop, '.pdf'), 
+#'          width = 15, height = 0.25*ntop, limitsize = FALSE)
+#'   
+#'   ntop = 500
+#'   sender_cells = c('0', '6', '2', '8')
+#'   receiver_cells = sender_cells
+#'   
+#'   liana_test %>%
+#'     liana_dotplot(source_groups = sender_cells,
+#'                   target_groups = receiver_cells,
+#'                   ntop = ntop)
+#'   ggsave(filename = paste0(outDir, '/LR_analysis_LIANA_v2/liana_LR_prediction_cluster_0_6_2_8', 
+#'                            additionalLabel, 
+#'                            #'_receiverCells.', receiver_cells[m], 
+#'                            '_ntop.', ntop, '.pdf'), 
+#'          width = 25, height = 0.25*ntop, limitsize = FALSE)
+#'   
+#'   
+#' }
+
+for(m in 1:length(receiver_cells))
+{
+  # m = 1
+  cat(m, '-- receiver cells : ', receiver_cells[m], '\n')
+  #liana_test %>%
+  #  liana_dotplot(source_groups = celltypes[n],
+  #                target_groups = celltypes,
+  #                ntop = ntop)
+  liana_test %>%
+    liana_dotplot(source_groups = celltypes,
+                  target_groups = receiver_cells[m],
+                  ntop = ntop)
+  #liana_test_save =  liana_test %>% filter()
+  #  liana_dotplot(source_groups = celltypes,
+  #                target_groups = receiver_cells[m],
+  #                ntop = ntop)
+  
+  ggsave(filename = paste0(outDir, '/LR_analysis_LIANA/liana_LR_prediction_recieveCell', 
+                           additionalLabel, 
+                           '_receiverCells.', receiver_cells[m], 
+                           '_ntop.', ntop, '.pdf'), 
+         width = 30, height = 0.25*ntop, limitsize = FALSE)
+  
+}
+
+
+liana_test = readRDS(file = paste0(outDir, '/LR_analysis_LIANA/res_lianaTest_Consensus', 
+                                   additionalLabel, '.rds'))
+
+liana_test <- liana_test %>%
+  liana_aggregate(resource = 'Consensus')
+
+celltypes = unique(subref$celltypes)
+
+receivers = celltypes
+
+df_test = liana_test %>% filter(target %in% receivers & source %in% celltypes) %>% as.data.frame() 
+
+write.table(df_test, file = paste0(outDir, '/res_lianaTest_Consensus', additionalLabel, '.txt'), 
+            sep = '\t', quote = FALSE)
+
+saveRDS(liana_test, file = paste0(outDir, '/res_lianaTest_Consensus', 
+                                  additionalLabel, '_saved.rds'))
+
+
+res = df_test
+res = res[, c(1:5, which(colnames(res) == 'natmi.edge_specificity'), 
+              which(colnames(res) == 'sca.LRscore'))]
+
+colnames(res)[1:4] = c('sender', 'receiver', 'ligand', 'receptor')
+
+#require(cellcall)
+library(SeuratData)
+library(Connectome)
+library(cowplot)
+
+#res = res[order(-res$sca.LRscore), ]
+
+colnames(res)[1:2] = c('source', 'target')
+res$weight_norm = res$sca.LRscore
+res$pair = paste0(res$ligand, ' - ', res$receptor)
+res$vector = paste0(res$source, ' - ', res$target)
+res$edge = paste0(res$source, ' - ', res$ligand, ' - ', res$receptor, ' - ', res$target)
+res$source.ligand = paste0(res$source, ' - ', res$ligand)
+res$receptor.target = paste0(res$receptor, ' - ', res$target)
+
+write.table(res, 
+            file = paste0(outDir, '/LR_interactions_allPairs_LIANA.txt'), 
+            quote = FALSE, row.names = TRUE, col.names = TRUE, sep = '\t')
+
+saveRDS(res, file = paste0(outDir, '/res_lianaTest_for_circosplot.rds'))
+
+##########################################
+### plot circosplot
+##########################################
+#res = readRDS(file = paste0(outDir, '/res_lianaTest_for_circosplot.rds'))
+res = readRDS(file = paste0(outDir, '/res_lianaTest_for_circosplot.rds'))
+
+functionDir = '/groups/tanaka/People/current/jiwang/projects/heart_regeneration/scripts'
+#res = readRDS(file = paste0(outDir, '/res_lianaTest_for_circosplot.rds'))
+source(paste0(functionDir, '/functions_cccInference.R'))
+
+celltypes = unique(c(res$source, res$target))
+additionalLabel = '_fixedCelltypes'
+receivers = celltypes
+
+sender_cells = receivers
+receiver_cells = receivers
+
+print(as.character(sender_cells))
+print(as.character(receiver_cells))
+
+
+head(grep('BMP', res$ligand))
+#res = res[!is.na(match(res$source, sender_cells)) & !is.na(match(res$target, receiver_cells)), ]
+
+res = res[order(res$aggregate_rank), ]
+
+head(grep('BMP', res$ligand))
+
+#cell_color = randomcoloR::distinctColorPalette(length(cells.of.interest))
+
+cells.of.interest = unique(c(res$source, res$target))
+print(cells.of.interest)
+
+cell_color = c("magenta2", "green3")
+names(cell_color) <- c('4', '6')
+cell_color = cell_color[match(cells.of.interest, names(cell_color))]
+
+# Mac_BL_early #2AD0B7
+# Neu_BL_early #98B304
+# Epidermis_BL_early #16005e
+# CT_BL_early_1 #005e45
+# CT_BL_early_3 #2f7c67
+# Epidermis_BL.CSD_early #3200F5
+
+pdfname = paste0(outDir, '/LR_interactions_LIANA_tops.pdf')
+pdf(pdfname, width=12, height = 8)
+for(ntop in c(100, 200, 300))
+{
+  # ntop = 100
+  cat('top LR -- ', ntop, '\n')
+  test = res[c(1:ntop), ]
+  
+  # jj = which(test$ligand == 'RGMB'|test$receptor == 'RGMB'|
+  #              test$ligand == "FGFR3")
+  # if(length(jj) >0){
+  #   test = test[-jj, ]
+  # }
+  
+  #test = test[-which(test$ligand == 'SPON1'), ] 
+  
+  my_CircosPlot(test, 
+                weight.attribute = 'weight_norm',
+                cols.use = cell_color,
+                sources.include = cells.of.interest,
+                targets.include = cells.of.interest,
+                lab.cex = 0.5,
+                title = paste('LR scores top :', ntop))
+  
+}
+
+dev.off()
+
+res = res[which(res$source != res$target), ]
+
+pdfname = paste0(outDir, '/LR_interactions_LIANA_tops_noAutoregulation.pdf')
+pdf(pdfname, width=12, height = 8)
+for(ntop in c(100, 200))
+{
+  # ntop = 100
+  cat('top LR -- ', ntop, '\n')
+  if(ntop > nrow(res)) ntop = nrow(res)
+  test = res[c(1:ntop), ]
+  
+  # jj = which(test$ligand == 'RGMB'|test$receptor == 'RGMB'|
+  #              test$ligand == "FGFR3")
+  # if(length(jj) >0){
+  #   test = test[-jj, ]
+  # }
+  
+  #test = test[-which(test$ligand == 'SPON1'), ] 
+  
+  my_CircosPlot(test, 
+                weight.attribute = 'weight_norm',
+                cols.use = cell_color,
+                sources.include = cells.of.interest,
+                targets.include = cells.of.interest,
+                lab.cex = 0.5,
+                title = paste('LR scores top :', ntop))
+  
+}
+
+dev.off()
+
+FeaturePlot(aa, features = c('Bmp7', 'Bmp4', 'Bmp1'))
+
+ggsave(filename = paste0(outDir, '/FeaturePlot_Bmps.pdf'), 
+       width = 12, height = 8)
+
+FeaturePlot(aa, features = c('Wnt4', 'Wnt1', 'Wnt5b', 'Fzd4', 'Fzd2', 'Fzd7'))
+
+ggsave(filename = paste0(outDir, '/FeaturePlot_Wnt.pdf'), 
+       width = 12, height = 12)
+
+
+
