@@ -47,6 +47,8 @@ load(file = '../results/Rdata/tfs_sps_geneExamples_4scRNAseq.Rdata')
 
 feat_cols = c("#F0F0F0", "#EFFAB6", "#69C6BE", "#007BB7", "#121D60")
 
+cols_cluster = c( "#7F7F7F", "#FFC000", "#70AD47", "#337f01", "#CD00CF", "#265401","#800080")
+
 ########################################################
 ########################################################
 # Section 0: the starting data object 
@@ -1489,85 +1491,113 @@ plot_genes_branched_heatmap(seuratObj = aa,
 # gloabl pathway analysis and cellcht for LR anlaysis
 ########################################################
 ########################################################
-##########################################
-# select the time points and clusters 
-##########################################
 library(data.table)
 library(plyr)
 library(ggplot2)
 library(scales)
 
+aa = readRDS(file = paste0(RdataDir, 
+                           'seuratObj_clustersFiltered_umap_RAsamples_selectUMAPparam_clusters_4save.rds'))
+
 sps = readRDS(file = paste0('../data/annotations/curated_signaling.pathways_gene.list_v3.rds'))
 
-dataDir = paste0("../results/scRNAseq_R13547_10x_mNT_20220813/RA_symetryBreaking/TF_modules/",
-                 'd2.5_d5_TFs_SPs_regressed.CellCycle_v1/')
-
-aa = readRDS(file = paste0(dataDir, 
-                           'seuratObject_RA.symmetry.breaking_doublet.rm_mt.ribo.filtered',
-                           '_regressout.nCounts_cellCycleScoring_annot.v2_newUMAP_clusters_time_',
-                           'd2.5_d5_regressed.CellCycle_v1.rds'))
-
-pst = read.csv(file = paste0(dataDir, 'annData_pseudotime_segments_milestones.csv'), header = TRUE,
-               row.names = c(1))
 
 levels_sels = unique(aa$condition)
-
 names(cols) = levels
 cols_sel = cols[match(levels_sels, names(cols))]
 
-DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'condition', raster=FALSE)
-
-p1 = DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'condition', raster=FALSE)
-p2 = DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'seurat_clusters', raster=FALSE)
-p1 + p2
-
-mm = match(colnames(aa), rownames(pst))
-aa = AddMetaData(aa, metadata = pst[mm, ])
-
-p1 = DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'condition', raster=FALSE, cols = cols_sel)
-p2 = DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'seg', raster=FALSE)
-p1 + p2
-
-assign = read.csv(file = paste0(dataDir, 'annData_cellAssignment_to_nonIntersectingWindows_8.csv'),
-                  header = TRUE, row.names = c(1))
-#assign = t(assign)
-assignment = rownames(assign)[apply(assign, 2, which.max)] 
-names(assignment) = gsub('[.]','-', colnames(assign))
-
-aa$windows = assignment[match(colnames(aa), names(assignment))]
-
-p1 = DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'milestones', raster=FALSE)
-p2 = DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'windows', raster=FALSE)
-p1 + p2
-
 p1 = DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'condition', raster=FALSE, cols = cols_sel)
 
-p2 = DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'windows', raster=FALSE) +
-  scale_colour_brewer(palette = "Set1") +
+p2 = DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'clusters', raster=FALSE, cols = cols_cluster) +
+  #scale_colour_brewer(palette = "Set1") +
   theme(axis.text.x = element_text(angle = 0, size = 12, vjust = 0.4),
         axis.text.y = element_text(angle = 0, size = 12)) +
-  ggtitle('scFates windows')
-  #labs( x = '', y = '% of FoxA2+ & Pax6+' )
+  ggtitle('clusters 3 and 5 for signaling pathway analysis')
+#labs( x = '', y = '% of FoxA2+ & Pax6+' )
 
 p1 + p2
 
-ggsave(filename = paste0(resDir, '/scRNAseq_RAsamples_signalingPathways_scFatesWindows.pdf'), 
+ggsave(filename = paste0(resDir, '/scRNAseq_RAsamples_signalingPathways_clusterAnnot.pdf'), 
        width = 14, height = 5)
 
-xx = aa
 
-aa = readRDS(file = paste0(RdataDir, 
-                           'seuratObj_clustersFiltered_umap_RAsamples_selectUMAPparam',
-                           '_clustered.discardCellcycle.corrrelatedGenes.rds'))
-
-aa = subset(aa, cells = colnames(xx))
-
-aa$windows = xx$windows[match(colnames(aa), colnames(xx))]
-rm(xx)
-
-saveRDS(aa, file = paste0(RdataDir, 
-                      'seuratObj_clustersFiltered_umap_RAsamples_selectUMAPparam',
-                      '_clustered.discardCellcycle.corrrelatedGenes_forSignalingPathways.rds'))
+Use_scFates_selectClusters = FALSE
+if(Use_scFates_selectClusters){
+  ##########################################
+  # select the time points and clusters 
+  ##########################################
+  
+  dataDir = paste0("../results/scRNAseq_R13547_10x_mNT_20220813/RA_symetryBreaking/TF_modules/",
+                   'd2.5_d5_TFs_SPs_regressed.CellCycle_v1/')
+  
+  aa = readRDS(file = paste0(dataDir, 
+                             'seuratObject_RA.symmetry.breaking_doublet.rm_mt.ribo.filtered',
+                             '_regressout.nCounts_cellCycleScoring_annot.v2_newUMAP_clusters_time_',
+                             'd2.5_d5_regressed.CellCycle_v1.rds'))
+  
+  pst = read.csv(file = paste0(dataDir, 'annData_pseudotime_segments_milestones.csv'), header = TRUE,
+                 row.names = c(1))
+  
+  levels_sels = unique(aa$condition)
+  
+  names(cols) = levels
+  cols_sel = cols[match(levels_sels, names(cols))]
+  
+  DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'condition', raster=FALSE)
+  
+  p1 = DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'condition', raster=FALSE)
+  p2 = DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'seurat_clusters', raster=FALSE)
+  p1 + p2
+  
+  mm = match(colnames(aa), rownames(pst))
+  aa = AddMetaData(aa, metadata = pst[mm, ])
+  
+  p1 = DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'condition', raster=FALSE, cols = cols_sel)
+  p2 = DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'seg', raster=FALSE)
+  p1 + p2
+  
+  assign = read.csv(file = paste0(dataDir, 'annData_cellAssignment_to_nonIntersectingWindows_8.csv'),
+                    header = TRUE, row.names = c(1))
+  #assign = t(assign)
+  assignment = rownames(assign)[apply(assign, 2, which.max)] 
+  names(assignment) = gsub('[.]','-', colnames(assign))
+  
+  aa$windows = assignment[match(colnames(aa), names(assignment))]
+  
+  p1 = DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'milestones', raster=FALSE)
+  p2 = DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'windows', raster=FALSE)
+  p1 + p2
+  
+  p1 = DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'condition', raster=FALSE, cols = cols_sel)
+  
+  p2 = DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'windows', raster=FALSE) +
+    scale_colour_brewer(palette = "Set1") +
+    theme(axis.text.x = element_text(angle = 0, size = 12, vjust = 0.4),
+          axis.text.y = element_text(angle = 0, size = 12)) +
+    ggtitle('scFates windows')
+  #labs( x = '', y = '% of FoxA2+ & Pax6+' )
+  
+  p1 + p2
+  
+  ggsave(filename = paste0(resDir, '/scRNAseq_RAsamples_signalingPathways_scFatesWindows.pdf'), 
+         width = 14, height = 5)
+  
+  xx = aa
+  
+  aa = readRDS(file = paste0(RdataDir, 
+                             'seuratObj_clustersFiltered_umap_RAsamples_selectUMAPparam',
+                             '_clustered.discardCellcycle.corrrelatedGenes.rds'))
+  
+  aa = subset(aa, cells = colnames(xx))
+  
+  aa$windows = xx$windows[match(colnames(aa), colnames(xx))]
+  rm(xx)
+  
+  saveRDS(aa, file = paste0(RdataDir, 
+                            'seuratObj_clustersFiltered_umap_RAsamples_selectUMAPparam',
+                            '_clustered.discardCellcycle.corrrelatedGenes_forSignalingPathways.rds'))
+  
+}
 
 ##########################################
 # test cellchat for pathway activity 
@@ -1578,15 +1608,15 @@ library(CellChat)
 library(patchwork)
 options(stringsAsFactors = FALSE)
 
-outDir = paste0(resDir, '/test/')
-if(!dir.exists(outDir)) dir.create(outDir)
-
-aa = readRDS(file = paste0(RdataDir, 
-                           'seuratObj_clustersFiltered_umap_RAsamples_selectUMAPparam',
-                           '_clustered.discardCellcycle.corrrelatedGenes_forSignalingPathways.rds'))
-
-aa$windows = paste0('w', aa$windows)
-aa$windows = factor(aa$windows)
+#outDir = paste0(resDir, '/test/')
+#if(!dir.exists(outDir)) dir.create(outDir)
+# aa = readRDS(file = paste0(RdataDir, 
+#                            'seuratObj_clustersFiltered_umap_RAsamples_selectUMAPparam',
+#                            '_clustered.discardCellcycle.corrrelatedGenes_forSignalingPathways.rds'))
+# 
+# aa$windows = paste0('w', aa$windows)
+# aa$windows = factor(aa$windows)
+aa$windows = factor(aa$clusters)
 
 Idents(aa) = aa$windows
 
@@ -1594,7 +1624,6 @@ data.input <- aa[["RNA"]]@data # normalized data matrix
 # For Seurat version >= “5.0.0”, get the normalized data via `seurat_object[["RNA"]]$data`
 labels <- Idents(aa)
 meta <- data.frame(labels = labels, row.names = names(labels)) # create a dataframe of the cell labels
-
 
 cellchat <- createCellChat(object = aa, group.by = "windows", assay = "RNA")
 
@@ -1619,17 +1648,10 @@ cellchat@DB <- CellChatDB.use
 
 # subset the expression data of signaling genes for saving computation cost
 cellchat <- subsetData(cellchat) # This step is necessary even if using the whole database
-#future::plan("multisession", workers = 1) # do parallel
 
 cellchat <- identifyOverExpressedGenes(cellchat,)
 cellchat <- identifyOverExpressedInteractions(cellchat)
 #> The number of highly variable ligand-receptor pairs used for signaling inference is 692
-
-#execution.time = Sys.time() - ptm
-#print(as.numeric(execution.time, units = "secs"))
-#> [1] 13.20763
-# project gene expression data onto PPI (Optional: when running it, USER should set `raw.use = FALSE` in the function `computeCommunProb()` in order to use the projected data)
-#cellchat <- ProjectData(cellchat, PPI.mouse)
 
 cellchat <- computeCommunProb(cellchat, 
                               #type = "triMean", 
@@ -1643,6 +1665,7 @@ cellchat <- computeCommunProbPathway(cellchat)
 
 cellchat <- aggregateNet(cellchat, signaling = c("WNT", "TGFb", 'HH', "ncWNT", 'BMP', 'FGF', 'TGFb'),
                          remove.isolate = FALSE)
+
 
 groupSize <- as.numeric(table(cellchat@idents))
 par(mfrow = c(1,2), xpd=TRUE)
@@ -1672,7 +1695,6 @@ pathways.show.all <- cellchat@netP$pathways
 #   
 # }
 
-
 # Compute the network centrality scores
 # the slot 'netP' means the inferred intercellular communication network of signaling pathways
 cellchat <- netAnalysis_computeCentrality(cellchat, slot.name = "netP") 
@@ -1693,7 +1715,7 @@ gg2 <- netAnalysis_signalingRole_scatter(cellchat, signaling = c("BMP"))
 gg1 + gg2
 
 
-pathways_sel = c('HH', 'WNT', 'ncWNT', 'FGF', 'BMP')
+pathways_sel = c('HH', 'WNT', 'FGF', 'BMP')
 # Signaling role analysis on the aggregated cell-cell communication network from all signaling pathways
 ht1 <- netAnalysis_signalingRole_heatmap(cellchat, pattern = "outgoing", 
                                          signaling = pathways_sel)
@@ -1704,8 +1726,9 @@ ht3 = netAnalysis_signalingRole_heatmap(cellchat, pattern = "all",
 
 ht1 + ht2 + ht3
 
-pdf(paste0(resDir, '/scRNAseq_RAsamples_signalingPathways_CellChat_all.pdf'), 
-    height = 5, width =8, useDingbats = FALSE)
+pdf(paste0(resDir, '/scRNAseq_RAsamples_signalingPathways_CellChat_all_v2.pdf'), 
+    height = 6, width = 8, useDingbats = FALSE)
+
 netAnalysis_signalingRole_heatmap(cellchat, pattern = "all",
                                   signaling = pathways_sel)
 
@@ -1715,232 +1738,3 @@ dev.off()
 ##########################################
 # test global pathway activities with ReactomeGSA 
 ##########################################
-use_ReactomeGSA = FALSE
-if(use_ReactomeGSA){
-  require(ReactomeGSA)
-  require(tictoc)
-  
-  library(Seurat)
-  library(decoupleR)
-  library(tictoc)
-  library(dplyr)
-  library(tibble)
-  library(tidyr)
-  library(patchwork)
-  library(ggplot2)
-  library(pheatmap)
-  
-  aa = readRDS(file = paste0(RdataDir, 
-                             'seuratObj_clustersFiltered_umap_RAsamples_selectUMAPparam',
-                             '_clustered.discardCellcycle.corrrelatedGenes_forSignalingPathways.rds'))
-  
-  # downsample for each time point 
-  Idents(aa) = aa$windows
-  #Idents(aa) = aa$condition
-  #aa = subset(aa, downsample = 2500)
-  
-  DimPlot(aa, group.by = 'windows', label = TRUE)
-  
-  
-  cell_ids = 'timepoints'
-  
-  DefaultAssay(object = aa) <- "RNA"
-  
-  tic()
-  gsva_result <- analyse_sc_clusters(object = aa, verbose = TRUE)
-  toc()
-  
-  # The resulting object is a standard ReactomeAnalysisResult object.
-  gsva_result
-  
-  # pathways returns the pathway-level expression values per cell cluster
-  pathway_expression <- pathways(gsva_result)
-  
-  # simplify the column names by removing the default dataset identifier
-  colnames(pathway_expression) <- gsub("\\.Seurat", "", colnames(pathway_expression))
-  pathway_expression[1:3, ]
-  
-  # A simple approach to find the most relevant pathways is to assess the maximum difference 
-  # in expression for every pathway:
-  
-  # find the maximum differently expressed pathway
-  max_difference <- do.call(rbind, apply(pathway_expression, 1, function(row) {
-    values <- as.numeric(row[2:length(row)])
-    return(data.frame(name = row[1], min = min(abs(values)), max = max(abs(values))))
-  }))
-  
-  max_difference$diff <- max_difference$max - max_difference$min
-  
-  # sort based on the difference
-  max_difference <- max_difference[order(max_difference$diff, decreasing = T), ]
-  head(max_difference)
-  
-  plot(max_difference$max, max_difference$diff, cex = 0.5)
-  abline(v = 0.2)
-  abline(h = 0.02)
-  
-  #sels = which(max_difference$max>=0.25 |max_difference$diff>0.05)
-  #cat(length(sels), ' pathways passing thresholds \n')
-  
-  #relevant_pathways <- c("R-HSA-983170", "R-HSA-388841", "R-HSA-2132295", "R-HSA-983705", "R-HSA-5690714")
-  #jj = intersect(grep('FGF|WNT|BMP|NOTCH|Hippo|Retinoic|TGF', max_difference$name),
-  #               grep('Signaling|signaling', max_difference$name))
-  jj = grep('FGF|WNT|BMP|NOTCH|Hippo|Retinoic|TGF', max_difference$name)
-  
-  max_difference_jj = max_difference[unique(c(jj)), ]
-  
-  # max_difference = max_difference[unique(c(sels, jj)), ]
-  # gsva_mat = pathway_expression[match(max_difference$name, pathway_expression$Name), ]
-  # rownames(gsva_mat) = gsva_mat$Name
-  # gsva_mat = gsva_mat[, -c(1)]
-  
-  # Choose color palette
-  # palette_length = 100
-  # my_color = colorRampPalette(c("Darkblue", "white","red"))(palette_length)
-  # 
-  # pheatmap::pheatmap(gsva_mat, border_color = NA, color=my_color, 
-  #                    #breaks = my_breaks,
-  #                    scale = 'row',
-  #                    cluster_rows = TRUE,
-  #                    cluster_cols = TRUE,
-  #                    fontsize = 7,
-  #                    filename = paste0(resDir, 
-  #                                      '/ReactomeGSA_global_pathwayActivity_', cell_ids, '_many.pdf'), 
-  #                    width = 10, height = 28) 
-  # 
-  # selected pathways
-  gsva_mat = pathway_expression[match(max_difference_jj$name, pathway_expression$Name), ]
-  rownames(gsva_mat) = gsva_mat$Name
-  gsva_mat = gsva_mat[, -c(1)]
-  
-  palette_length = 100
-  my_color = colorRampPalette(c("Darkblue", "white","red"))(palette_length)
-  
-  pheatmap::pheatmap(gsva_mat, border_color = NA, color=my_color, 
-                     #breaks = my_breaks,
-                     scale = 'row',
-                     cluster_rows = TRUE,
-                     cluster_cols = FALSE,
-                     fontsize = 10,
-                     filename = paste0(resDir, 
-                                       '/ReactomeGSA_global_pathwayActivity_', cell_ids, '_selected.pdf'), 
-                     width = 12, height = 16) 
-  
-}
-
-##########################################
-# test Method from https://ouyanglab.com/singlecell/clust.html#identifying-marker-genes  
-##########################################
-Test_moduleScoring = FALSE
-if(Test_moduleScoring){
-  require(msigdbr)
-  require(clusterProfiler)
-  require(RColorBrewer)
-  
-  aa$clusters = aa$windows
-  Idents(aa) = factor(aa$windows)
-  colGEX = c("grey85", brewer.pal(7, "Reds"))
-  
-  # Find Markers
-  oupMarker <- FindAllMarkers(aa, only.pos = TRUE, 
-                              logfc.threshold = 0.1, min.pct = 0.05)
-  
-  oupMarker <- data.table(oupMarker)
-  oupMarker$pct.diff = oupMarker$pct.1 - oupMarker$pct.2
-  oupMarker <- oupMarker[, c("cluster","gene","avg_log2FC","pct.1","pct.2",
-                             "pct.diff","p_val","p_val_adj")]
-  #fwrite(oupMarker, sep = "\t", file = "images/clustMarkers.txt")
-  aa@misc$marker <- oupMarker      # Store markers into Seurat object
-  
-  # Check if known genes are in the marker gene list
-  #knownGenes <- c("CD34","CRHBP","GATA1",  "CD14","IRF8","CD19",
-  #                "CD4","CD8B","GNLY")
-  #oupMarker[gene %in% knownGenes]
-  
-  # Get top genes for each cluster and do dotplot / violin plot
-  # oupMarker$cluster = factor(oupMarker$cluster, levels = reorderCluster)
-  # oupMarker = oupMarker[order(cluster, -avg_log2FC)]
-  # genes.to.plot <- unique(oupMarker[cluster %in% reorderCluster, 
-  #                                   head(.SD, 2), by="cluster"]$gene)
-  # p1 <- DotPlot(seu, group.by = "cluster", features = genes.to.plot) + 
-  #   coord_flip() + scale_color_gradientn(colors = colGEX) +
-  #   theme(axis.text.x = element_text(angle = -45, hjust = 0))
-  # ggsave(p1, width = 10, height = 8, filename = "images/clustMarkersDot.png")
-  # p2 <- VlnPlot(seu, group.by = "cluster", fill.by = "ident", cols = colCls,
-  #               features = genes.to.plot, stack = TRUE, flip = TRUE)
-  # ggsave(p2, width = 10, height = 8, filename = "images/clustMarkersVln.png")
-  
-  ### C. Gene module analysis + module score
-  # Functional analysis using clusterProfiler and msigdb
-  oupMarkerFunc = data.table()
-  set.seed(42)
-  
-  for(iDB in c("C2", "C5_GO:BP")){
-    # Get reference gene sets from msigdbr
-    inpGS <- tstrsplit(iDB, "_")
-    msigCat <- inpGS[[1]]; 
-    msigSubCat <- NULL
-    if(length(inpGS) >= 2){msigSubCat <- inpGS[[2]]}
-    inpGS <- data.frame(msigdbr(species = "Mus musculus", 
-                                category = msigCat,
-                                subcategory = msigSubCat))
-    inpGS <- inpGS[, c("gs_name","gene_symbol")]
-    
-    # Start up clusterProfiler
-    for(i in unique(oupMarker$cluster)){
-      tmpOut <- enricher(oupMarker[cluster == i]$gene,
-                         universe = rownames(aa), TERM2GENE = inpGS)
-      tmpOut <- data.table(sigdb = iDB, cluster = i, data.frame(tmpOut[, -2]))
-      tmpOut$mLog10Padj <- -log10(tmpOut$p.adjust)
-      tmpOut <- tmpOut[order(-mLog10Padj)]
-      oupMarkerFunc <- rbindlist(list(oupMarkerFunc, tmpOut))
-      
-    }
-  }
-  
-  
-  #oupMarkerFunc$cluster <- factor(oupMarkerFunc$cluster, levels = reorderCluster)
-  aa@misc$markerFunc <- oupMarkerFunc   # Store func analysis into Seurat object
-  
-  # Plot functional analysis results
-  # ggData <- oupMarkerFunc[grep("BONE_MARROW", ID)]
-  # ggData$ID <- gsub("HAY_BONE_MARROW_", "", ggData$ID)
-  # ggData$ID <- factor(ggData$ID, levels = unique(ggData$ID))
-  # p1 <- ggplot(ggData, aes(cluster, ID, size = Count, color = mLog10Padj)) + 
-  #   geom_point() + ggtitle("HAY_BONE_MARROW signatures") + 
-  #   theme_linedraw(base_size = 18) + 
-  #   theme(axis.text.x = element_text(angle = -45, hjust = 0)) + 
-  #   scale_color_gradientn(colors = colGEX, limits = c(0,10), na.value = colGEX[8])
-  # ggsave(p1, width = 12, height = 8, filename = "images/clustMarkersFuncBM.png")
-  
-  tmp <- oupMarkerFunc[sigdb == "C5_GO:BP"]
-  tmp <- tmp[grep("DIFF", ID)][!grep("POSITIVE|NEGATIVE", ID)]$ID
-  ggData <- oupMarkerFunc[ID %in% tmp]
-  ggData$ID <- substr(gsub("GOBP_", "", ggData$ID), 1, 30)
-  ggData$ID <- factor(ggData$ID, levels = unique(ggData$ID))
-  p1 <- ggplot(ggData, aes(cluster, ID, size = Count, color = mLog10Padj)) + 
-    geom_point() + ggtitle("DIFF signatures") + 
-    theme_linedraw(base_size = 18) + 
-    theme(axis.text.x = element_text(angle = -45, hjust = 0)) + 
-    scale_color_gradientn(colors = colGEX, limits = c(0,8), na.value = colGEX[8])
-  
-  
-  # Add module score (Here, we use using HALLMARK SIGNALING gene sets)
-  inpGS <- data.table(msigdbr(species = "Mus musculus", category = "H"))
-  inpGS <- inpGS[grep("SIGNAL", inpGS$gs_name), ]
-  
-  inpGS$gs_name <- gsub("HALLMARK_", "", inpGS$gs_name)
-  inpGS$gs_name <- gsub("_SIGNALING", "", inpGS$gs_name)
-  
-  inpGS <- split(inpGS$gene_symbol, inpGS$gs_name)
-  aa <- AddModuleScore(aa, features = inpGS, name = "HALLMARK")
-  colnames(aa@meta.data)[grep("HALLMARK", colnames(aa@meta.data))] <- names(inpGS)
-  
-  FeaturePlot(aa, reduction = "umap", pt.size = 0.1,
-              features = names(inpGS), order = TRUE) &
-    scale_color_distiller(palette = "RdYlBu") & plotTheme & coord_fixed()
-  #ggsave(p1, width = 20, height = 12, filename = "images/clustModuScore.png")
-  
-  
-}
-
