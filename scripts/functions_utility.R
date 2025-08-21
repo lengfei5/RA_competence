@@ -87,15 +87,18 @@ plot_genes_branched_heatmap <- function(seuratObj = aa,
                                         gene_subset = candidates,
                                         nbCell_condition = 50,
                                         cols_sel = cols_sel,
+                                        hmcols = NULL, 
+                                        nb_pseutoBin = 20,
+                                        plotName = 'pheatmap_RA_noRA_branchinng_expression_pseudotime',
                                         Get.Smooth.Curve = TRUE, 
                                         scale_max=3, 
-                                        scale_min=-3, 
-                                        hmcols = NULL, 
+                                        scale_min=-3,
                                         hclust_method = "ward.D2", 
                                         num_clusters = 6,
                                         cluster_rows = TRUE,
                                         add_annotation_row = NULL,
-                                        show_rownames = TRUE
+                                        show_rownames = TRUE,
+                                        Intersect_genesets_with_RARtargets_TFsSPs = FALSE
                                         ) 
 {
   # seuratObj = aa; nbCell_condition = 50;scale_max=3; scale_min=-3;hmcols = NULL; Get.Smooth.Curve = TRUE;
@@ -217,8 +220,11 @@ plot_genes_branched_heatmap <- function(seuratObj = aa,
   exp_rng <- range(heatmap_matrix) #bks is based on the expression range
   
   bks <- seq(exp_rng[1] - 0.1, exp_rng[2] + 0.1, by=0.1)
+  
   if(is.null(hmcols)) {
     hmcols <- blue2green2red(length(bks) - 1)
+  }else{
+    hmcols = viridis((length(bks) - 1), option = "D", direction = -1)
   }
   
   # prin  t(hmcols)
@@ -252,13 +258,25 @@ plot_genes_branched_heatmap <- function(seuratObj = aa,
   #  annotation_col <- cbind(annotation_col, add_annotation_col[fData(cds[row.names(annotation_col), ])$gene_short_name, 1])  
   #}
   branch_colors = cols_sel[grep("day3_RA.rep2", names(cols_sel), invert = TRUE)]
-  annotation_colors=list("condition"=branch_colors)
+  
   #names(annotation_colors$`condition`) = c('Pre-branch', branch_labels)
+  bins = seq(0, 1, length.out = (nb_pseutoBin+1))
   
+  cols_pseudot = viridis(nb_pseutoBin, option = "D", direction = -1)
+  names(cols_pseudot) = bins[-1]
   
+  for(i in 2:length(bins))
+  {
+    ii = which(annotation_col$pseudot > bins[i-1] & annotation_col$pseudot <= bins[i])
+    annotation_col$pseudot[ii] = as.character(bins[i])
+  }
+  
+  annotation_colors=list("condition"= branch_colors, 
+                         "pseudot" = cols_pseudot)
   #names(branch_colors) <- c("Pre-branch", branch_labels[1], branch_labels[2])
   #annotation_colors=list("Cell Type"=branch_colors)
   #names(annotation_colors$`Cell Type`) = c('Pre-branch', branch_labels)
+  
   feature_label <- row.names(heatmap_matrix)
   row_ann_labels <- row.names(annotation_row)
   
@@ -289,7 +307,7 @@ plot_genes_branched_heatmap <- function(seuratObj = aa,
            color=hmcols, 
            border_color = NA,
            silent=TRUE, 
-           filename=paste0(outDir, "/expression_pseudotime_pheatmap_allDEgenes.pdf"),
+           filename=paste0(outDir, "/", plotName,  "_allDEgenes.pdf"),
            width = 6, height = 12
   )
   
@@ -314,12 +332,11 @@ plot_genes_branched_heatmap <- function(seuratObj = aa,
                      color=hmcols, 
                      border_color = NA,
                      silent=TRUE, 
-                     filename=paste0(outDir, "/expression_pseudotime_pheatmap_allDEgenes_with.geneNames.pdf"),
+                     filename=paste0(outDir, "/", plotName,  "_allDEgenes_with.geneNames.pdf"),
                      width = 12, height = 60
   )
   
   
-  Intersect_genesets_with_RARtargets_TFsSPs = FALSE
   if(Intersect_genesets_with_RARtargets_TFsSPs){
     ##########################################
     # all DE genes intersected with RAR target
@@ -460,8 +477,6 @@ plot_genes_branched_heatmap <- function(seuratObj = aa,
                              "_withgeneNames.pdf"),
              width = 8, height = 20
     )
-    
-    
     
     ##########################################
     # DE TFs and signaling pathways intersected with RAR target

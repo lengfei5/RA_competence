@@ -930,8 +930,9 @@ if(Merge_sparseFeatures_mutlipleMethods){
   
   aa$condition = droplevels(aa$condition)
   
-  aa <- RunPCA(aa, features = ggs, verbose = FALSE, weight.by.var = TRUE)
+  aa <- RunPCA(aa, features = ggs, verbose = FALSE, weight.by.var = FALSE)
   ElbowPlot(aa, ndims = 50)
+  
   
   outDir = paste0(resDir, '/UMAP_RAsamples_sparseFeatures/')
   if(!dir.exists(outDir)) dir.create(outDir)
@@ -939,24 +940,23 @@ if(Merge_sparseFeatures_mutlipleMethods){
   source(paste0(functionDir, '/functions_scRNAseq.R'))
   explore.umap.params.combination(sub.obj = aa, 
                                   resDir = outDir, 
-                                  pdfname = 'UMAP_test_RASamples_sparseFeatures_v1.pdf',
+                                  pdfname = 'UMAP_test_RASamples_sparseFeatures_weight.by.var.FALSE.pdf',
                                   use.parallelization = FALSE,
                                   group.by = 'condition',
                                   cols = cols, 
-                                  weight.by.var = TRUE,
+                                  weight.by.var = FALSE,
                                   #nfeatures.sampling = c(3000, 5000),
                                   features = ggs,
-                                  nb.pcs.sampling = c(30, 50), 
-                                  n.neighbors.sampling = c(30, 50, 100), 
-                                  min.dist.sampling = c(0.1, 0.3)
+                                  nb.pcs.sampling = c(10, 20), 
+                                  n.neighbors.sampling = c(20, 30, 50), 
+                                  min.dist.sampling = c(0.01, 0.05, 0.1)
   )
   
   
-  aa <- RunUMAP(aa, dims = 1:20, n.neighbors = 100, min.dist = 0.1)
+  aa <- RunUMAP(aa, dims = 1:10, n.neighbors = 30, min.dist = 0.01)
   DimPlot(aa, group.by = 'condition', label = TRUE, cols = cols_sel)
   
-  ggsave(filename = paste0(resDir, '/RA_umap_with_selectedFeatures.pdf'), width = 8, height = 6) 
-  
+  ggsave(filename = paste0(resDir, '/RA_umap_with_selectedFeatures_v2.pdf'), width = 8, height = 6)
   
   
 }
@@ -1465,13 +1465,11 @@ candidates = unique(candidates$gene)
 DimPlot(aa, cols = cols_sel, group.by = 'condition', reduction = 'dm')
 #FeaturePlot(aa, features = candidates[1])
 
-names(cols) = levels
+cols = readRDS(file = '../results/Rdata/color_scheme_4scRNAseq.rds')
 levels_sels = c("day2_beforeRA",  
                 "day2.5_RA", "day3_RA.rep1", "day3_RA.rep2", "day3.5_RA",   "day4_RA", "day5_RA",
                 "day2.5_noRA", "day3_noRA",  "day3.5_noRA", "day4_noRA", "day5_noRA")
-
 cols_sel = cols[match(levels_sels, names(cols))]
-
 
 source('functions_utility.R')
 
@@ -1479,7 +1477,9 @@ plot_genes_branched_heatmap(seuratObj = aa,
                             outDir = resDir,
                             gene_subset = candidates,
                             nbCell_condition = 50,
-                            cols_sel = cols_sel
+                            cols_sel = cols_sel,
+                            #hmcols = viridis(20, option = "D", direction = -1),
+                            plotName = 'pheatmap_RA_noRA_branchinng_expression_pseudotime_test_v2'
                             )
 
 
