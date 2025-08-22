@@ -1660,22 +1660,33 @@ dev.off()
 ##########################################
 # L-R analysis for clusters 3 and 5
 ##########################################
-##########################################
-# LIANA test 
-##########################################
 require(liana)
 require(Seurat)
 require(scater)
 require(scran)
-
-subref = subset(aa, cells = colnames(aa)[which(aa$windows == '6'|aa$windows == '4')]); 
+library(SeuratData)
+library(Connectome)
+library(cowplot)
 
 additionalLabel = '_fixedCelltypes'; 
+outDir = paste0(resDir, '/LR_analysis_LIANA')
+system(paste0('mkdir -p ', outDir))
+# source('functions_scRNAseq.R') 
+
+aa$windows = factor(aa$clusters)
+Idents(aa) = aa$windows
+
+DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'windows', raster=FALSE, cols = cols_cluster) +
+  #scale_colour_brewer(palette = "Set1") +
+  theme(axis.text.x = element_text(angle = 0, size = 12, vjust = 0.4),
+        axis.text.y = element_text(angle = 0, size = 12)) +
+  ggtitle('clusters 3 and 5 for signaling pathway analysis')
+
+subref = subset(aa, cells = colnames(aa)[which(aa$windows == '3'|aa$windows == '5')]); 
+
 subref$celltypes = subref$windows
 celltypes = unique(subref$celltypes)
 
-system(paste0('mkdir -p ', paste0(outDir, '/LR_analysis_LIANA')))
-# source('functions_scRNAseq.R') 
 
 sce <- as.SingleCellExperiment(subref)
 colLabels(sce) = as.factor(sce$celltypes)
@@ -1683,15 +1694,10 @@ rownames(sce) = toupper(rownames(sce))
 
 ave.counts <- calculateAverage(sce, assay.type = "counts")
 
-#hist(log10(ave.counts), breaks=100, main="", col="grey80",
-#     xlab=expression(Log[10]~"average count"))
-
 num.cells <- nexprs(sce, byrow=TRUE)
-#smoothScatter(log10(ave.counts), num.cells, ylab="Number of cells",
-#              xlab=expression(Log[10]~"average count"))
 
 # detected in >= 5 cells, ave.counts >=5 but not too high
-genes.to.keep <- num.cells > 5 & ave.counts >= 10^-4  & ave.counts <10^2  
+genes.to.keep <- num.cells > 20
 summary(genes.to.keep)
 
 sce <- sce[genes.to.keep, ]
@@ -1703,11 +1709,11 @@ show_resources()
 show_methods()
 
 liana_test <- liana_wrap(sce,  
-                         method = c("natmi", "connectome", "logfc", "sca", "cytotalk"  
+                         method = c("natmi", "connectome", "logfc", "sca" 
                                     #'cellphonedb'
                          ),
-                         resource = c("Consensus", 'CellPhoneDB', "OmniPath", "LRdb",
-                                      "CellChatDB",  "CellTalkDB"), 
+                         resource = c("Consensus", "CellPhoneDB", "OmniPath", "LRdb", "CellChatDB",  "CellTalkDB"),
+                         #resource = c("Consensus", "CellPhoneDB", "OmniPath", "LRdb", "CellChatDB",  "CellTalkDB"), 
                          assay.type = "logcounts", 
                          idents_col = 'celltypes')
 
@@ -1715,88 +1721,21 @@ liana_test <- liana_wrap(sce,
 liana_test %>% glimpse
 
 # We can aggregate these results into a tibble with consensus ranks
-saveRDS(liana_test, file = paste0(outDir, '/LR_analysis_LIANA/res_lianaTest_Consensus', 
+saveRDS(liana_test, file = paste0(outDir, '/res_lianaTest_Consensus', 
                                   additionalLabel, '.rds'))
 
-liana_test = readRDS(file = paste0(outDir, '/LR_analysis_LIANA/res_lianaTest_Consensus', 
+liana_test = readRDS(file = paste0(outDir, '/res_lianaTest_Consensus', 
                                    additionalLabel, '.rds'))
 
-liana_test <- liana_test %>%
-  liana_aggregate(resource = 'Consensus')
+liana_test %>% dplyr::glimpse()
 
-if(is.na(receiver_cells)){ # loop over all cell type candidates
-  celltypes = as.character(celltypes)
-  receiver_cells = as.character(celltypes)
-}
+liana_test <- liana_test %>% liana_aggregate(resource = c("CellPhoneDB"))
+
+head(grep('BMP', liana_test$ligand.complex), 20)
+head(liana_test[grep('BMP', liana_test$ligand.complex), ], 20)
 
 ntop = 300
-#' manually_specifying_sender_receiver = FALSE
-#' if(manually_specifying_sender_receiver){
-#'   ntop = 100
-#'   sender_cells = c('3', '4')
-#'   receiver_cells = sender_cells
-#'   
-#'   liana_test %>%
-#'     liana_dotplot(source_groups = sender_cells,
-#'                   target_groups = receiver_cells,
-#'                   ntop = ntop)
-#'   ggsave(filename = paste0(outDir, '/LR_analysis_LIANA_v2/liana_LR_prediction_cluster3.vs.cluster4', 
-#'                            additionalLabel, 
-#'                            #'_receiverCells.', receiver_cells[m], 
-#'                            '_ntop.', ntop, '.pdf'), 
-#'          width = 15, height = 0.25*ntop, limitsize = FALSE)
-#'   
-#'   ntop = 500
-#'   sender_cells = c('0', '6', '2', '8')
-#'   receiver_cells = sender_cells
-#'   
-#'   liana_test %>%
-#'     liana_dotplot(source_groups = sender_cells,
-#'                   target_groups = receiver_cells,
-#'                   ntop = ntop)
-#'   ggsave(filename = paste0(outDir, '/LR_analysis_LIANA_v2/liana_LR_prediction_cluster_0_6_2_8', 
-#'                            additionalLabel, 
-#'                            #'_receiverCells.', receiver_cells[m], 
-#'                            '_ntop.', ntop, '.pdf'), 
-#'          width = 25, height = 0.25*ntop, limitsize = FALSE)
-#'   
-#'   
-#' }
-
-for(m in 1:length(receiver_cells))
-{
-  # m = 1
-  cat(m, '-- receiver cells : ', receiver_cells[m], '\n')
-  #liana_test %>%
-  #  liana_dotplot(source_groups = celltypes[n],
-  #                target_groups = celltypes,
-  #                ntop = ntop)
-  liana_test %>%
-    liana_dotplot(source_groups = celltypes,
-                  target_groups = receiver_cells[m],
-                  ntop = ntop)
-  #liana_test_save =  liana_test %>% filter()
-  #  liana_dotplot(source_groups = celltypes,
-  #                target_groups = receiver_cells[m],
-  #                ntop = ntop)
-  
-  ggsave(filename = paste0(outDir, '/LR_analysis_LIANA/liana_LR_prediction_recieveCell', 
-                           additionalLabel, 
-                           '_receiverCells.', receiver_cells[m], 
-                           '_ntop.', ntop, '.pdf'), 
-         width = 30, height = 0.25*ntop, limitsize = FALSE)
-  
-}
-
-
-liana_test = readRDS(file = paste0(outDir, '/LR_analysis_LIANA/res_lianaTest_Consensus', 
-                                   additionalLabel, '.rds'))
-
-liana_test <- liana_test %>%
-  liana_aggregate(resource = 'Consensus')
-
 celltypes = unique(subref$celltypes)
-
 receivers = celltypes
 
 df_test = liana_test %>% filter(target %in% receivers & source %in% celltypes) %>% as.data.frame() 
@@ -1815,9 +1754,6 @@ res = res[, c(1:5, which(colnames(res) == 'natmi.edge_specificity'),
 colnames(res)[1:4] = c('sender', 'receiver', 'ligand', 'receptor')
 
 #require(cellcall)
-library(SeuratData)
-library(Connectome)
-library(cowplot)
 
 #res = res[order(-res$sca.LRscore), ]
 
@@ -1860,28 +1796,23 @@ head(grep('BMP', res$ligand))
 #res = res[!is.na(match(res$source, sender_cells)) & !is.na(match(res$target, receiver_cells)), ]
 
 res = res[order(res$aggregate_rank), ]
+head(res[grep('BMP', res$ligand), ])
 
-head(grep('BMP', res$ligand))
-
+res = res[order(-res$natmi.edge_specificity), ]
+head(res[grep('BMP', res$ligand), ])
 #cell_color = randomcoloR::distinctColorPalette(length(cells.of.interest))
 
 cells.of.interest = unique(c(res$source, res$target))
 print(cells.of.interest)
 
 cell_color = c("magenta2", "green3")
-names(cell_color) <- c('4', '6')
+names(cell_color) <- c('5', '3')
 cell_color = cell_color[match(cells.of.interest, names(cell_color))]
 
-# Mac_BL_early #2AD0B7
-# Neu_BL_early #98B304
-# Epidermis_BL_early #16005e
-# CT_BL_early_1 #005e45
-# CT_BL_early_3 #2f7c67
-# Epidermis_BL.CSD_early #3200F5
-
+## some genes were annotated as ligand and receptor
 pdfname = paste0(outDir, '/LR_interactions_LIANA_tops.pdf')
 pdf(pdfname, width=12, height = 8)
-for(ntop in c(100, 200, 300))
+for(ntop in c(100))
 {
   # ntop = 100
   cat('top LR -- ', ntop, '\n')
@@ -1909,9 +1840,13 @@ dev.off()
 
 res = res[which(res$source != res$target), ]
 
-pdfname = paste0(outDir, '/LR_interactions_LIANA_tops_noAutoregulation.pdf')
+res = res[which(res$ligand != 'APP' & res$receptor != 'APP'), ]
+res = res[which(res$ligand != 'ACTR2' & res$receptor != 'ACTR2'), ]
+res = res[which(res$ligand != 'FGFR2' & res$receptor != 'FGFR2'), ]
+
+pdfname = paste0(outDir, '/LR_interactions_LIANA_tops_noAutoregulation_CellphoneDB.pdf')
 pdf(pdfname, width=12, height = 8)
-for(ntop in c(100, 200))
+for(ntop in c(100, 150, 200))
 {
   # ntop = 100
   cat('top LR -- ', ntop, '\n')
@@ -1938,6 +1873,7 @@ for(ntop in c(100, 200))
 
 dev.off()
 
+
 FeaturePlot(aa, features = c('Bmp7', 'Bmp4', 'Bmp1'))
 
 ggsave(filename = paste0(outDir, '/FeaturePlot_Bmps.pdf'), 
@@ -1947,6 +1883,4 @@ FeaturePlot(aa, features = c('Wnt4', 'Wnt1', 'Wnt5b', 'Fzd4', 'Fzd2', 'Fzd7'))
 
 ggsave(filename = paste0(outDir, '/FeaturePlot_Wnt.pdf'), 
        width = 12, height = 12)
-
-
 
