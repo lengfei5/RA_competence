@@ -840,16 +840,68 @@ p0 + p1
 
 ggsave(paste0(resDir, '/FACS_RA_DiffusionMap_timePoints_clusters_colors.pdf'), width=14, height = 6)
 
+## processing the FACS data
+y <- assay(sce, "counts")
+#cf <- 5 
+#y <- asinh(sweep(y, 1, cf, "/"))
+#y = log2(y)
+kk = which(sce$time == 'd2.6h' | sce$time == 'd2.12h' | sce$time == 'd2.18h'| 
+             sce$time == 'd3'| sce$time == 'd4')
+kk = which(sce$time != 'd2.6h' & sce$time != 'd2.12h' | sce$time != 'd2.18h')
+fx = data.frame(x = y[1, kk], condition = sce$condition[kk] ,stringsAsFactors = FALSE)
+#fx = 
+ggplot(fx, aes(x = x, fill = condition)) + 
+  geom_histogram() + 
+  geom_vline(xintercept = 625, linetype="dotted", 
+             color = "blue", size=1.5)
 
-p2 = plotDR(sce, "DiffusionMap", color_by = "Oct4") + theme_classic() + scale_color_gradientn(colors = feat_cols)
-p3 = plotDR(sce, 'DiffusionMap', color_by = 'Pax6') + theme_classic() + scale_color_gradientn(colors = feat_cols)
-p4 = plotDR(sce, 'DiffusionMap', color_by = 'FoxA2') + theme_classic() + scale_color_gradientn(colors = feat_cols)
-p5 = plotDR(sce, 'DiffusionMap', color_by = 'Sox1') + theme_classic() + scale_color_gradientn(colors = feat_cols)
-p6 = plotDR(sce, 'DiffusionMap', color_by = 'Sox2') + theme_classic() + scale_color_gradientn(colors = feat_cols)
+refs = y[1, which(sce$time == 'd4')]
+mean(refs)
+mean(refs[which(refs<625)])
 
-p2 + p3 + p4 + p5 + p6 
+kk = which(sce$time == 'd2.6h')
+y[1, kk] = y[1, kk] - (mean(y[1, kk]) - mean(refs[which(refs<625)]))
+kk = which(sce$time == 'd2.12h')
+y[1, kk] = y[1, kk] - (mean(y[1, kk]) - mean(refs[which(refs<625)]))
+kk = which(sce$time == 'd2.18h')
+y[1, kk] = y[1, kk] - (mean(y[1, kk]) - mean(refs[which(refs<625)]))
 
-ggsave(paste0(resDir, '/FACS_RA_DiffusionMap_geneExpression_v2.pdf'), width=16, height = 8)
+#cc = unique(sce$condition)
+for(n in 1:nrow(y)) 
+{
+  
+  y[n, ] = scale(y[n, ], center = TRUE, scale = TRUE)
+  
+}
+assay(sce, "exprs", FALSE) <- y
+
+
+feat_cols = c('gray20', "gray60", "gray80",
+               "#F0F0F0", "#69C6BE", "#007BB7", "#121D60")
+
+#feat_cols = brewer.pal(7, "PuOr")
+
+p2 = plotDR(sce, "DiffusionMap", color_by = "Oct4", scale = FALSE) + 
+  theme_classic() + 
+  scale_color_gradientn(colors = feat_cols)
+  #scale_color_viridis_c(option = "magma") +
+  #scico::scale_color_scico(palette = "vik", direction = -1)
+p3 = plotDR(sce, 'DiffusionMap', color_by = 'Pax6', scale = FALSE) + 
+  theme_classic() + 
+  scale_color_gradientn(colors = feat_cols)
+  #scico::scale_color_scico(palette = "vik", direction = -1) 
+p4 = plotDR(sce, 'DiffusionMap', color_by = 'FoxA2', scale = FALSE) + 
+  theme_classic() + 
+  scale_color_gradientn(colors = feat_cols)
+  #scico::scale_color_scico(palette = "vik", direction = -1)
+p5 = plotDR(sce, 'DiffusionMap', color_by = 'Sox1', scale = FALSE) + 
+  theme_classic() + 
+  scale_color_gradientn(colors = feat_cols)
+  #scico::scale_color_scico(palette = "vik", direction = -1)
+
+(p2 + p3) / (p4 + p5)
+
+ggsave(paste0(resDir, '/FACS_RA_DiffusionMap_geneExpression_v5.pdf'), width=12, height = 10)
 
 
 ########################################################

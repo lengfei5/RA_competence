@@ -509,6 +509,10 @@ if(Use.Robinson.workflow){
                features = "type")
   plotDR(sce, "DiffusionMap", color_by = "condition")
   
+  
+  ##########################################
+  # save the diffusion plot for FACS data
+  ##########################################
   sce = readRDS(file = paste0(RdataDir, '/sce_FACS_RA_nod2_DiffusionMap_saved.rds'))
   
   p0 = plotDR(sce, "DiffusionMap", color_by = "condition")
@@ -525,13 +529,12 @@ if(Use.Robinson.workflow){
   #drs = reducedDim(sce, 'DiffusionMap')
   
   
-  p2 = plotDR(sce, "DiffusionMap", color_by = "FoxA2")
+  p2 = plotDR(sce, "DiffusionMap", color_by = "Oct4")
   p3 = plotDR(sce, 'DiffusionMap', color_by = 'Pax6')
-  p4 = plotDR(sce, 'DiffusionMap', color_by = 'Sox1')
-  p5 = plotDR(sce, 'DiffusionMap', color_by = 'Sox2')
-  p6 = plotDR(sce, 'DiffusionMap', color_by = 'Oct4')
+  p4 = plotDR(sce, 'DiffusionMap', color_by = 'FoxA2')
+  p5 = plotDR(sce, 'DiffusionMap', color_by = 'Sox1')
   
-  p2 + p3 + p4 + p5 + p6 
+  (p2 + p3) / (p4 + p5)
   
   ggsave(paste0(figureDir, 'FACS_RA_DiffusionMap_geneExpression.pdf'), width=16, height = 8)
   
