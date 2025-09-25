@@ -208,30 +208,33 @@ plotDR(sce, "UMAP", color_by = "time", facet_by = "condition") +
 
 
 
+sce = sce[, which(sce$condition == 'TetOn_TetON_RA'| sce$condition == 'TetOn_TetON_dox')]
+sce$condition = droplevels(sce$condition)
+
 plotDR(sce, "UMAP", dims = c(1, 2), color_by = "time", facet_by = "condition", ncol = 2
        #k_pal = c("lightgrey", "cornflowerblue", "navy")
 ) + coord_fixed(1) + 
   theme_classic() + 
-  geom_point(size=0.8) +
-  theme(axis.text.x = element_text(angle = 0, size = 12, vjust = 0.4),
-        axis.text.y = element_text(angle = 0, size = 12), 
-        legend.text = element_text(size=14), 
-        legend.title = element_text(size=14)) 
+  geom_point(size=1.0) +
+  theme(axis.text.x = element_text(angle = 0, size = 14, vjust = 0.4),
+        axis.text.y = element_text(angle = 0, size = 14), 
+        legend.text = element_text(size=16), 
+        legend.title = element_text(size=20)) 
 
-ggsave(paste0(figureDir, 'image_WT_vsConditions_RA_SHout_UMAPs_time_v2.pdf'), width=10, height = 6) 
+ggsave(paste0(figureDir, 'image_WT_vsConditions_RA_SHout_UMAPs_time_v3.pdf'), width=10, height = 4) 
 
 
 plotDR(sce, "UMAP", dims = c(1, 2), color_by = "r2_log", facet_by = "condition", ncol = 2
        #k_pal = c("lightgrey", "cornflowerblue", "navy")
 ) + coord_fixed(1) + 
   theme_classic() + 
-  geom_point(size=0.8) +
-  theme(axis.text.x = element_text(angle = 0, size = 12, vjust = 0.4),
-        axis.text.y = element_text(angle = 0, size = 12), 
-        legend.text = element_text(size=12), 
-        legend.title = element_text(size=12)) 
+  geom_point(size=1.0) +
+  theme(axis.text.x = element_text(angle = 0, size = 14, vjust = 0.4),
+        axis.text.y = element_text(angle = 0, size = 14), 
+        legend.text = element_text(size=14), 
+        legend.title = element_text(size=20)) 
 
-ggsave(paste0(figureDir, 'image_WT_vsConditions_RA_SHout_UMAP_surfaceSize_v2.pdf'), width=10, height = 6) 
+ggsave(paste0(figureDir, 'image_WT_vsConditions_RA_SHout_UMAP_surfaceSize_v3.pdf'), width=10, height = 4) 
 
 
 plotDR(sce, "UMAP", dims = c(1, 2), color_by = "genotype_foxa2", facet_by = "condition", ncol = 2
