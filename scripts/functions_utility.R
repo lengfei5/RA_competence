@@ -98,6 +98,8 @@ plot_genes_branched_heatmap <- function(seuratObj = aa,
                                         cluster_rows = TRUE,
                                         add_annotation_row = NULL,
                                         show_rownames = TRUE,
+                                        PLOT_allDE_genes = FALSE,
+                                        PLOT_allDE_TFs_SPs = TRUE,
                                         Intersect_genesets_with_RARtargets_TFsSPs = FALSE
                                         ) 
 {
@@ -123,8 +125,10 @@ plot_genes_branched_heatmap <- function(seuratObj = aa,
   cc = unique(seuratObj$condition)
   cc = cc[which(cc != "day3_RA.rep2")]
   
+  
   for(n in 1:length(cc))
   {
+    set.seed(2025)
     cell.sels = c(cell.sels, sample(colnames(seuratObj)[which(seuratObj$condition == cc[n] & 
                                                                 !is.na(seuratObj$pseudot))], 
                                     size = nbCell_condition, 
@@ -257,7 +261,8 @@ plot_genes_branched_heatmap <- function(seuratObj = aa,
   #if(!is.null(add_annotation_col)) {
   #  annotation_col <- cbind(annotation_col, add_annotation_col[fData(cds[row.names(annotation_col), ])$gene_short_name, 1])  
   #}
-  branch_colors = cols_sel[grep("day3_RA.rep2", names(cols_sel), invert = TRUE)]
+  branch_colors = cols_sel[match(cc, names(cols_sel))]
+  #branch_colors = cols_sel[grep("day3_RA.rep2", names(cols_sel), invert = TRUE)]
   
   #names(annotation_colors$`condition`) = c('Pre-branch', branch_labels)
   bins = seq(0, 1, length.out = (nb_pseutoBin+1))
@@ -286,56 +291,151 @@ plot_genes_branched_heatmap <- function(seuratObj = aa,
   ##########################################
   # all DE genes
   ##########################################
-  pheatmap(heatmap_matrix[, ], #ph$tree_row$order
-           useRaster = T,
-           cluster_cols=FALSE, 
-           cluster_rows=TRUE, 
-           show_rownames=FALSE,
-           show_colnames=FALSE, 
-           scale='none',
-           clustering_distance_rows=row_dist, #row_dist
-           clustering_method = hclust_method, #ward.D2
-           cutree_rows=num_clusters,
-           # cutree_cols = 2,
-           annotation_row=annotation_row,
-           annotation_col=annotation_col,
-           annotation_colors=annotation_colors,
-           gaps_col = col_gap_ind,
-           treeheight_row = 30, 
-           breaks=bks,
-           fontsize = 6,
-           color=hmcols, 
-           border_color = NA,
-           silent=TRUE, 
-           filename=paste0(outDir, "/", plotName,  "_allDEgenes.pdf"),
-           width = 6, height = 12
-  )
+  if(PLOT_allDE_genes){
+    pheatmap(heatmap_matrix[, ], #ph$tree_row$order
+             useRaster = T,
+             cluster_cols=FALSE, 
+             cluster_rows=TRUE, 
+             show_rownames=FALSE,
+             show_colnames=FALSE, 
+             scale='none',
+             clustering_distance_rows=row_dist, #row_dist
+             clustering_method = hclust_method, #ward.D2
+             cutree_rows=num_clusters,
+             # cutree_cols = 2,
+             annotation_row=annotation_row,
+             annotation_col=annotation_col,
+             annotation_colors=annotation_colors,
+             gaps_col = col_gap_ind,
+             treeheight_row = 30, 
+             breaks=bks,
+             fontsize = 6,
+             color=hmcols, 
+             border_color = NA,
+             silent=TRUE, 
+             filename=paste0(outDir, "/", plotName,  "_allDEgenes.pdf"),
+             width = 6, height = 12
+    )
+    
+    pheatmap(heatmap_matrix[, ], #ph$tree_row$order
+             useRaster = T,
+             cluster_cols=FALSE, 
+             cluster_rows=TRUE, 
+             show_rownames=TRUE,
+             show_colnames=FALSE, 
+             scale='none',
+             clustering_distance_rows=row_dist, #row_dist
+             clustering_method = hclust_method, #ward.D2
+             cutree_rows=num_clusters,
+             # cutree_cols = 2,
+             annotation_row=annotation_row,
+             annotation_col=annotation_col,
+             annotation_colors=annotation_colors,
+             gaps_col = col_gap_ind,
+             treeheight_row = 50, 
+             breaks=bks,
+             fontsize = 2,
+             color=hmcols, 
+             border_color = NA,
+             silent=TRUE, 
+             filename=paste0(outDir, "/", plotName,  "_allDEgenes_with.geneNames.pdf"),
+             width = 12, height = 60
+    )
+  }
   
-  pheatmap(heatmap_matrix[, ], #ph$tree_row$order
-                     useRaster = T,
-                     cluster_cols=FALSE, 
-                     cluster_rows=TRUE, 
-                     show_rownames=TRUE,
-                     show_colnames=FALSE, 
-                     scale='none',
-                     clustering_distance_rows=row_dist, #row_dist
-                     clustering_method = hclust_method, #ward.D2
-                     cutree_rows=num_clusters,
-                     # cutree_cols = 2,
-                     annotation_row=annotation_row,
-                     annotation_col=annotation_col,
-                     annotation_colors=annotation_colors,
-                     gaps_col = col_gap_ind,
-                     treeheight_row = 50, 
-                     breaks=bks,
-                     fontsize = 2,
-                     color=hmcols, 
-                     border_color = NA,
-                     silent=TRUE, 
-                     filename=paste0(outDir, "/", plotName,  "_allDEgenes_with.geneNames.pdf"),
-                     width = 12, height = 60
-  )
-  
+  ##########################################
+  # DE TFs and signaling pathways 
+  ##########################################
+  if(PLOT_allDE_TFs_SPs){
+    tfs = readRDS(file = paste0('../data/annotations/curated_human_TFs_Lambert.rds'))
+    tfs = unique(tfs$`HGNC symbol`)
+    tfs = as.character(unlist(sapply(tfs, firstup)))
+    sps = readRDS(file = paste0('../data/annotations/curated_signaling.pathways_gene.list_v2.rds'))
+    targets = unique(c(tfs, sps$gene))
+    xx = read.table('../data/annotations/GO_term_summary_RAR_signalingPathway.txt', header = TRUE, sep = '\t', 
+                    row.names = NULL)
+    targets = unique(c(targets, xx[,2]))
+    xx = read.table('../data/annotations/GO_term_summary_TGFb.txt', header = TRUE, sep = '\t', 
+                    row.names = NULL)
+    targets = unique(c(targets, xx[,2]))
+    #sps = toupper(unique(sps$gene))
+    #sps = setdiff(sps, tfs)
+    
+    sels = which(!is.na(match(rownames(heatmap_matrix), targets)))
+    row_dist <- as.dist((1 - cor(Matrix::t(heatmap_matrix[sels,])))/2)
+    row_dist[is.na(row_dist)] <- 1
+    
+    annotation_rowSel = data.frame(Cluster = annotation_row[sels, ])
+    rownames(annotation_rowSel) = rownames(annotation_row)[sels]
+    
+    annotation_col_sel = data.frame(condition = annotation_col[, 2])
+    cc_levels = c("day2_beforeRA",  
+                  "day2.5_RA", "day3_RA.rep1", 
+                  "day3_RA.rep2", "day3.5_RA",   
+                  "day4_RA", 
+                  "day2.5_noRA", "day3_noRA",  
+                  "day3.5_noRA", "day4_noRA")
+    
+    annotation_colors_sel = list("condition"= branch_colors[c(1, 3, 5, 7, 9, 2, 4, 6, 8)]
+                                                     )
+    
+    pheatmap(heatmap_matrix[sels, ], #ph$tree_row$order
+             useRaster = T,
+             cluster_cols=FALSE, 
+             cluster_rows=TRUE, 
+             show_rownames=FALSE,
+             show_colnames=FALSE, 
+             scale='none',
+             clustering_distance_rows=row_dist, #row_dist
+             clustering_method = hclust_method, #ward.D2
+             cutree_rows=num_clusters,
+             # cutree_cols = 2,
+             annotation_row=annotation_rowSel,
+             #annotation_row=annotation_rowSel,
+             annotation_col=annotation_col,
+             annotation_colors=annotation_colors,
+             gaps_col = col_gap_ind,
+             treeheight_row = 30, 
+             breaks=bks,
+             fontsize = 6,
+             color=hmcols, 
+             border_color = NA,
+             silent=TRUE, 
+             filename=paste0(outDir, "/", plotName,  "_allDEs_TFs_SPs.pdf"),
+             width = 6, height = 12
+    )
+    
+    hmcols = viridis(n = length(bks), alpha = 1, begin = 0, end = 1, direction = 1, option = "A")
+    require(RColorBrewer)
+    pheatmap(heatmap_matrix[sels, ], #ph$tree_row$order
+             useRaster = T,
+             cluster_cols=FALSE, 
+             cluster_rows=TRUE, 
+             show_rownames=TRUE,
+             show_colnames=FALSE, 
+             scale='none',
+             clustering_distance_rows=row_dist, #row_dist
+             clustering_method = hclust_method, #ward.D2
+             cutree_rows=7,
+             # cutree_cols = 2,
+             #annotation_row=annotation_rowSel,
+             annotation_row=NA,
+             annotation_col=annotation_col_sel,
+             annotation_colors=annotation_colors_sel,
+             gaps_col = col_gap_ind,
+             treeheight_row = 40, 
+             #breaks=bks,
+             fontsize_row = 4,
+             #fontsize = 4,
+             color=hmcols, 
+             #color = colorRampPalette(rev(brewer.pal(n = 11, name = "RdBu")))(100),
+             border_color = NA,
+             silent=TRUE, 
+             filename=paste0(outDir, "/", plotName, "allDEs_TFs_SPs_withgeneNames_testColor2.pdf"),
+             width = 8, height = 20
+    )
+    
+  }
   
   if(Intersect_genesets_with_RARtargets_TFsSPs){
     ##########################################
@@ -397,83 +497,6 @@ plot_genes_branched_heatmap <- function(seuratObj = aa,
              border_color = NA,
              silent=TRUE, 
              filename=paste0(outDir, "/expression_pseudotime_pheatmap_allDEgenes_intersectedRARtarget",
-                             "_withgeneNames.pdf"),
-             width = 8, height = 20
-    )
-    
-    
-    
-    ##########################################
-    # DE TFs and signaling pathways 
-    ##########################################
-    tfs = readRDS(file = paste0('../data/annotations/curated_human_TFs_Lambert.rds'))
-    tfs = unique(tfs$`HGNC symbol`)
-    tfs = as.character(unlist(sapply(tfs, firstup)))
-    sps = readRDS(file = paste0('../data/annotations/curated_signaling.pathways_gene.list_v2.rds'))
-    targets = unique(c(tfs, sps$gene))
-    xx = read.table('../data/annotations/GO_term_summary_RAR_signalingPathway.txt', header = TRUE, sep = '\t', 
-                    row.names = NULL)
-    targets = unique(c(targets, xx[,2]))
-    xx = read.table('../data/annotations/GO_term_summary_TGFb.txt', header = TRUE, sep = '\t', 
-                    row.names = NULL)
-    targets = unique(c(targets, xx[,2]))
-    #sps = toupper(unique(sps$gene))
-    #sps = setdiff(sps, tfs)
-    
-    sels = which(!is.na(match(rownames(heatmap_matrix), targets)))
-    row_dist <- as.dist((1 - cor(Matrix::t(heatmap_matrix[sels,])))/2)
-    row_dist[is.na(row_dist)] <- 1
-    annotation_rowSel = data.frame(Cluster = annotation_row[sels, ])
-    rownames(annotation_rowSel) = rownames(annotation_row)[sels]
-    
-    pheatmap(heatmap_matrix[sels, ], #ph$tree_row$order
-             useRaster = T,
-             cluster_cols=FALSE, 
-             cluster_rows=TRUE, 
-             show_rownames=FALSE,
-             show_colnames=FALSE, 
-             scale='none',
-             clustering_distance_rows=row_dist, #row_dist
-             clustering_method = hclust_method, #ward.D2
-             cutree_rows=num_clusters,
-             # cutree_cols = 2,
-             annotation_row=annotation_rowSel,
-             annotation_col=annotation_col,
-             annotation_colors=annotation_colors,
-             gaps_col = col_gap_ind,
-             treeheight_row = 30, 
-             breaks=bks,
-             fontsize = 6,
-             color=hmcols, 
-             border_color = NA,
-             silent=TRUE, 
-             filename=paste0(outDir, "/expression_pseudotime_pheatmap_allDEgenes_TF.SP.pdf"),
-             width = 6, height = 12
-    )
-    
-    pheatmap(heatmap_matrix[sels, ], #ph$tree_row$order
-             useRaster = T,
-             cluster_cols=FALSE, 
-             cluster_rows=TRUE, 
-             show_rownames=TRUE,
-             show_colnames=FALSE, 
-             scale='none',
-             clustering_distance_rows=row_dist, #row_dist
-             clustering_method = hclust_method, #ward.D2
-             cutree_rows=num_clusters,
-             # cutree_cols = 2,
-             annotation_row=annotation_rowSel,
-             annotation_col=annotation_col,
-             annotation_colors=annotation_colors,
-             gaps_col = col_gap_ind,
-             treeheight_row = 30, 
-             breaks=bks,
-             fontsize_row = 4,
-             #fontsize = 4,
-             color=hmcols, 
-             border_color = NA,
-             silent=TRUE, 
-             filename=paste0(outDir, "/expression_pseudotime_pheatmap_allDEgenes_TF.SP",
                              "_withgeneNames.pdf"),
              width = 8, height = 20
     )

@@ -1499,31 +1499,32 @@ ggsave(filename = paste0(resDir, '/pairwise_distance_pst.palantir.Bins_', length
 
 ########################################################
 ########################################################
-# Section: RA vs noRA using palantir pseudotime
+# Section: DE genes for RA vs noRA 
 # 
 ########################################################
 ########################################################
-aa = readRDS(file = paste0(RdataDir, 
-                           'RA_noRA_d2_d5_condition_pseudotimePalantir_saved4heterogeity.rds'))
-
-# aa = readRDS(file = paste0(RdataDir, 
-#                            'seuratObject_RA.vs.noRA.bifurcation_doublet.rm_mt.ribo.filtered_regressout.nCounts_',
-#                            'cellCycleScoring_annot.v1_reduction.DM_princurves_pseudotime_',
-#                            'mNT_scRNAseq_R13547_10x_mNT_20220813.rds'))
-
-candidates = readRDS(file = paste0('../results/scRNAseq_R13547_10x_mNT_20220813', 
-                                   '/RA.vs.noRA_firstBifurcation/', 
-                                   'DElist_1932genes_pairwiseComaprison_v2.rds'))
-candidates = unique(candidates$gene)
-
-DimPlot(aa, cols = cols_sel, group.by = 'condition', reduction = 'dm')
-#FeaturePlot(aa, features = candidates[1])
+#aa = readRDS(file = paste0(RdataDir, 
+#                           'RA_noRA_d2_d5_condition_pseudotimePalantir_saved4heterogeity.rds'))
+aa = readRDS(file = paste0(RdataDir,
+                           'seuratObject_RA.vs.noRA.bifurcation_doublet.rm_mt.ribo.filtered_regressout.nCounts_',
+                           'cellCycleScoring_annot.v1_reduction.DM_princurves_pseudotime_',
+                           'mNT_scRNAseq_R13547_10x_mNT_20220813.rds'))
 
 cols = readRDS(file = '../results/Rdata/color_scheme_4scRNAseq.rds')
 levels_sels = c("day2_beforeRA",  
                 "day2.5_RA", "day3_RA.rep1", "day3_RA.rep2", "day3.5_RA",   "day4_RA", "day5_RA",
                 "day2.5_noRA", "day3_noRA",  "day3.5_noRA", "day4_noRA", "day5_noRA")
 cols_sel = cols[match(levels_sels, names(cols))]
+
+
+candidates = readRDS(file = paste0('../results/scRNAseq_R13547_10x_mNT_20220813', 
+                                   '/RA.vs.noRA_firstBifurcation/', 
+                                   'DElist_1932genes_pairwiseComaprison_v2.rds'))
+
+candidates = unique(candidates$gene)
+
+DimPlot(aa, cols = cols_sel, group.by = 'condition', reduction = 'DC')
+#FeaturePlot(aa, features = candidates[1])
 
 source('functions_utility.R')
 
@@ -1533,7 +1534,7 @@ plot_genes_branched_heatmap(seuratObj = aa,
                             nbCell_condition = 50,
                             cols_sel = cols_sel,
                             #hmcols = viridis(20, option = "D", direction = -1),
-                            plotName = 'pheatmap_RA_noRA_branchinng_expression_pseudotime_test_v2'
+                            plotName = 'pheatmap_RA_noRA_branchinng_expression_princurves_pseudotime_v3'
                             )
 
 
@@ -1764,7 +1765,8 @@ liana_test <- liana_wrap(sce,
                          method = c("natmi", "connectome", "logfc", "sca" 
                                     #'cellphonedb'
                          ),
-                         resource = c("Consensus", "CellPhoneDB", "OmniPath", "LRdb", "CellChatDB",  "CellTalkDB"),
+                         resource = c("Consensus", "CellPhoneDB", "OmniPath", "LRdb", "CellChatDB",  
+                                      "CellTalkDB"),
                          #resource = c("Consensus", "CellPhoneDB", "OmniPath", "LRdb", "CellChatDB",  "CellTalkDB"), 
                          assay.type = "logcounts", 
                          idents_col = 'celltypes')
@@ -1776,39 +1778,43 @@ liana_test %>% glimpse
 saveRDS(liana_test, file = paste0(outDir, '/res_lianaTest_Consensus', 
                                   additionalLabel, '.rds'))
 
+##########################################
+### aggregate the LIANA results
+##########################################
+functionDir = '/groups/tanaka/People/current/jiwang/projects/heart_regeneration/scripts'
+#res = readRDS(file = paste0(outDir, '/res_lianaTest_for_circosplot.rds'))
+source(paste0(functionDir, '/functions_cccInference.R'))
+
+icn = read.table(file = '../../bone_healing_CSD/omnipath-intercell-network.tsv', sep = '\t', 
+                 header = TRUE)
+icn = icn[which(icn$secreted_intercell_source == TRUE), ]
+secreted_ligands = unique(icn$genesymbol_intercell_source)
+
+
 liana_test = readRDS(file = paste0(outDir, '/res_lianaTest_Consensus', 
                                    additionalLabel, '.rds'))
-
 liana_test %>% dplyr::glimpse()
 
-liana_test <- liana_test %>% liana_aggregate(resource = c("CellPhoneDB"))
+liana_test <- liana_test %>% liana_aggregate(resource = c("OmniPath"))
+
+liana_test = liana_test[!is.na(match(liana_test$ligand.complex, secreted_ligands)), ]
+
 
 head(grep('BMP', liana_test$ligand.complex), 20)
-head(liana_test[grep('BMP', liana_test$ligand.complex), ], 20)
+head(grep('BMP', liana_test$ligand.complex[which(liana_test$source != liana_test$target)]), 20)
+#head(liana_test[grep('BMP', liana_test$ligand.complex), ], 20)
 
-ntop = 300
-celltypes = unique(subref$celltypes)
+
+celltypes = c(3, 5)
 receivers = celltypes
 
 df_test = liana_test %>% filter(target %in% receivers & source %in% celltypes) %>% as.data.frame() 
-
-write.table(df_test, file = paste0(outDir, '/res_lianaTest_Consensus', additionalLabel, '.txt'), 
-            sep = '\t', quote = FALSE)
-
-saveRDS(liana_test, file = paste0(outDir, '/res_lianaTest_Consensus', 
-                                  additionalLabel, '_saved.rds'))
-
 
 res = df_test
 res = res[, c(1:5, which(colnames(res) == 'natmi.edge_specificity'), 
               which(colnames(res) == 'sca.LRscore'))]
 
 colnames(res)[1:4] = c('sender', 'receiver', 'ligand', 'receptor')
-
-#require(cellcall)
-
-#res = res[order(-res$sca.LRscore), ]
-
 colnames(res)[1:2] = c('source', 'target')
 res$weight_norm = res$sca.LRscore
 res$pair = paste0(res$ligand, ' - ', res$receptor)
@@ -1823,15 +1829,8 @@ write.table(res,
 
 saveRDS(res, file = paste0(outDir, '/res_lianaTest_for_circosplot.rds'))
 
-##########################################
 ### plot circosplot
-##########################################
 #res = readRDS(file = paste0(outDir, '/res_lianaTest_for_circosplot.rds'))
-res = readRDS(file = paste0(outDir, '/res_lianaTest_for_circosplot.rds'))
-
-functionDir = '/groups/tanaka/People/current/jiwang/projects/heart_regeneration/scripts'
-#res = readRDS(file = paste0(outDir, '/res_lianaTest_for_circosplot.rds'))
-source(paste0(functionDir, '/functions_cccInference.R'))
 
 celltypes = unique(c(res$source, res$target))
 additionalLabel = '_fixedCelltypes'
@@ -1843,15 +1842,20 @@ receiver_cells = receivers
 print(as.character(sender_cells))
 print(as.character(receiver_cells))
 
+## not consider auto-signaling 
+res = res[which(res$source != res$target), ]
+
 
 head(grep('BMP', res$ligand))
+head(res[grep('BMP', res$ligand), ])
 #res = res[!is.na(match(res$source, sender_cells)) & !is.na(match(res$target, receiver_cells)), ]
 
 res = res[order(res$aggregate_rank), ]
 head(res[grep('BMP', res$ligand), ])
 
-res = res[order(-res$natmi.edge_specificity), ]
-head(res[grep('BMP', res$ligand), ])
+#res = res[order(-res$sca.LRscore), ]
+#head(grep('BMP', res$ligand))
+#head(res[grep('BMP', res$ligand), ])
 #cell_color = randomcoloR::distinctColorPalette(length(cells.of.interest))
 
 cells.of.interest = unique(c(res$source, res$target))
@@ -1861,44 +1865,17 @@ cell_color = c("magenta2", "green3")
 names(cell_color) <- c('5', '3')
 cell_color = cell_color[match(cells.of.interest, names(cell_color))]
 
-## some genes were annotated as ligand and receptor
-pdfname = paste0(outDir, '/LR_interactions_LIANA_tops.pdf')
-pdf(pdfname, width=12, height = 8)
-for(ntop in c(100))
-{
-  # ntop = 100
-  cat('top LR -- ', ntop, '\n')
-  test = res[c(1:ntop), ]
-  
-  # jj = which(test$ligand == 'RGMB'|test$receptor == 'RGMB'|
-  #              test$ligand == "FGFR3")
-  # if(length(jj) >0){
-  #   test = test[-jj, ]
-  # }
-  
-  #test = test[-which(test$ligand == 'SPON1'), ] 
-  
-  my_CircosPlot(test, 
-                weight.attribute = 'weight_norm',
-                cols.use = cell_color,
-                sources.include = cells.of.interest,
-                targets.include = cells.of.interest,
-                lab.cex = 0.5,
-                title = paste('LR scores top :', ntop))
-  
-}
-
-dev.off()
-
-res = res[which(res$source != res$target), ]
 
 res = res[which(res$ligand != 'APP' & res$receptor != 'APP'), ]
 res = res[which(res$ligand != 'ACTR2' & res$receptor != 'ACTR2'), ]
-res = res[which(res$ligand != 'FGFR2' & res$receptor != 'FGFR2'), ]
+res = res[which(res$ligand != 'FGFR2'), ]
+res = res[which(res$ligand != 'FGFR3'), ]
+res = res[which(res$ligand != 'DAG1' & res$receptor != 'DAG1'), ]
+res = res[which(res$ligand != 'HBEGF' & res$receptor != 'HBEGF'), ]
 
-pdfname = paste0(outDir, '/LR_interactions_LIANA_tops_noAutoregulation_CellphoneDB.pdf')
-pdf(pdfname, width=12, height = 8)
-for(ntop in c(100, 150, 200))
+pdfname = paste0(outDir, '/LR_interactions_LIANA_tops_noAutoregulation_CellphoneDB_v2.pdf')
+pdf(pdfname, width=8, height = 6)
+for(ntop in c(150))
 {
   # ntop = 100
   cat('top LR -- ', ntop, '\n')
@@ -1918,7 +1895,7 @@ for(ntop in c(100, 150, 200))
                 cols.use = cell_color,
                 sources.include = cells.of.interest,
                 targets.include = cells.of.interest,
-                lab.cex = 0.5,
+                lab.cex = 0.3,
                 title = paste('LR scores top :', ntop))
   
 }
@@ -1935,4 +1912,35 @@ FeaturePlot(aa, features = c('Wnt4', 'Wnt1', 'Wnt5b', 'Fzd4', 'Fzd2', 'Fzd7'))
 
 ggsave(filename = paste0(outDir, '/FeaturePlot_Wnt.pdf'), 
        width = 12, height = 12)
+
+
+
+# ## some genes were annotated as both ligand and receptor
+# pdfname = paste0(outDir, '/LR_interactions_LIANA_tops.pdf')
+# pdf(pdfname, width=12, height = 8)
+# for(ntop in c(100))
+# {
+#   # ntop = 100
+#   cat('top LR -- ', ntop, '\n')
+#   test = res[c(1:ntop), ]
+#   
+#   # jj = which(test$ligand == 'RGMB'|test$receptor == 'RGMB'|
+#   #              test$ligand == "FGFR3")
+#   # if(length(jj) >0){
+#   #   test = test[-jj, ]
+#   # }
+#   
+#   #test = test[-which(test$ligand == 'SPON1'), ] 
+#   
+#   my_CircosPlot(test, 
+#                 weight.attribute = 'weight_norm',
+#                 cols.use = cell_color,
+#                 sources.include = cells.of.interest,
+#                 targets.include = cells.of.interest,
+#                 lab.cex = 0.5,
+#                 title = paste('LR scores top :', ntop))
+#   
+# }
+# 
+# dev.off()
 
