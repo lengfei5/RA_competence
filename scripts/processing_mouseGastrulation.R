@@ -747,7 +747,7 @@ if(Filter_unrelevant_celltype_Marioni2019){
   
   
   ## filter unlikely celltypes in the reference
-  sels = grep('Erythroid|Blood|Allantois|mesoderm|Haemato|Cardiomy|Endothelium|Mesenchyme|ExE', srat$celltype, 
+  sels = grep('Erythroid|Blood|Allantois|mesoderm|Haemato|Cardiomy|Endothelium|Mesenchyme|ExE ', srat$celltype, 
               invert = TRUE)
   srat = subset(srat, cells = colnames(srat)[sels])
   
