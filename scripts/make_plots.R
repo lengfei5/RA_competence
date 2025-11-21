@@ -807,6 +807,8 @@ ggsave(filename = paste0(resDir, '/scRNAseq_RAsamples_FoxA2_Pax6_percentage.pdf'
        width = 8, height = 5)
 
 
+
+
 ########################################################
 ########################################################
 # Section : FACS data diffusion map for RA samples

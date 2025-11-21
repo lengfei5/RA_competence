@@ -62,12 +62,14 @@ library(cowplot)
 library(SingleCellExperiment)
 library(scater)
 
-figureDir = "../results/figures_tables_R13547_10x_mNT_20240522/"
+figureDir = "../results/figures_tables_R13547_10x_mNT_20240522/SHanalysis_test/"
 
 #sce = readRDS(file = '../data/image_SHout_sce.rds')
 #sce = readRDS(file = '../data/image_SHout_l_sce_wt_conditions_metadata.rds')
 #sce = readRDS(file = '../data/image_SHout_dlogl_sce_wt_conditions_metadata.rds')
-sce = readRDS(file = "../data/image_SHout_dlogl_sce_wt_conditions_metadata_filteringFoxA2SD_v3.rds")
+#sce = readRDS(file = "../data/image_SHout_dlogl_sce_wt_conditions_metadata_filteringFoxA2SD_v3.rds")
+
+sce = readRDS(file = "../data/image_SHout_dlogl_sce_wt_conditions_metadata_wavelength_v4.rds")
 
 #xx = readRDS(file = '../data/image_SHout_dlogl_collectedFeatures_sce_wt_conditions_metadata.rds')
 #xx = xx[, !is.na(match(colnames(xx), colnames(sce)))]
@@ -86,16 +88,16 @@ nb_l = 20
 #sce = sce[1:(nb_l +1), which(sce$time != 'd3.5' & sce$time != 'd5')]
 #sce = sce[2:(nb_l + 1), which(sce$condition == "WT")]
 #sce = sce[2:(nb_l + 1), ]
-sce = sce[2:(nb_l + 1), ]
+#sce = sce[2:(nb_l + 1), ]
 
-#sce = sce[, which(sce$time != 'd3.5' & sce$time != 'd5')]
+sce = sce[, which(sce$time != 'd3.5' & sce$time != 'd5')]
 #sce = sce[2:(nb_l + 1), which(sce$condition != "WT" & sce$condition != "KO_KO")]
-sce = sce[ ,which(sce$time != 'd3.5' & sce$time != 'd5')]
-sce = sce[ ,which(colnames(sce) != "211210_d6_RAd2_D2_49_01_isotropic_cyst_7")]
+#sce = sce[ ,which(sce$time != 'd3.5' & sce$time != 'd5')]
+#sce = sce[ ,which(colnames(sce) != "211210_d6_RAd2_D2_49_01_isotropic_cyst_7")]
 
-sce$condition = factor(sce$condition, levels = c("WT", "KO_KO", "TetOn_TetON_RA", "TetOn_TetON_dox"))
+sce$genotype = factor(sce$genotype, levels = c("WT", "KO_KO", "TetOn_TetON_RA", "TetOn_TetON_dox"))
 
-table(sce$condition, sce$time)
+table(sce$genotype, sce$time)
 
 ##########################################
 # data transformation: tricky
@@ -104,9 +106,9 @@ y <- assay(sce, "counts")
 
 #y = y[which(rownames(y) != "label_foxa2"), ]
 
-print(range(log10(y)))
+print(range((y)))
 
-y = log10(y) + 16
+y = y + 6
 #y = log10(y )
 #for(n in 1:nrow(y)) y[n, ] = y[n, ]/n 
 #y <- asinh(sweep(y, 1, cf, "/"))
@@ -115,12 +117,13 @@ assay(sce, "exprs", FALSE) <- y
 
 # run t-SNE/UMAP on at most 500/1000 cells per sample
 set.seed(1234)
+
 #sce <- runDR(sce, "TSNE", cells = 500, features = "type")
 sce <- runDR(sce, "PCA", ncomponents = 5,  scale = FALSE, assay = "exprs",
              cells = NULL, features = "type")
 
 
-plotDR(sce, "PCA", dims = c(1, 2), color_by = "time", facet_by = "condition", ncol = 2
+plotDR(sce, "PCA", dims = c(1, 2), color_by = "time", facet_by = "genotype", ncol = 2
        #k_pal = c("lightgrey", "cornflowerblue", "navy")
        ) + coord_fixed(2) + 
   theme_classic() + 
@@ -130,10 +133,10 @@ plotDR(sce, "PCA", dims = c(1, 2), color_by = "time", facet_by = "condition", nc
         legend.text = element_text(size=14), 
         legend.title = element_text(size=14)) 
 
-ggsave(paste0(figureDir, 'image_WT_vsConditions_RA_SHout_PCA_time_v2.pdf'), width=10, height = 6) 
+ggsave(paste0(figureDir, 'image_WT_vsConditions_RA_SHout_PCA_time_v3.pdf'), width=10, height = 6) 
 
 
-plotDR(sce, "PCA", dims = c(1, 2), color_by = "r2_log", facet_by = "condition", ncol = 2
+plotDR(sce, "PCA", dims = c(1, 2), color_by = "r2_log", facet_by = "genotype", ncol = 2
        #k_pal = c("lightgrey", "cornflowerblue", "navy")
 ) + coord_fixed(2) + 
   theme_classic() + 
@@ -143,10 +146,10 @@ plotDR(sce, "PCA", dims = c(1, 2), color_by = "r2_log", facet_by = "condition", 
         legend.text = element_text(size=12), 
         legend.title = element_text(size=12)) 
 
-ggsave(paste0(figureDir, 'image_WT_vsConditions_RA_SHout_PCA_surfaceSize_v2.pdf'), width=10, height = 6) 
+ggsave(paste0(figureDir, 'image_WT_vsConditions_RA_SHout_PCA_surfaceSize_v3.pdf'), width=10, height = 6) 
 
 
-plotDR(sce, "PCA", dims = c(1, 2), color_by = "genotype_foxa2", facet_by = "condition", ncol = 2
+plotDR(sce, "PCA", dims = c(1, 2), color_by = "genotype_foxa2", facet_by = "genotype", ncol = 2
        #k_pal = c("lightgrey", "cornflowerblue", "navy")
 ) + coord_fixed(2) + 
   geom_point(size=0.8) +
@@ -158,12 +161,12 @@ plotDR(sce, "PCA", dims = c(1, 2), color_by = "genotype_foxa2", facet_by = "cond
   ggplot2::scale_colour_gradient2(limits = c(0, 1), breaks = c(0, 0.1, 0.2,  0.3, 0.5, 0.7, 0.9),
                                   low = "#313695", mid = "#FFFFBF", high = "#C61010", midpoint = 0.3)
 
-ggsave(paste0(figureDir, 'image_WT_vsConditions_RA_SHout_PCA_genotype_v2.pdf'), width=10, height = 6) 
+ggsave(paste0(figureDir, 'image_WT_vsConditions_RA_SHout_PCA_genotype_v3.pdf'), width=10, height = 6) 
 
 
-p1 = plotDR(sce, "PCA", color_by = "condition")
+p1 = plotDR(sce, "PCA", color_by = "genotype")
 
-p2 = plotDR(sce, "PCA", color_by = "condition", dims = c(3, 4))
+p2 = plotDR(sce, "PCA", color_by = "genotype", dims = c(3, 4))
 
 p1 + p2
 
@@ -192,22 +195,53 @@ set.seed(1234)
 sce <- runDR(sce, "UMAP", #pca = 5,
              cells = NULL, 
              features = "type",
-             n_neighbors = 20, scale = FALSE,
-             min_dist = 0.2, 
+             n_neighbors = 30, scale = FALSE,
+             min_dist = 0.1, 
              metric = "euclidean"
              #metric = "cosine"
              #metric = "correlation"
 ) 
 
-
-plotDR(sce, "UMAP", color_by = "time", facet_by = "condition") +
+plotDR(sce, "UMAP", color_by = "time", facet_by = "genotype") +
   theme_classic() + 
   geom_point(size=1.0) +
   theme(axis.text.x = element_text(angle = 0, size = 12, vjust = 0.4),
         axis.text.y = element_text(angle = 0, size = 12)) 
 
+ggsave(paste0(figureDir, 'image_WT_RA_SHout_testWavelength_umap.pdf'), width=8, height = 6) 
+
+plotDR(sce, "UMAP", color_by = "r2_log") +
+  theme_classic() + 
+  geom_point(size=1.5) +
+  theme(axis.text.x = element_text(angle = 0, size = 12, vjust = 0.4),
+        axis.text.y = element_text(angle = 0, size = 12)) 
+
+ggsave(paste0(figureDir, 'image_WT_RA_SHout_testWavelength_umap_cystSize.pdf'), width=8, height = 6) 
 
 
+sce <- runDR(sce, "DiffusionMap", ncomponents = 2, scale = TRUE, cells = NULL, features = "type")
+
+plotDR(sce, dims = c(1, 2),  "DiffusionMap", color_by = "time", facet_by = 'genotype') +
+  #theme_classic() + 
+  geom_point(size=0.7) +
+  theme(axis.text.x = element_text(angle = 0, size = 12, vjust = 0.4),
+        axis.text.y = element_text(angle = 0, size = 12)) 
+
+ggsave(paste0(figureDir, 'image_WT_RA_SHout_testWavelength_diffusionMap.pdf'), width=8, height = 6) 
+
+
+plotDR(sce, dims = c(1, 2),  "DiffusionMap", color_by = "r2_log", facet_by = 'genotype') +
+  #theme_classic() + 
+  geom_point(size=0.7) +
+  theme(axis.text.x = element_text(angle = 0, size = 12, vjust = 0.4),
+        axis.text.y = element_text(angle = 0, size = 12)) 
+
+ggsave(paste0(figureDir, 'image_WT_RA_SHout_testWavelength_diffusionMap_cystSize.pdf'), width=10, height = 6) 
+
+
+##########################################
+# cyst filtering for dimension reduction
+##########################################
 sce = sce[, which(sce$condition == 'TetOn_TetON_RA'| sce$condition == 'TetOn_TetON_dox')]
 sce$condition = droplevels(sce$condition)
 
