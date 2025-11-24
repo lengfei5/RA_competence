@@ -807,6 +807,105 @@ ggsave(filename = paste0(resDir, '/scRNAseq_RAsamples_FoxA2_Pax6_percentage.pdf'
        width = 8, height = 5)
 
 
+##########################################
+# FoxA2 and Pax6 scatterplot in mouse gastrulation 
+##########################################
+aa = readRDS(file = paste0('/groups/tanaka/Collaborations/Jingkui-Hannah/RA_competence/scRNAseq_mNT/saved_seuratObj/',
+                           'seuratObject_EmbryoAtlasData_all36sample.rds'))
+
+celltype_colours = c("Epiblast" = "#635547",
+                     "Primitive Streak" = "#DABE99",
+                     "Caudal epiblast" = "#9e6762",
+                     
+                     "PGC" = "#FACB12",
+                     
+                     "Anterior Primitive Streak" = "#c19f70",
+                     "Notochord" = "#0F4A9C",
+                     "Def. endoderm" = "#F397C0",
+                     "Gut" = "#EF5A9D",
+                     
+                     "Nascent mesoderm" = "#C594BF",
+                     "Mixed mesoderm" = "#DFCDE4",
+                     "Intermediate mesoderm" = "#139992",
+                     "Caudal Mesoderm" = "#3F84AA",
+                     "Paraxial mesoderm" = "#8DB5CE",
+                     "Somitic mesoderm" = "#005579",
+                     "Pharyngeal mesoderm" = "#C9EBFB",
+                     "Cardiomyocytes" = "#B51D8D",
+                     "Allantois" = "#532C8A",
+                     "ExE mesoderm" = "#8870ad",
+                     "Mesenchyme" = "#cc7818",
+                     
+                     "Haematoendothelial progenitors" = "#FBBE92",
+                     "Endothelium" = "#ff891c",
+                     "Blood progenitors 1" = "#f9decf",
+                     "Blood progenitors 2" = "#c9a997",
+                     "Erythroid1" = "#C72228",
+                     "Erythroid2" = "#f79083",
+                     "Erythroid3" = "#EF4E22",
+                     
+                     "NMP" = "#8EC792",
+                     
+                     "Rostral neurectoderm" = "#65A83E",
+                     "Caudal neurectoderm" = "#354E23",
+                     "Neural crest" = "#C3C388",
+                     "Forebrain/Midbrain/Hindbrain" = "#647a4f",
+                     "Spinal cord" = "#CDE088",
+                     
+                     "Surface ectoderm" = "#f7f79e",
+                     
+                     "Visceral endoderm" = "#F6BFCB",
+                     "ExE endoderm" = "#7F6874",
+                     "ExE ectoderm" = "#989898",
+                     "Parietal endoderm" = "#1A1A1A"
+                     
+)
+
+stage_colours = c("E6.5" = "#D53E4F",
+                  "E6.75" = "#F46D43",
+                  "E7.0" = "#FDAE61",
+                  "E7.25" = "#FEE08B",
+                  "E7.5" = "#FFFFBF",
+                  "E7.75" = "#E6F598",
+                  "E8.0" = "#ABDDA4",
+                  "E8.25" = "#66C2A5",
+                  "E8.5" = "#3288BD"
+)
+
+coexpcol = c("Not" = "grey", "CoExp" = "purple")
+
+## subset cell types
+Idents(aa) = as.factor(aa$celltype)
+'Spinal cord'
+'Forebrain/Midbrain/Hindbrain'
+'Rostral neurectoderm'
+'Caudal neurectoderm'
+"Forebrain/Midbrain/Hindbrain"
+
+celltypes_sels = c('Spinal cord', 
+                   'Rostral neurectoderm',
+                   'Forebrain/Midbrain/Hindbrain',
+                   'Caudal neurectoderm')
+
+sub.obj = subset(aa, idents = celltypes_sels)
+
+#p1 = FeatureScatter(aa, feature1 = 'Foxa2', feature2 = 'Pax6', 
+#                    group.by = 'celltype', cols = celltype_colours, raster = FALSE) + 
+#  theme(legend.position = "none", plot.title = element_blank())
+
+#FeatureScatter(aa, feature1 = "Pax6", feature2 = "Foxa2", group.by = "clusters", cols = cols_cluster,
+#               smooth = FALSE)
+
+FeatureScatter(sub.obj, feature1 = 'Foxa2', feature2 = 'Pax6', 
+                      group.by = 'stage', cols = stage_colours, raster = FALSE, pt.size = 1.5) +
+  theme(plot.title = element_blank()) + 
+  labs( x = 'FoxA2', y = 'Pax6' ) +
+  theme(axis.text.x = element_text(angle = 0, size = 12),
+        axis.text.y = element_text(angle = 0, size = 12))
+  #theme(legend.key.size = unit(1, 'cm'))
+
+ggsave(filename = paste0(resDir, '/Fig1K_ScatterPlots_scRNAseq_mouseGastrulation_FoxA2_Pax6.pdf'), 
+       width = 5, height = 4)
 
 
 ########################################################
