@@ -546,6 +546,24 @@ saveRDS(aa, file = paste0(RdataDir,
 
 
 ##########################################
+# redo the plots of Fig 1B,C 
+##########################################
+
+bb = readRDS(file = paste0(RdataDir, 
+                           'seuratObj_clustersFiltered_umap_RAsamples_selectUMAPparam_clusters_4save.rds'))
+DimPlot(bb, label = FALSE, repel = TRUE, group.by = 'condition', cols = cols_sel, raster=FALSE) +
+  NoLegend()
+
+ggsave(filename = paste0(resDir, '/scRNAseq_overviewUMAP_RAsamples_Fig1B.pdf'), 
+       width = 8, height = 6)
+
+DimPlot(bb, label = FALSE, group.by =  'clusters', repel = TRUE, raster=FALSE, 
+        cols = cols_cluster) + NoLegend()
+
+ggsave(filename = paste0(resDir, '/scRNAseq_overview_RAsamples_clustering_Fig1C.pdf'), 
+       width = 8, height = 6)
+
+##########################################
 # timpe point contribution of clusters 
 ##########################################
 pcts = table(aa$clusters, aa$condition)
