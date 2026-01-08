@@ -1103,12 +1103,15 @@ if(Merge_sparseFeatures_mutlipleMethods){
   
   aa$condition = droplevels(aa$condition)
   
+  
   aa <- RunPCA(aa, features = ggs, verbose = FALSE, weight.by.var = FALSE)
   ElbowPlot(aa, ndims = 50)
   
   
   outDir = paste0(resDir, '/UMAP_RAsamples_sparseFeatures/')
   if(!dir.exists(outDir)) dir.create(outDir)
+  
+  #saveRDS(aa, file = paste0(outDir), 'saved_SeuratObj_108features.rds')
   
   source(paste0(functionDir, '/functions_scRNAseq.R'))
   explore.umap.params.combination(sub.obj = aa, 
@@ -1129,7 +1132,9 @@ if(Merge_sparseFeatures_mutlipleMethods){
   aa <- RunUMAP(aa, dims = 1:10, n.neighbors = 30, min.dist = 0.01)
   DimPlot(aa, group.by = 'condition', label = TRUE, cols = cols_sel)
   
+  FeaturePlot(aa, features = c('Foxa2', 'Pax6'))
   ggsave(filename = paste0(resDir, '/RA_umap_with_selectedFeatures_v2.pdf'), width = 8, height = 6)
+  
   
   
 }

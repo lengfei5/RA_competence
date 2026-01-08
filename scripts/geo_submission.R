@@ -29,6 +29,8 @@ processed = processed[, c(2, 1)]
 processed[, 1] = basename(processed[,1])
 write.csv2(processed, file = paste0(metadata_Dir, 'md5sum_processed.csv'), row.names = FALSE)
 
+xx = processed[grep('features.tsv.gz', processed$V2), ]
+
 design = data.frame(design)
 
 design$raw_R1 = NA
