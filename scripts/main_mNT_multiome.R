@@ -423,7 +423,7 @@ srat_cr <- subset(
 table(srat_cr$condition)
 
 ##########################################
-# process snRNÅ-seq data
+# process snRNA-seq data
 ##########################################
 DefaultAssay(srat_cr) <- "RNA"
 
@@ -455,6 +455,7 @@ ggsave(filename = paste0(resDir, '/UMAP_RNA_20pcs_20neighbors_0.05dist_v1.pdf'),
 
 saveRDS(srat_cr, file = paste0(RdataDir, 
                                'seuratObj_multiome_snRNA.normalized.umap.rds'))
+
 
 ##########################################
 # process and normalize the ATAC-seq data 
@@ -496,6 +497,14 @@ p2 <- FeaturePlot(srat_cr,
 p1 | p2
 
 ggsave(filename = paste0(resDir, '/UMAP_ATAC_30pcs_50neighbors_0.1dist_v1.pdf'), height =8, width = 12)
+
+
+p1 <- DimPlot(object = srat_cr, label = TRUE, reduction = 'umap_rna', cols = cols_sel) + NoLegend()
+p2 <- DimPlot(object = srat_cr, label = TRUE, reduction = 'umap_atac', cols = cols_sel) + NoLegend()
+p1 | p2
+
+ggsave(filename = paste0(resDir, '/UMAP_RNA_vs_ATAC.pdf'), height =8, width = 12)
+
 
 srat_cr = FindNeighbors(object = srat_cr, reduction = 'lsi', dims = 2:30, 
                         force.recalc = T, graph.name = "thegraph")
@@ -571,6 +580,12 @@ CoveragePlot(
 ggsave(filename = paste0(resDir, '/Pax6_enhancers_v1.pdf'), height = 12, width = 12)
 
 
+
+##########################################
+# 
+##########################################
+
+
 ########################################################
 ########################################################
 # Section III : Integrate the scRNA-seq data and multiome
@@ -579,13 +594,14 @@ ggsave(filename = paste0(resDir, '/Pax6_enhancers_v1.pdf'), height = 12, width =
 ########################################################
 Integrate_scRNAseq_Multiome = FALSE
 if(Integrate_scRNAseq_Multiome){
+  
   outDir = paste0(resDir, '/Integration_scRNAseq_multiome/')
   system(paste0('mkdir -p ', outDir))
   
   
   ## multiome
   srat_cr = readRDS(file = paste0(RdataDir, 
-                'seuratObj_multiome_snRNA.normalized.umap_scATAC.normalized.umap.rds'))
+                'seuratObj_multiome_snRNA.normalized.umap_scATAC.normalized.rds'))
   
   DefaultAssay(srat_cr) = 'RNA'
   srat_cr[['ATAC']] = NULL
