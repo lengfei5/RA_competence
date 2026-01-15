@@ -582,8 +582,137 @@ ggsave(filename = paste0(resDir, '/Pax6_enhancers_v1.pdf'), height = 12, width =
 
 
 ##########################################
-# 
+# Identify the doublets  
 ##########################################
+library(DoubletFinder)
+require(Seurat)
+
+srat_cr = readRDS(file = paste0(RdataDir, 
+                                'seuratObj_multiome_snRNA.normalized.umap_scATAC.normalized.umap.rds'))
+
+DefaultAssay(srat_cr) <- "RNA"
+
+
+run_DF = FALSE
+if(run_DF){
+  outDir = paste0(resDir, '/mNTs_multiome_DF_out')
+  if(!dir.exists(outDir)) dir.create(outDir)
+  
+  Idents(srat_cr) = srat_cr$condition
+  cc = unique(srat_cr$condition)
+  srat_cr$DF_out = NA
+  
+  for(n in 1:length(cc))
+  {
+    # n = 1
+    cat(n, ' -- ', cc[n], '\n')
+    subs <- subset(srat_cr, condition == cc[n])
+    
+    subs <- FindVariableFeatures(subs, selection.method = "vst", nfeatures = 2000)
+    subs <- ScaleData(subs)
+    
+    subs <- RunPCA(subs, features = VariableFeatures(object = subs), verbose = FALSE)
+    
+    subs <- FindNeighbors(subs, dims = 1:30)
+    subs <- FindClusters(subs, resolution = 1)
+    
+    subs <- RunUMAP(subs, dims = 1:30)
+    
+    sweep.res.list_nsclc <- paramSweep_v3(subs)
+    
+    sweep.stats_nsclc <- summarizeSweep(sweep.res.list_nsclc, GT = FALSE)
+    bcmvn_nsclc <- find.pK(sweep.stats_nsclc)
+    
+    pK <- bcmvn_nsclc %>% # select the pK that corresponds to max bcmvn to optimize doublet detection
+      filter(BCmetric == max(BCmetric)) %>%
+      select(pK) 
+    
+    pK <- as.numeric(as.character(pK[[1]]))
+    annotations <- subs@meta.data$seurat_clusters
+    homotypic.prop <- modelHomotypic(annotations) 
+    
+    
+    nExp_poi <- round(0.076*nrow(subs@meta.data))  
+    nExp_poi.adj <- round(nExp_poi*(1-homotypic.prop))
+    
+    subs <- doubletFinder_v3(subs, PCs = 1:30, pN = 0.25, pK = pK, nExp = nExp_poi.adj,  
+                             reuse.pANN = FALSE, sct = FALSE)
+    
+    df_out = subs@meta.data
+    subs$DF_out = df_out[, grep('DF.classification', colnames(df_out))]
+    
+    DimPlot(subs, label = TRUE, repel = TRUE, group.by = 'DF_out',
+            raster=FALSE)
+    ggsave(filename = paste0(outDir, '/subs_doubletFinder_out_', cc[n], '.pdf'), 
+           width = 12, height = 8)
+    
+    saveRDS(subs, file = paste0(outDir, '/subs_doubletFinder_out_', cc[n], '.rds'))
+    srat_cr$DF_out[match(colnames(subs), colnames(srat_cr))] = subs$DF_out
+    
+  }
+  
+  
+  cc = unique(aa$condition)
+  aa$DF_out = NA
+  
+  for(n in 1:length(cc))
+  {
+    # n = 1
+    cat(n, '--', cc[n], '\n')
+    subs = readRDS(file = paste0(RdataDir, 'subs_doubletFinder_out_', cc[n], '.rds'))
+    aa$DF_out[match(colnames(subs), colnames(aa))] = subs$DF_out
+    
+  }
+  
+  
+  
+  saveRDS(srat_cr, file = paste0(RdataDir, 
+                       'seuratObj_multiome_snRNA.normalized.umap_scATAC.normalized_DFout.rds'))
+  
+}
+
+
+##########################################
+# test snRNA umap parameters
+##########################################
+srat_cr = readRDS(file = paste0(RdataDir, 
+              'seuratObj_multiome_snRNA.normalized.umap_scATAC.normalized.umap.rds'))
+
+DefaultAssay(srat_cr) <- "RNA"
+
+
+
+
+
+
+Explore.umap.parameters = FALSE
+if(Explore.umap.parameters){
+  source(paste0(functionDir, '/functions_scRNAseq.R'))
+  explore.umap.params.combination(sub.obj = srat_cr, 
+                                  resDir = resDir, 
+                                  pdfname = 'mNTs_multiome_snRNA_umap_test.pdf',
+                                  use.parallelization = FALSE,
+                                  group.by = 'condition',
+                                  cols = cols_sel, 
+                                  weight.by.var = TRUE,
+                                  nfeatures.sampling = c(3000, 5000, 8000),
+                                  nb.pcs.sampling = c(30, 50), 
+                                  n.neighbors.sampling = c(30, 50, 100),
+                                  min.dist.sampling = c(0.1, 0.3)
+                                  
+  )
+  
+}
+
+
+ElbowPlot(srat_cr, ndims = 50)
+
+srat_cr <- RunUMAP(srat_cr, dims = 1:20, n.neighbors = 20, min.dist = 0.05, 
+                   reduction.name = "umap_rna", reduction.key = "UMAPRNA_")
+
+DimPlot(srat_cr, label = TRUE, repel = TRUE, reduction = 'umap_rna', cols = cols_sel) + 
+  NoLegend()
+
 
 
 ########################################################
