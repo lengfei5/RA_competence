@@ -353,7 +353,7 @@ if(make.QC.plots){
   
   VlnPlot(srat_cr, features = "nFeature_RNA", ncol = 1, y.max = 7000, group.by = 'condition', pt.size = 0., 
           log = FALSE, raster=FALSE) +
-    geom_hline(yintercept = c(500, 1000, 2000))
+    geom_hline(yintercept = c(1000, 1500, 2000))
   
   ggsave(filename = paste0(outDir, '/QCs_nFeature_RNA_cellRanger.pdf'), height = 8, width = 12)
   
@@ -651,35 +651,84 @@ if(run_DF){
     
   }
   
-  
-  cc = unique(aa$condition)
-  aa$DF_out = NA
-  
+  ## save the DF outputs 
   for(n in 1:length(cc))
   {
     # n = 1
-    cat(n, '--', cc[n], '\n')
-    subs = readRDS(file = paste0(RdataDir, 'subs_doubletFinder_out_', cc[n], '.rds'))
-    aa$DF_out[match(colnames(subs), colnames(aa))] = subs$DF_out
+    cat(n, '--', as.character(cc[n]), '\n')
+    subs = readRDS(file = paste0(outDir, '/subs_doubletFinder_out_', cc[n], '.rds'))
+    srat_cr$DF_out[match(colnames(subs), colnames(srat_cr))] = subs$DF_out
     
   }
-  
-  
   
   saveRDS(srat_cr, file = paste0(RdataDir, 
                        'seuratObj_multiome_snRNA.normalized.umap_scATAC.normalized_DFout.rds'))
   
+  
+  srat_cr = readRDS(file = paste0(RdataDir, 
+                                  'seuratObj_multiome_snRNA.normalized.umap_scATAC.normalized_DFout.rds'))
+  
+  DefaultAssay(srat_cr) <- "RNA"
+  
+  DimPlot(srat_cr, label = TRUE, repel = TRUE, reduction = 'umap_rna', group.by = 'DF_out')
+  
+  srat_cr = subset(srat_cr, cells = colnames(srat_cr)[which(srat_cr$DF_out == 'Singlet')])
+  
+  srat_cr <- NormalizeData(srat_cr) %>%
+    FindVariableFeatures(nfeatures = 5000) %>%
+    ScaleData() %>%
+    RunPCA(npcs = 100)
+  
+  ElbowPlot(srat_cr, ndims = 50)
+  
+  srat_cr <- RunUMAP(srat_cr, dims = 1:30, n.neighbors = 50, min.dist = 0.1, 
+                     reduction.name = "umap_rna", reduction.key = "UMAPRNA_")
+  
+  DimPlot(srat_cr, label = TRUE, repel = TRUE, reduction = 'umap_rna', cols = cols_sel) + 
+    NoLegend()
+  
+  
+  DimPlot(srat_cr, label = TRUE, repel = TRUE, reduction = 'umap_rna', group.by = 'Phase')
+  
+  FeaturePlot(srat_cr, 
+              features = c('nCount_RNA', 'nFeature_RNA', 'nCount_ATAC', 'nFeature_ATAC', 'percent.mt'), 
+              reduction = 'umap_rna')
+  
+  
+  saveRDS(srat_cr, file = paste0(RdataDir, 
+                                 'seuratObj_multiome_snRNA.normalized.umap_scATAC.normalized_',
+                                 'DFoutSinglet.rds'))
+  
+                                
 }
+
+##########################################
+# further filtering of cells due to UMAP structures
+##########################################
+srat_cr = readRDS(file = paste0(RdataDir, 
+                                'seuratObj_multiome_snRNA.normalized.umap_scATAC.normalized_',
+                                'DFoutSinglet.rds'))
+
+VlnPlot(srat_cr, features = "nCount_RNA", ncol = 1, y.max = 10000, group.by = 'condition', pt.size = 0., 
+        log = FALSE, raster=FALSE) +
+  geom_hline(yintercept = c(1000, 3000, 5000))
+
+ggsave(filename = paste0(outDir, '/QCs_nCount_RNA_cellRanger.pdf'), height =8, width = 12)
+
+VlnPlot(srat_cr, features = "nFeature_RNA", ncol = 1, y.max = 7000, group.by = 'condition', pt.size = 0., 
+        log = FALSE, raster=FALSE) +
+  geom_hline(yintercept = c(1000, 1500, 2000))
+
+ggsave(filename = paste0(outDir, '/QCs_nFeature_RNA_cellRanger.pdf'), height = 8, width = 12)
 
 
 ##########################################
 # test snRNA umap parameters
 ##########################################
 srat_cr = readRDS(file = paste0(RdataDir, 
-              'seuratObj_multiome_snRNA.normalized.umap_scATAC.normalized.umap.rds'))
+              'seuratObj_multiome_snRNA.normalized.umap_scATAC.normalized_DFout.rds'))
 
 DefaultAssay(srat_cr) <- "RNA"
-
 
 
 
