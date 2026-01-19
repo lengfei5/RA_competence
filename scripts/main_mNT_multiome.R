@@ -709,17 +709,129 @@ srat_cr = readRDS(file = paste0(RdataDir,
                                 'seuratObj_multiome_snRNA.normalized.umap_scATAC.normalized_',
                                 'DFoutSinglet.rds'))
 
-VlnPlot(srat_cr, features = "nCount_RNA", ncol = 1, y.max = 10000, group.by = 'condition', pt.size = 0., 
-        log = FALSE, raster=FALSE) +
-  geom_hline(yintercept = c(1000, 3000, 5000))
+outDir = paste0(resDir, '/mNTs_multiome_processing')
+if(!dir.exists(outDir)) dir.create(outDir)
 
-ggsave(filename = paste0(outDir, '/QCs_nCount_RNA_cellRanger.pdf'), height =8, width = 12)
+p1 = DimPlot(srat_cr, label = TRUE, repel = TRUE, reduction = 'umap_rna', cols = cols_sel) + 
+  NoLegend()
+
+p2 = DimPlot(srat_cr, label = TRUE, repel = TRUE, reduction = 'umap_rna', group.by = 'Phase')
+
+p1 + p2
+
+ggsave(filename = paste0(outDir, '/mNTs_multiome_snRNA_condition_phase.pdf'), 
+       width = 18, height = 8)
+
+FeaturePlot(srat_cr, 
+            features = c('nCount_RNA', 'nFeature_RNA', 'percent.mt', 
+                         'nCount_ATAC', 'nFeature_ATAC'), 
+            reduction = 'umap_rna')
+
+ggsave(filename = paste0(outDir, '/mNTs_multiome_snRNA_features4QCs.pdf'), 
+       width = 16, height = 18)
+
+
+p1 = FeatureScatter(srat_cr, feature1 = "nFeature_RNA", feature2 = "nCount_RNA", group.by = 'condition', 
+               cols = cols_sel)
+p2 = FeatureScatter(srat_cr, feature1 = "nFeature_RNA", feature2 = "percent.mt", group.by = 'condition', 
+                    cols = cols_sel)
+p3 = FeatureScatter(srat_cr, feature1 = "nFeature_RNA", feature2 = "nCount_ATAC", group.by = 'condition', 
+                    cols = cols_sel)
+p4 = FeatureScatter(srat_cr, feature1 = "nFeature_RNA", feature2 = "nFeature_ATAC", group.by = 'condition', 
+                    cols = cols_sel)
+
+(p1 + p2)/(p3+p4)
+
+
+VlnPlot(srat_cr, features = "nCount_RNA", ncol = 1, y.max = 20000, group.by = 'condition', pt.size = 0., 
+        log = FALSE, raster=FALSE) +
+  geom_hline(yintercept = c(2000, 3000, 5000, 15000, 12000))
+
 
 VlnPlot(srat_cr, features = "nFeature_RNA", ncol = 1, y.max = 7000, group.by = 'condition', pt.size = 0., 
         log = FALSE, raster=FALSE) +
-  geom_hline(yintercept = c(1000, 1500, 2000))
+  geom_hline(yintercept = c(1000, 1500, 2000, 5000))
 
-ggsave(filename = paste0(outDir, '/QCs_nFeature_RNA_cellRanger.pdf'), height = 8, width = 12)
+VlnPlot(srat_cr, features = "percent.mt", ncol = 1, y.max = 35, 
+             group.by = 'condition', pt.size = 0.0, 
+             log = FALSE, raster=FALSE)
+
+
+# quick filtering 
+srat_cr <- subset(
+  x = srat_cr,
+  subset = nCount_RNA > 2000 &
+    nCount_RNA < 15000 &
+    nFeature_RNA < 5000 &
+    nFeature_RNA > 1500 &
+    percent.mt < 30 
+)
+
+
+## remove Rp and mt
+head(grep('^Rp[sl]|^mt-', rownames(srat_cr))) # double check if ribo and mito genes 
+srat_cr = subset(srat_cr, features = rownames(srat_cr)[grep('^Rp[sl]|^mt-', rownames(srat_cr), 
+                                                            invert = TRUE)])
+
+srat_cr <- NormalizeData(srat_cr) %>%
+  FindVariableFeatures(nfeatures = 5000) %>%
+  ScaleData() %>%
+  RunPCA(npcs = 100)
+ElbowPlot(srat_cr, ndims = 50)
+
+srat_cr <- RunUMAP(srat_cr, dims = 1:50, n.neighbors = 100, min.dist = 0.1, 
+                   reduction.name = "umap_rna", reduction.key = "UMAPRNA_")
+
+DimPlot(srat_cr, label = TRUE, repel = TRUE, reduction = 'umap_rna', cols = cols_sel) + 
+  NoLegend()
+
+
+saveRDS(srat_cr, file = paste0(RdataDir, 
+                               'seuratObj_multiome_snRNA.normalized.umap_scATAC.normalized_',
+                               'DFoutSinglet_cell.gene.filtered.rds'))
+
+
+##########################################
+# try to regress out the    
+##########################################
+srat_cr = readRDS(file = paste0(RdataDir, 
+                                'seuratObj_multiome_snRNA.normalized.umap_scATAC.normalized_',
+                                'DFoutSinglet_cell.gene.filtered.rds'))
+
+p1 = FeatureScatter(srat_cr, feature1 = "nFeature_RNA", feature2 = "nCount_RNA", group.by = 'condition', 
+                    cols = cols_sel)
+p2 = FeatureScatter(srat_cr, feature1 = "nFeature_RNA", feature2 = "percent.mt", group.by = 'condition', 
+                    cols = cols_sel)
+
+p1 + p2
+
+VlnPlot(srat_cr, features = "nCount_RNA", ncol = 1, y.max = 20000, group.by = 'condition', pt.size = 0., 
+        log = FALSE, raster=FALSE) +
+  geom_hline(yintercept = c(2000, 3000, 5000, 15000, 12000))
+
+
+VlnPlot(srat_cr, features = "nFeature_RNA", ncol = 1, y.max = 7000, group.by = 'condition', pt.size = 0., 
+        log = FALSE, raster=FALSE) +
+  geom_hline(yintercept = c(1000, 1500, 2000, 5000))
+
+VlnPlot(srat_cr, features = "percent.mt", ncol = 1, y.max = 35, 
+        group.by = 'condition', pt.size = 0.0, 
+        log = FALSE, raster=FALSE)
+
+
+srat_cr = NormalizeData(srat_cr, normalization.method = "LogNormalize", scale.factor = 10000)
+
+srat_cr <- FindVariableFeatures(srat_cr, selection.method = "vst", nfeatures = 5000)
+
+all.genes <- rownames(srat_cr)
+srat_cr <- ScaleData(srat_cr, features = all.genes, vars.to.regress = c('nFeature_RNA',  "percent.mt"))
+
+
+saveRDS(srat_cr, file = paste0(RdataDir, 
+                               'seuratObj_multiome_snRNA.normalized.umap_scATAC.normalized_',
+                               'DFoutSinglet_cell.gene.filtered_regressed.nFeature.pctMT.rds'))
+
+
 
 
 ##########################################
