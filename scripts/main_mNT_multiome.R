@@ -1,7 +1,7 @@
 ##########################################################################
 ##########################################################################
-# Project:
-# Script purpose:
+# Project: RA competence 
+# Script purpose: main script to analyze the mNT multiome data
 # Usage example: 
 # Author: Jingkui Wang (jingkui.wang@imp.ac.at)
 # Date of creation: Tue Feb  6 10:49:04 2024
@@ -832,6 +832,148 @@ saveRDS(srat_cr, file = paste0(RdataDir,
                                'DFoutSinglet_cell.gene.filtered_regressed.nFeature.pctMT.rds'))
 
 
+srat_cr = readRDS(file = paste0(RdataDir, 
+                                'seuratObj_multiome_snRNA.normalized.umap_scATAC.normalized_',
+                                'DFoutSinglet_cell.gene.filtered_regressed.nFeature.pctMT.rds'))
+
+
+srat_cr <- FindVariableFeatures(srat_cr, nfeatures = 5000, selection.method = "vst") %>%
+  RunPCA(npcs = 100)
+ElbowPlot(srat_cr, ndims = 50)
+
+srat_cr <- RunUMAP(srat_cr, dims = 1:30, n.neighbors = 50, min.dist = 0.1, 
+                   reduction.name = "umap_rna", reduction.key = "UMAPRNA_")
+
+DimPlot(srat_cr, label = TRUE, repel = TRUE, reduction = 'umap_rna', cols = cols_sel) + 
+  NoLegend()
+
+FeaturePlot(srat_cr, features = c('Foxa2', 'Pax6'))
+
+
+##########################################
+# try to identify some weird clusters and discard them 
+##########################################
+srat_cr = readRDS(file = paste0(RdataDir, 
+                                'seuratObj_multiome_snRNA.normalized.umap_scATAC.normalized_',
+                                'DFoutSinglet_cell.gene.filtered_regressed.nFeature.pctMT.rds'))
+
+outDir = paste0(resDir, '/mNTs_multiome_processing')
+if(!dir.exists(outDir)) dir.create(outDir)
+
+
+srat_cr <- FindVariableFeatures(srat_cr, nfeatures = 5000, selection.method = "vst") %>%
+  RunPCA(npcs = 100)
+ElbowPlot(srat_cr, ndims = 50)
+
+srat_cr <- RunUMAP(srat_cr, dims = 1:30, n.neighbors = 50, min.dist = 0.1, 
+                   reduction.name = "umap_rna", reduction.key = "UMAPRNA_")
+
+DimPlot(srat_cr, label = TRUE, repel = TRUE, reduction = 'umap_rna', cols = cols_sel) + 
+  NoLegend()
+
+DimPlot(srat_cr, label = FALSE, repel = TRUE, reduction = 'umap_rna', group.by = 'Phase')
+
+
+srat_cr <- FindVariableFeatures(srat_cr, nfeatures = 3000, selection.method = "vst") %>%
+  RunPCA(npcs = 50)
+srat_cr <- FindNeighbors(srat_cr, dims = 1:30)
+
+srat_cr <- FindClusters(srat_cr, verbose = FALSE, algorithm = 3, resolution = 0.7)
+
+p1 = DimPlot(srat_cr, label = TRUE, repel = TRUE, group.by = 'condition', raster=FALSE)
+p2 = DimPlot(srat_cr, label = TRUE, repel = TRUE, group.by = 'seurat_clusters', raster=FALSE)
+p1 + p2
+
+ggsave(filename = paste0(outDir, '/mNTs_multiome_snRNA_seuratClusters.res0.7.pdf'), 
+       width = 14, height = 6)
+
+
+
+## subsetting only RA
+aa = subset(srat_cr, cells = colnames(srat_cr)[grep('_RA|_beforeRA', srat_cr$condition)])
+aa$condition = droplevels(aa$condition)
+
+aa <- FindVariableFeatures(aa, nfeatures = 3000, selection.method = "vst") %>%
+  RunPCA(npcs = 50)
+
+ElbowPlot(aa, ndims = 30)
+
+aa <- RunUMAP(aa, dims = 1:30, n.neighbors = 50, min.dist = 0.1, 
+                   reduction.name = "umap_rna", reduction.key = "UMAPRNA_")
+
+aa <- FindNeighbors(aa, dims = 1:30)
+aa <- FindClusters(aa, verbose = FALSE, algorithm = 3, resolution = 0.7)
+
+p1 = DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'condition', raster=FALSE)
+p2 = DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'seurat_clusters', raster=FALSE)
+p1 + p2
+
+aa$clusters = aa$seurat_clusters
+
+all.markers <- FindAllMarkers(aa, only.pos = TRUE, min.pct = 0.2, logfc.threshold = 0.4)
+all.markers %>%
+  group_by(cluster) %>%
+  top_n(n = 10, wt = avg_log2FC) -> top10
+
+DoHeatmap(aa, features = top10$gene) + NoLegend()
+
+ggsave(filename = paste0(outDir, '/mNTs_multiome_snRNA_seuratClusters.res0.7_heatmap_markerGenes.pdf'), 
+       width = 14, height = 20)
+
+
+all.markers %>%
+  group_by(cluster) %>%
+  top_n(n = 20, wt = avg_log2FC) -> top20
+
+## cluster 12: Tubb3
+saveRDS(aa, file = paste0(RdataDir, 
+                               'seuratObj_multiome_snRNA.normalized.umap_scATAC.normalized_',
+                               'DFoutSinglet_cell.gene.filtered_regressed.nFeature.pctMT_RAsamples.rds'))
+
+
+### subset noRA samples
+rm(aa)
+
+aa = subset(srat_cr, cells = colnames(srat_cr)[grep('_noRA|_beforeRA', srat_cr$condition)])
+aa$condition = droplevels(aa$condition)
+
+aa <- FindVariableFeatures(aa, nfeatures = 3000, selection.method = "vst") %>%
+  RunPCA(npcs = 50)
+
+ElbowPlot(aa, ndims = 30)
+
+aa <- RunUMAP(aa, dims = 1:20, n.neighbors = 30, min.dist = 0.1, 
+              reduction.name = "umap_rna", reduction.key = "UMAPRNA_")
+
+aa <- FindNeighbors(aa, dims = 1:20)
+aa <- FindClusters(aa, verbose = FALSE, algorithm = 3, resolution = 0.7)
+
+p1 = DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'condition', raster=FALSE)
+p2 = DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'seurat_clusters', raster=FALSE)
+p1 + p2
+
+aa$clusters = aa$seurat_clusters
+
+all.markers <- FindAllMarkers(aa, only.pos = TRUE, min.pct = 0.2, logfc.threshold = 0.4)
+all.markers %>%
+  group_by(cluster) %>%
+  top_n(n = 10, wt = avg_log2FC) -> top10
+
+DoHeatmap(aa, features = top10$gene) + NoLegend()
+
+ggsave(filename = paste0(outDir, '/mNTs_multiome_snRNA_seuratClusters.res0.7_noRA_heatmap_markerGenes.pdf'), 
+       width = 14, height = 20)
+
+
+all.markers %>%
+  group_by(cluster) %>%
+  top_n(n = 20, wt = avg_log2FC) -> top20
+
+## cluster 12: Tubb3
+saveRDS(aa, file = paste0(RdataDir, 
+                          'seuratObj_multiome_snRNA.normalized.umap_scATAC.normalized_',
+                          'DFoutSinglet_cell.gene.filtered_regressed.nFeature.pctMT_noRAsamples.rds'))
+
 
 
 ##########################################
@@ -841,8 +983,6 @@ srat_cr = readRDS(file = paste0(RdataDir,
               'seuratObj_multiome_snRNA.normalized.umap_scATAC.normalized_DFout.rds'))
 
 DefaultAssay(srat_cr) <- "RNA"
-
-
 
 
 
