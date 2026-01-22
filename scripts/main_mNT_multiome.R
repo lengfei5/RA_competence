@@ -792,7 +792,7 @@ saveRDS(srat_cr, file = paste0(RdataDir,
 
 
 ##########################################
-# try to regress out the    
+# try to regress out 'nFeature_RNA',  "percent.mt"   
 ##########################################
 srat_cr = readRDS(file = paste0(RdataDir, 
                                 'seuratObj_multiome_snRNA.normalized.umap_scATAC.normalized_',
@@ -931,6 +931,14 @@ saveRDS(aa, file = paste0(RdataDir,
                                'DFoutSinglet_cell.gene.filtered_regressed.nFeature.pctMT_RAsamples.rds'))
 
 
+aa = readRDS(file = paste0(RdataDir, 
+                           'seuratObj_multiome_snRNA.normalized.umap_scATAC.normalized_',
+                           'DFoutSinglet_cell.gene.filtered_regressed.nFeature.pctMT_RAsamples.rds'))
+
+
+cells_drops = colnames(aa)[which(!is.na(match(aa$clusters, c('12', '13', '14', '15'))))]
+
+
 ### subset noRA samples
 rm(aa)
 
@@ -974,24 +982,71 @@ saveRDS(aa, file = paste0(RdataDir,
                           'seuratObj_multiome_snRNA.normalized.umap_scATAC.normalized_',
                           'DFoutSinglet_cell.gene.filtered_regressed.nFeature.pctMT_noRAsamples.rds'))
 
+aa = readRDS(file = paste0(RdataDir, 
+                           'seuratObj_multiome_snRNA.normalized.umap_scATAC.normalized_',
+                           'DFoutSinglet_cell.gene.filtered_regressed.nFeature.pctMT_noRAsamples.rds'))
 
+cells_drops = c(cells_drops, colnames(aa)[which(!is.na(match(aa$clusters, c('15', '16'))))])
+
+saveRDS(cells_drops, file = paste0(outDir, 'smallClusters_toDrop_RA_noRA.rds'))
+
+
+## drop cells in small clusteres of RA or noRA samples
+srat_cr = subset(srat_cr, cells = colnames(srat_cr)[which(is.na(match(colnames(srat_cr), cells_drops)))])
+
+srat_cr <- FindVariableFeatures(srat_cr, nfeatures = 5000, selection.method = "vst") %>%
+  RunPCA(npcs = 50, weight.by.var = FALSE)
+ElbowPlot(srat_cr, ndims = 50)
+
+srat_cr <- RunUMAP(srat_cr, dims = 1:30, n.neighbors = 50, min.dist = 0.1, 
+                   reduction.name = "umap_rna", reduction.key = "UMAPRNA_")
+
+DimPlot(srat_cr, label = TRUE, repel = TRUE, reduction = 'umap_rna', cols = cols_sel) + 
+  NoLegend()
+
+DimPlot(srat_cr, label = FALSE, repel = TRUE, reduction = 'umap_rna', group.by = 'Phase')
+
+
+aa = subset(srat_cr, cells = colnames(srat_cr)[grep('_RA|_beforeRA', srat_cr$condition)])
+aa$condition = droplevels(aa$condition)
+
+aa <- FindVariableFeatures(aa, nfeatures = 3000, selection.method = "vst") 
+
+aa = RunPCA(aa, weight.by.var = FALSE)
+
+ElbowPlot(aa, ndims = 30)
+
+aa <- RunUMAP(aa, dims = 1:50, n.neighbors = 30, min.dist = 0.1, 
+              reduction.name = "umap_rna", reduction.key = "UMAPRNA_")
+
+DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'condition', raster=FALSE)
+
+DimPlot(aa, label = FALSE, repel = TRUE, reduction = 'umap_rna', group.by = 'Phase')
+
+saveRDS(srat_cr, file = paste0(RdataDir, 
+                               'seuratObj_multiome_snRNA.normalized.umap_scATAC.normalized_',
+                               'DFoutSinglet_cell.gene.filtered_regressed.nFeature.pctMT_',
+                               'discardTinyClusters.RAnoRA.rds'))
 
 ##########################################
 # test snRNA umap parameters
 ##########################################
-srat_cr = readRDS(file = paste0(RdataDir, 
-              'seuratObj_multiome_snRNA.normalized.umap_scATAC.normalized_DFout.rds'))
+#srat_cr = readRDS(file = paste0(RdataDir, 
+#              'seuratObj_multiome_snRNA.normalized.umap_scATAC.normalized_DFout.rds'))
+
+srat_cr = readRDS(paste0(RdataDir, 
+       'seuratObj_multiome_snRNA.normalized.umap_scATAC.normalized_',
+       'DFoutSinglet_cell.gene.filtered_regressed.nFeature.pctMT_',
+       'discardTinyClusters.RAnoRA.rds'))
 
 DefaultAssay(srat_cr) <- "RNA"
-
-
 
 Explore.umap.parameters = FALSE
 if(Explore.umap.parameters){
   source(paste0(functionDir, '/functions_scRNAseq.R'))
   explore.umap.params.combination(sub.obj = srat_cr, 
                                   resDir = resDir, 
-                                  pdfname = 'mNTs_multiome_snRNA_umap_test.pdf',
+                                  pdfname = 'mNTs_multiome_snRNA_umap_afterFiltering_weight.by.var.TRUE.pdf',
                                   use.parallelization = FALSE,
                                   group.by = 'condition',
                                   cols = cols_sel, 
@@ -1003,6 +1058,7 @@ if(Explore.umap.parameters){
                                   
   )
   
+  
 }
 
 
@@ -1013,6 +1069,156 @@ srat_cr <- RunUMAP(srat_cr, dims = 1:20, n.neighbors = 20, min.dist = 0.05,
 
 DimPlot(srat_cr, label = TRUE, repel = TRUE, reduction = 'umap_rna', cols = cols_sel) + 
   NoLegend()
+
+
+
+########################################################
+########################################################
+# Section II: analysis of RA samples
+# 
+########################################################
+########################################################
+# srat_cr = readRDS(paste0(RdataDir, 
+#                          'seuratObj_multiome_snRNA.normalized.umap_scATAC.normalized_',
+#                          'DFoutSinglet_cell.gene.filtered_regressed.nFeature.pctMT_',
+#                          'discardTinyClusters.RAnoRA.rds'))
+# 
+# DefaultAssay(srat_cr) <- "RNA"
+# aa = subset(srat_cr, cells = colnames(srat_cr)[grep('_RA', srat_cr$condition)])
+
+rm(srat_cr)
+
+outDir = paste0(resDir, '/mNTs_multiome_RA_processing')
+if(!dir.exists(outDir)) dir.create(outDir)
+
+
+aa = readRDS(file = paste0(RdataDir, 
+                           'seuratObj_multiome_snRNA.normalized.umap_scATAC.normalized_',
+                           'DFoutSinglet_cell.gene.filtered_regressed.nFeature.pctMT_RAsamples.rds'))
+
+aa$condition = droplevels(aa$condition)
+
+aa <- FindVariableFeatures(aa, nfeatures = 3000, selection.method = "vst") %>%
+  RunPCA(npcs = 50, weight.by.var = TRUE)
+
+ElbowPlot(aa, ndims = 30)
+
+aa <- RunUMAP(aa, dims = 1:20, n.neighbors = 30, min.dist = 0.1, 
+              reduction.name = "umap_rna", reduction.key = "UMAPRNA_")
+
+DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'condition', raster=FALSE)
+
+DimPlot(aa, label = FALSE, repel = TRUE, group.by = 'Phase', raster=FALSE)
+
+#aa <- FindNeighbors(aa, dims = 1:30)
+#aa <- FindClusters(aa, verbose = FALSE, algorithm = 3, resolution = 0.7)
+#p1 = DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'condition', raster=FALSE)
+#p2 = DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'seurat_clusters', raster=FALSE)
+#p1 + p2
+#aa$clusters = aa$seurat_clusters
+
+load(file = '../results/Rdata/tfs_sps_geneExamples_4scRNAseq.Rdata')
+knownGenes =  c('Pou5f1', 'Sox2', 'Zfp42', 'Utf1',
+                'Otx2', 'Cyp26a1', 'Stra8',
+                'Hoxa1', 'Hoxa3', 'Hoxb4',
+                'Sox1', 'Pax6', 'Tubb3', 'Elavl4', 'Neurod4',
+                'Foxa2', 'Shh', 'Arx', 'Vtn', "Spon1", 'Slit2', "Ntn1",
+                'Nkx2-2', 'Olig2', 'Pax3', 'Pax7', 'Nkx6-1')
+
+Discard_cellCycle.corrrelatedGenes = TRUE
+if(Discard_cellCycle.corrrelatedGenes){
+  library(scater)
+  Idents(aa) = aa$condition
+  
+  DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'Phase', raster=FALSE)
+  
+  # Identifying the likely cell cycle genes between phases,
+  # using an arbitrary threshold of 5%.
+  scaledMatrix = GetAssayData(aa, slot = c("scale.data"))
+  
+  diff <- getVarianceExplained(scaledMatrix, data.frame(phase = aa$Phase))
+  diff = data.frame(diff, gene = rownames(diff))
+  diff = diff[order(-diff$phase), ]
+  
+  hist(diff$phase, breaks = 100); 
+  abline(v = c(1:5), col = 'red')
+  
+  rm(scaledMatrix)
+  
+  genes_discard = diff$gene[which(diff$phase > 5)]
+  cat(length(genes_discard), 'genes to discard \n')
+  
+  tfs_sels = intersect(genes_discard, gene_examples)
+  print(tfs_sels)
+  
+  knownGenes_sels = intersect(genes_discard, knownGenes)
+  print(knownGenes_sels)
+  
+  if(length(knownGenes_sels)>0) genes_discard = setdiff(genes_discard, knownGenes_sels)
+  
+  tfs_sels = intersect(genes_discard, gene_examples)
+  print(tfs_sels)
+  
+  aa = subset(aa, features = setdiff(rownames(aa), genes_discard))
+  
+  aa <- FindVariableFeatures(aa, selection.method = "vst", nfeatures = 2000) # find subset-specific HVGs
+  aa <- RunPCA(aa, features = VariableFeatures(object = aa), verbose = FALSE, weight.by.var = FALSE)
+  
+  ElbowPlot(aa, ndims = 50)
+  
+  aa <- RunUMAP(aa, dims = 1:20, n.neighbors = 50, min.dist = 0.1, 
+                reduction.name = "umap_rna", reduction.key = "UMAPRNA_")
+  
+  DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'condition', raster=FALSE)
+  
+  
+  FeaturePlot(aa, features = c('Foxa2', 'Pax6'))
+  
+  DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'Phase', raster=FALSE)
+  
+  aa <- FindNeighbors(aa, dims = 1:20)
+  aa <- FindClusters(aa, verbose = FALSE, algorithm = 3, resolution = 0.7)
+  DimPlot(aa, label = TRUE, repel = TRUE, raster=FALSE)
+  
+  ggsave(filename = paste0(outDir, '/mNTs_multiome_snRNA_RAsamples_rmCellCycleGenes_',
+                           'seuratClusters.res0.7.pdf'), 
+         width = 14, height = 8)
+  
+}
+
+aa$clusters = aa$seurat_clusters
+
+all.markers <- FindAllMarkers(aa, only.pos = TRUE, min.pct = 0.2, logfc.threshold = 0.5)
+all.markers %>%
+  group_by(cluster) %>%
+  top_n(n = 10, wt = avg_log2FC) -> top10
+
+DoHeatmap(aa, features = top10$gene) + NoLegend()
+
+ggsave(filename = paste0(outDir, '/mNTs_multiome_snRNA_seuratClusters.res0.7_RA_heatmap_markerGenes.pdf'), 
+       width = 14, height = 20)
+
+
+aa = subset(aa, cells = colnames(aa)[which(aa$clusters != '12' & aa$clusters != '14')])
+aa$clusters = droplevels(aa$clusters)
+
+aa <- FindVariableFeatures(aa, selection.method = "vst", nfeatures = 2000) # find subset-specific HVGs
+
+aa <- RunPCA(aa, features = VariableFeatures(object = aa), verbose = FALSE, weight.by.var = TRUE)
+
+ElbowPlot(aa, ndims = 50)
+
+aa <- RunUMAP(aa, dims = 1:20, n.neighbors = 50, min.dist = 0.1, 
+              reduction.name = "umap_rna", reduction.key = "UMAPRNA_")
+
+DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'condition', raster=FALSE)
+
+
+saveRDS(aa, file = paste0(RdataDir, 
+                           'seuratObj_multiome_snRNA.normalized.umap_scATAC.normalized_',
+                           'DFoutSinglet_cell.gene.filtered_regressed.nFeature.pctMT_RAsamples',
+                           '_rmCCgenes_rmMatureNeurons.rds'))
+
 
 
 
