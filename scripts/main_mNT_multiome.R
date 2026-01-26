@@ -770,7 +770,7 @@ srat_cr <- subset(
 
 ## remove Rp and mt
 head(grep('^Rp[sl]|^mt-', rownames(srat_cr))) # double check if ribo and mito genes 
-srat_cr = subset(srat_cr, features = rownames(srat_cr)[grep('^Rp[sl]|^mt-', rownames(srat_cr), 
+xx = subset(srat_cr, features = rownames(srat_cr)[grep('^Rp[sl]|^mt-', rownames(srat_cr), 
                                                             invert = TRUE)])
 
 srat_cr <- NormalizeData(srat_cr) %>%
@@ -1074,14 +1074,14 @@ DimPlot(srat_cr, label = TRUE, repel = TRUE, reduction = 'umap_rna', cols = cols
 
 ########################################################
 ########################################################
-# Section II: analysis of RA samples
+# Section III: analysis of RA samples to search for the initial bias before RA 
 # 
 ########################################################
 ########################################################
-# srat_cr = readRDS(paste0(RdataDir, 
-#                          'seuratObj_multiome_snRNA.normalized.umap_scATAC.normalized_',
-#                          'DFoutSinglet_cell.gene.filtered_regressed.nFeature.pctMT_',
-#                          'discardTinyClusters.RAnoRA.rds'))
+srat_cr = readRDS(paste0(RdataDir,
+                         'seuratObj_multiome_snRNA.normalized.umap_scATAC.normalized_',
+                         'DFoutSinglet_cell.gene.filtered_regressed.nFeature.pctMT_',
+                         'discardTinyClusters.RAnoRA.rds'))
 # 
 # DefaultAssay(srat_cr) <- "RNA"
 # aa = subset(srat_cr, cells = colnames(srat_cr)[grep('_RA', srat_cr$condition)])
@@ -1125,7 +1125,8 @@ knownGenes =  c('Pou5f1', 'Sox2', 'Zfp42', 'Utf1',
                 'Foxa2', 'Shh', 'Arx', 'Vtn', "Spon1", 'Slit2', "Ntn1",
                 'Nkx2-2', 'Olig2', 'Pax3', 'Pax7', 'Nkx6-1')
 
-Discard_cellCycle.corrrelatedGenes = TRUE
+
+Discard_cellCycle.corrrelatedGenes = FALSE
 if(Discard_cellCycle.corrrelatedGenes){
   library(scater)
   Idents(aa) = aa$condition
@@ -1161,30 +1162,30 @@ if(Discard_cellCycle.corrrelatedGenes){
   
   aa = subset(aa, features = setdiff(rownames(aa), genes_discard))
   
-  aa <- FindVariableFeatures(aa, selection.method = "vst", nfeatures = 2000) # find subset-specific HVGs
-  aa <- RunPCA(aa, features = VariableFeatures(object = aa), verbose = FALSE, weight.by.var = FALSE)
-  
-  ElbowPlot(aa, ndims = 50)
-  
-  aa <- RunUMAP(aa, dims = 1:20, n.neighbors = 50, min.dist = 0.1, 
-                reduction.name = "umap_rna", reduction.key = "UMAPRNA_")
-  
-  DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'condition', raster=FALSE)
-  
-  
-  FeaturePlot(aa, features = c('Foxa2', 'Pax6'))
-  
-  DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'Phase', raster=FALSE)
-  
-  aa <- FindNeighbors(aa, dims = 1:20)
-  aa <- FindClusters(aa, verbose = FALSE, algorithm = 3, resolution = 0.7)
-  DimPlot(aa, label = TRUE, repel = TRUE, raster=FALSE)
-  
-  ggsave(filename = paste0(outDir, '/mNTs_multiome_snRNA_RAsamples_rmCellCycleGenes_',
-                           'seuratClusters.res0.7.pdf'), 
-         width = 14, height = 8)
-  
 }
+
+aa <- FindVariableFeatures(aa, selection.method = "vst", nfeatures = 2000) # find subset-specific HVGs
+aa <- RunPCA(aa, features = VariableFeatures(object = aa), verbose = FALSE, weight.by.var = FALSE)
+
+ElbowPlot(aa, ndims = 50)
+
+aa <- RunUMAP(aa, dims = 1:20, n.neighbors = 100, min.dist = 0.1, 
+              reduction.name = "umap_rna", reduction.key = "UMAPRNA_")
+
+DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'condition', raster=FALSE)
+
+
+FeaturePlot(aa, features = c('Foxa2', 'Pax6'))
+
+DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'Phase', raster=FALSE)
+
+aa <- FindNeighbors(aa, dims = 1:20)
+aa <- FindClusters(aa, verbose = FALSE, algorithm = 3, resolution = 0.7)
+DimPlot(aa, label = TRUE, repel = TRUE, raster=FALSE)
+
+ggsave(filename = paste0(outDir, '/mNTs_multiome_snRNA_RAsamples_',
+                         'seuratClusters.res0.7.pdf'), 
+       width = 14, height = 8)
 
 aa$clusters = aa$seurat_clusters
 
@@ -1199,32 +1200,148 @@ ggsave(filename = paste0(outDir, '/mNTs_multiome_snRNA_seuratClusters.res0.7_RA_
        width = 14, height = 20)
 
 
-aa = subset(aa, cells = colnames(aa)[which(aa$clusters != '12' & aa$clusters != '14')])
-aa$clusters = droplevels(aa$clusters)
-
-aa <- FindVariableFeatures(aa, selection.method = "vst", nfeatures = 2000) # find subset-specific HVGs
-
-aa <- RunPCA(aa, features = VariableFeatures(object = aa), verbose = FALSE, weight.by.var = TRUE)
-
-ElbowPlot(aa, ndims = 50)
-
-aa <- RunUMAP(aa, dims = 1:20, n.neighbors = 50, min.dist = 0.1, 
-              reduction.name = "umap_rna", reduction.key = "UMAPRNA_")
-
-DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'condition', raster=FALSE)
-
+# aa = subset(aa, cells = colnames(aa)[which(aa$clusters != '12' & aa$clusters != '14')])
+# aa$clusters = droplevels(aa$clusters)
+# 
+# aa <- FindVariableFeatures(aa, selection.method = "vst", nfeatures = 2000) # find subset-specific HVGs
+# 
+# aa <- RunPCA(aa, features = VariableFeatures(object = aa), verbose = FALSE, weight.by.var = TRUE)
+# 
+# ElbowPlot(aa, ndims = 50)
+# 
+# aa <- RunUMAP(aa, dims = 1:20, n.neighbors = 50, min.dist = 0.1, 
+#               reduction.name = "umap_rna", reduction.key = "UMAPRNA_")
+# 
+# DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'condition', raster=FALSE)
+# 
+# DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'Phase', raster=FALSE)
 
 saveRDS(aa, file = paste0(RdataDir, 
                            'seuratObj_multiome_snRNA.normalized.umap_scATAC.normalized_',
                            'DFoutSinglet_cell.gene.filtered_regressed.nFeature.pctMT_RAsamples',
-                           '_rmCCgenes_rmMatureNeurons.rds'))
+                           '_keepCCgenes_keepMatureNeurons.rds'))
+
+
+##########################################
+# embedding with snRNA and scATAC   
+##########################################
+Remake_RA_multiome_seuratObj = FALSE
+if(Remake_RA_multiome_seuratObj){
+  srat_cr = readRDS(file = paste0(RdataDir, 
+                                  'seuratObj_multiome_snRNA.normalized.umap_scATAC.normalized_',
+                                  'DFoutSinglet.rds'))
+  
+  aa = readRDS(file = paste0(RdataDir, 
+                             'seuratObj_multiome_snRNA.normalized.umap_scATAC.normalized_',
+                             'DFoutSinglet_cell.gene.filtered_regressed.nFeature.pctMT_RAsamples',
+                             '_keepCCgenes_keepMatureNeurons.rds'))
+  
+  cells = colnames(srat_cr)[match(colnames(aa), colnames(srat_cr))]
+  srat_cr = subset(srat_cr, cells = cells)
+  
+  aa[["ATAC"]] <- srat_cr[["ATAC"]]
+  
+  rm(srat_cr)
+  
+  saveRDS(aa, file = paste0(RdataDir, 
+                            'seuratObj_multiome_snRNA.normalized.umap_scATAC.normalized_',
+                            'DFoutSinglet_cell.gene.filtered_regressed.nFeature.pctMT_RAsamples',
+                            '_2Explore.rds'))
+  
+}
+
+outDir = paste0(resDir, '/mNTs_multiome_RA_snRNA_scATAC_coembedding')
+if(!dir.exists(outDir)) dir.create(outDir)
+
+p1 = DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'condition', raster=FALSE)
+p2 = DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'clusters', raster=FALSE)
+p3 = DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'Phase', raster=FALSE)
+
+p1 + p2 + p3
+
+ggsave(filename = paste0(outDir, '/mNTs_RAmultiome_snRNA_umap.pdf'), 
+       width = 20, height = 8)
+
+
+DefaultAssay(aa) <- "ATAC"
+aa <- FindTopFeatures(aa, min.cutoff = 'q5')
+#aa <- FindTopFeatures(aa, min.cutoff = 'q10')
+aa <- RunTFIDF(aa, method = 1)
+aa <- RunSVD(aa)
+
+saveRDS(aa, file = paste0(RdataDir,
+                               'seuratObj_RAmultiome_snRNA.normalized.umap_scATAC.normalized.rds'))
+
+
+p1 <- ElbowPlot(aa, ndims = 30, reduction="lsi")
+p2 <- DepthCor(aa, n = 30)
+p1 | p2
+
+ggsave(filename = paste0(outDir, '/lsi_Elbowplot_depthcor.pdf'), height =8, width = 12)
+
+aa <- RunUMAP(object = aa, reduction = 'lsi', 
+                   dims = 2:30, 
+                   n.neighbors = 30, 
+                   min.dist = 0.1, 
+                   reduction.name = "umap_atac",
+                   reduction.key = "UMAPATAC_"
+)
+
+DimPlot(object = aa, label = TRUE, reduction = 'umap_atac', group.by = 'condition') 
+
+aa <- FindMultiModalNeighbors(aa, reduction.list = list("pca", "lsi"), 
+                              dims.list = list(1:30, 2:30))
+
+aa <- RunUMAP(aa, nn.name = "weighted.nn", 
+              reduction.name = "wnn.umap", 
+              reduction.key = "wnnUMAP_", min.dist = 0.1)
+
+aa <- FindClusters(aa, graph.name = "wsnn", algorithm = 3, verbose = FALSE, resolution = 0.7)
+
+p1 <- DimPlot(aa, reduction = "umap_rna", group.by = "condition", 
+              label = TRUE, label.size = 2.5, repel = TRUE) + ggtitle("RNA")
+p2 <- DimPlot(aa, reduction = "umap_atac", group.by = "condition", label = TRUE, 
+              label.size = 2.5, repel = TRUE) + ggtitle("ATAC")
+p3 <- DimPlot(aa, reduction = "wnn.umap", group.by = "condition", label = TRUE, 
+              label.size = 2.5, repel = TRUE) + ggtitle("WNN")
+
+p1 + p2 + p3 & NoLegend() & theme(plot.title = element_text(hjust = 0.5))
+
+ggsave(filename = paste0(outDir, '/RAsample_snRNA_scATAC_WNN_UMAP_clusters_cellcycle.pdf'), 
+       height = 8, width = 25)
+
+p1 = DimPlot(aa, reduction = "wnn.umap", group.by = "wsnn_res.0.7", label = TRUE, 
+             label.size = 2.5, repel = TRUE) + ggtitle("WNN")
+
+p2 = DimPlot(aa, reduction = "wnn.umap", group.by = "Phase", label = TRUE, 
+             label.size = 2.5, repel = TRUE) + ggtitle("WNN")
+
+p1 + p2
+
+ggsave(filename = paste0(outDir, '/WNN_UMAP_clusters_cellcycle.pdf'), height = 8, width = 20)
+
+aa$clusters_wnn = aa$wsnn_res.0.7
+
+p1 <- DimPlot(aa, reduction = "umap_rna", group.by = "clusters_wnn", 
+              label = TRUE, label.size = 2.5, repel = TRUE) + ggtitle("RNA")
+p2 <- DimPlot(aa, reduction = "umap_atac", group.by = "clusters_wnn", label = TRUE, 
+              label.size = 2.5, repel = TRUE) + ggtitle("ATAC")
+p3 <- DimPlot(aa, reduction = "wnn.umap", group.by = "clusters_wnn", label = TRUE, 
+              label.size = 2.5, repel = TRUE) + ggtitle("WNN")
+p1 + p2 + p3
+
+saveRDS(aa, file = paste0(RdataDir,
+                          'seuratObj_RAmultiome_snRNA.normalized.umap_scATAC.normalized',
+                          '_wnn.umap.clusters.rds'))
+
+
 
 
 
 
 ########################################################
 ########################################################
-# Section III : Integrate the scRNA-seq data and multiome
+# Section IV : Integrate the scRNA-seq data and multiome
 # 
 ########################################################
 ########################################################
@@ -1246,7 +1363,8 @@ if(Integrate_scRNAseq_Multiome){
   
   ## scRNA-seq
   aa =  readRDS(file = paste0('../results/Rdata/',  
-                              'seuratObject_merged_cellFiltered_doublet.rm_mt.ribo.geneFiltered_regressout.nCounts_',
+                              'seuratObject_merged_cellFiltered_',
+                              'doublet.rm_mt.ribo.geneFiltered_regressout.nCounts_',
                               'cellCycleScoring_annot.v1_', 'mNT_scRNAseq',
                               '_R13547_10x_mNT_20220813', '.rds'))
   
@@ -1327,7 +1445,8 @@ if(Integrate_scRNAseq_Multiome){
   #for(i in res.used){
   #  multi_combine <- FindClusters(multi_combine, resolution = i)}
   # Make Plot
-  #clustree(multi_combine, layout="sugiyama") + theme(legend.position = "bottom") + scale_color_brewer(palette = "Set1") + scale_edge_color_continuous(low = "grey80", high = "red")
+  #clustree(multi_combine, layout="sugiyama") + theme(legend.position = "bottom") + 
+  #scale_color_brewer(palette = "Set1") + scale_edge_color_continuous(low = "grey80", high = "red")
   
   #Find clusters 
   #res = 0.7
@@ -1343,12 +1462,15 @@ if(Integrate_scRNAseq_Multiome){
   
   
   #Make UMAPs
-  dimplot_main_clus <- DimPlot(multi_combine, reduction = "umap_harmony", label = T, group.by = 'seurat_clusters') +
+  dimplot_main_clus <- DimPlot(multi_combine, reduction = "umap_harmony", label = T, 
+                               group.by = 'seurat_clusters') +
     NoLegend()
-  dimplot_main_sample <- DimPlot(multi_combine, reduction = "umap_harmony", label = F, group.by = 'condition')
+  dimplot_main_sample <- DimPlot(multi_combine, reduction = "umap_harmony", label = F, 
+                                 group.by = 'condition')
   
   dimplot_main_chem <- DimPlot(multi_combine, reduction = "umap_harmony", label = F, group.by = 'sample', 
-                               cols = c("turquoise4", "turquoise3", "gray", "gray", "gray", "gray", "gray", "gray"), 
+                               cols = c("turquoise4", "turquoise3", 
+                                        "gray", "gray", "gray", "gray", "gray", "gray"), 
                                shuffle = T)
   dimplot_main_clus
   dimplot_main_sample
