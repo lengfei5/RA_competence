@@ -1330,13 +1330,135 @@ p3 <- DimPlot(aa, reduction = "wnn.umap", group.by = "clusters_wnn", label = TRU
               label.size = 2.5, repel = TRUE) + ggtitle("WNN")
 p1 + p2 + p3
 
+ggsave(filename = paste0(outDir, '/WNN_UMAP_wnnClusters_RNA_ATAC_WNN.pdf'), 
+       height = 8, width = 26)
+
 saveRDS(aa, file = paste0(RdataDir,
                           'seuratObj_RAmultiome_snRNA.normalized.umap_scATAC.normalized',
                           '_wnn.umap.clusters.rds'))
 
 
-
-
+##########################################
+# test discard the mature neurons and tiny clusters from snRNA and scATAC co-embedding 
+# in RA samples
+##########################################
+Test_discard_matureNeurons.smallClusters_wnn = FALSE
+if(Test_discard_matureNeurons.smallClusters_wnn){
+  aa = readRDS(file = paste0(RdataDir,
+                             'seuratObj_RAmultiome_snRNA.normalized.umap_scATAC.normalized',
+                             '_wnn.umap.clusters.rds'))
+  
+  outDir = paste0(resDir, '/mNTs_multiome_RA_discard.matureNeurons.smallClusters_',
+                  'snRNA_scATAC_coembedding')
+  if(!dir.exists(outDir)) dir.create(outDir)
+  
+  p0 = DimPlot(aa, reduction = "wnn.umap", group.by = "condition", label = TRUE, 
+               label.size = 2.5, repel = TRUE) + ggtitle("WNN") + NoLegend()
+  
+  p1 = DimPlot(aa, reduction = "wnn.umap", group.by = "wsnn_res.0.7", label = TRUE, 
+               label.size = 2.5, repel = TRUE) + ggtitle("WNN") + NoLegend()
+  
+  p2 = DimPlot(aa, reduction = "wnn.umap", group.by = "Phase", label = TRUE, 
+               label.size = 2.5, repel = TRUE) + ggtitle("WNN")
+  
+  p0 + p1 + p2
+  
+  ggsave(filename = paste0(outDir, '/WNN_UMAP_conditions_clusters_cellcycle.pdf'), 
+         height = 8, width = 26)
+  
+  
+  
+  
+  p1 = DimPlot(aa, reduction = "wnn.umap", group.by = "clusters_wnn", label = TRUE, 
+          label.size = 2.5, repel = TRUE) + ggtitle("WNN") + NoLegend()
+  
+  
+  cells_saved = colnames(aa)[which(is.na(match(aa$clusters_wnn, 
+                                               c('13', '14', '15', '16', '17'))))]
+  
+  saveRDS(cells_saved, file = paste0(outDir, 
+                                     'cell_to_saved_afterDiscard_matureNeurons.smallClusters.rds'))
+  
+  
+  ## drop cells in small clusteres of RA or noRA samples
+  aa = subset(aa, cells = cells_saved)
+  
+  DefaultAssay(aa) <- "RNA"
+  aa <- FindVariableFeatures(aa, selection.method = "vst", nfeatures = 2000) # find subset-specific HVGs
+  aa <- RunPCA(aa, features = VariableFeatures(object = aa), verbose = FALSE, weight.by.var = FALSE)
+  
+  ElbowPlot(aa, ndims = 50)
+  
+  aa <- RunUMAP(aa, dims = 1:20, n.neighbors = 100, min.dist = 0.1, 
+                reduction.name = "umap_rna", reduction.key = "UMAPRNA_")
+  
+  DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'condition', raster=FALSE)
+  
+  
+  DefaultAssay(aa) <- "ATAC"
+  #aa <- FindTopFeatures(aa, min.cutoff = 'q5')
+  aa <- FindTopFeatures(aa, min.cutoff = 'q10')
+  aa <- RunTFIDF(aa, method = 1)
+  aa <- RunSVD(aa)
+  
+  p1 <- ElbowPlot(aa, ndims = 30, reduction="lsi")
+  p2 <- DepthCor(aa, n = 30)
+  p1 | p2
+  
+  aa <- RunUMAP(object = aa, reduction = 'lsi', 
+                dims = 2:30, 
+                n.neighbors = 30, 
+                min.dist = 0.1, 
+                reduction.name = "umap_atac",
+                reduction.key = "UMAPATAC_"
+  )
+  
+  DimPlot(object = aa, label = TRUE, reduction = 'umap_atac', group.by = 'condition') 
+  
+  aa <- FindMultiModalNeighbors(aa, reduction.list = list("pca", "lsi"), 
+                                dims.list = list(1:30, 2:30))
+  
+  aa <- RunUMAP(aa, nn.name = "weighted.nn", 
+                reduction.name = "wnn.umap", 
+                reduction.key = "wnnUMAP_", min.dist = 0.1)
+  
+  p1 <- DimPlot(aa, reduction = "umap_rna", group.by = "condition", 
+                label = TRUE, label.size = 2.5, repel = TRUE) + ggtitle("RNA")
+  p2 <- DimPlot(aa, reduction = "umap_atac", group.by = "condition", label = TRUE, 
+                label.size = 2.5, repel = TRUE) + ggtitle("ATAC")
+  p3 <- DimPlot(aa, reduction = "wnn.umap", group.by = "condition", label = TRUE, 
+                label.size = 2.5, repel = TRUE) + ggtitle("WNN")
+  
+  p1 + p2 + p3  & NoLegend() & theme(plot.title = element_text(hjust = 0.5))
+  
+  
+  aa <- FindClusters(aa, graph.name = "wsnn", algorithm = 3, verbose = FALSE, resolution = 1.0)
+  
+  p0 = DimPlot(aa, reduction = "wnn.umap", group.by = "condition", label = TRUE, 
+               label.size = 2.5, repel = TRUE) + ggtitle("WNN") + NoLegend()
+  
+  p1 = DimPlot(aa, reduction = "wnn.umap", group.by = "wsnn_res.1", label = TRUE, 
+               label.size = 2.5, repel = TRUE) + ggtitle("WNN") + NoLegend()
+  
+  p2 = DimPlot(aa, reduction = "wnn.umap", group.by = "Phase", label = TRUE, 
+               label.size = 2.5, repel = TRUE) + ggtitle("WNN")
+  
+  p0 + p1 + p2
+  
+  ggsave(filename = paste0(outDir, '/WNN_UMAP_conditions_clusters_cellcycle.pdf'), 
+         height = 8, width = 26)
+  
+  DefaultAssay(aa) <- "RNA"
+  FeaturePlot(aa, features = c('Foxa2', 'Pax6'), reduction = 'wnn.umap')
+  
+  
+  saveRDS(aa, file = paste0(RdataDir,
+                            'seuratObj_RAmultiome_snRNA.normalized.umap_scATAC.normalized',
+                            'noMatureNeurons.smallClusters_wnn.umap.clusters.rds'))
+  
+  
+       
+}
 
 
 ########################################################
