@@ -223,13 +223,22 @@ ggsave(filename = paste0(outDir, '/multiome_snRNA_scATAC_wnnUMAP_featurePlot_BMP
        height = 21, width = 27)
 
 
-
-
 ########################################################
 ########################################################
 # Section II: VarID method to identify the high expression noise
 # 
 ########################################################
 ########################################################
+library(RColorBrewer)
+require(Matrix)
+library(RaceID)
+require(tictoc)
+
+cc = c('day2_beforeRA', 'day2.5_RA', 'day3_RA.rep1')
+
+outDir = paste0(resDir, '/RA_symetryBreaking/gene_Noise/day2_2.5_3_v2')
+system(paste0('mkdir -p ', outDir))
+
+
 
 
