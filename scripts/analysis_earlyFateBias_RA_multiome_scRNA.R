@@ -281,6 +281,56 @@ p2 = DimPlot(aa, group.by = 'Phase', label = TRUE, repel = TRUE)
 
 p1 + p2
 
+saveRDS(aa, file = paste0(outDir, 'scRNAseq_d2_d2.5_d3_cleaned.rds'))
+
+
+##########################################
+# test clustering and find markers 
+##########################################
+aa <- FindNeighbors(aa, dims = 1:20)
+aa <- FindClusters(aa, verbose = FALSE, algorithm = 3, resolution = 0.7)
+
+p1 = DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'condition', raster=FALSE)
+p2 = DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'seurat_clusters', raster=FALSE)
+p1 + p2
+
+p1 = DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'RNA_snn_res.0.6', raster=FALSE)
+p2 = DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'RNA_snn_res.0.7', raster=FALSE)
+
+p1 + p2
+
+aa$clusters = aa$RNA_snn_res.0.7
+aa$clusters[which(aa$clusters == '7')] = '2'
+aa$clusters = droplevels(aa$clusters)
+
+p1 = DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'clusters', raster=FALSE)
+p2 = DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'Phase', raster=FALSE)
+
+p1 + p2
+
+
+markers = FindMarkers(aa, ident.1 = c('2'), ident.2 = c('5'))
+
+all.markers <- FindAllMarkers(aa, only.pos = TRUE, min.pct = 0.2, logfc.threshold = 0.4)
+all.markers %>%
+  group_by(cluster) %>%
+  top_n(n = 20, wt = avg_log2FC) -> top10
+
+DoHeatmap(aa, features = top10$gene) + NoLegend()
+
+ggsave(filename = paste0(outDir, '/mNTs_scRNA_clusters_heatmap_markerGenes.pdf'), 
+       width = 14, height = 30)
+
+all.markers %>%
+  group_by(cluster) %>%
+  top_n(n = 20, wt = avg_log2FC) -> top20
+
+
+
+##########################################
+# gene noise with VarID2
+##########################################
+aa = readRDS(file = paste0(outDir, 'scRNAseq_d2_d2.5_d3_cleaned.rds'))
 ggsave(filename = paste0(outDir, '/UMAP_conditions_cellcyclePhase.pdf'), 
        width = 16, height = 6)
 
@@ -294,6 +344,7 @@ FeaturePlot(aa, features = c('Zfp42', 'Tcf15', 'Skil', 'Lef1', 'Sox2', 'Pou5f1',
 
 ggsave(filename = paste0(outDir, '/scRNAseq_featurePlot_PluripotencyMarkers.pdf'), 
        height = 12, width = 18)
+
 
 ### drop the cell cycle related genes or not
 Drop_cellCycleGenes = FALSE
@@ -440,7 +491,7 @@ for(gamma in c(2.0, 2.5, 3, 3.5, 4)) # search for the optimal value of gamma
 # ## reload the results and make analysis
 ########################################################
 gamma = 4
-load( file = paste0(outDir, '/out_varID2_noise_gamma_', gamma, '.Rdata'))
+load(file = paste0(outDir, '/out_varID2_noise_gamma_', gamma, '_all.Rdata'))
 
 pdfname = paste0(outDir, '/plot_umap_varID_conditions.pdf')
 pdf(pdfname, width=8, height = 6)
@@ -458,11 +509,15 @@ dev.off()
 #sc <- updateSC(sc,res=res,cl=cl,noise=noise)
 
 # Gene expression (on logarithmic scale):
-gg = 'Pax6'
-plotexpmap(sc, gg, logsc=TRUE, um=TRUE, cex=1)
+plotexpmap(sc, 'Pax6', logsc=TRUE, um=TRUE, cex=1, noise = TRUE)
+
+plotexpmap(sc, 'Foxa2', logsc=TRUE, um=TRUE, noise=TRUE,cex=1)
 
 # Biological noise (on logarithmic scale):
 plotexpmap(sc, 'Zfp42', logsc=TRUE, um=TRUE, noise=TRUE,cex=0.5)
+
+plotexpmap(sc, 'Mki67', logsc=TRUE, um=TRUE, noise=TRUE,cex=0.5)
+
 
 p1 = plotexpmap(sc, 'Foxa2', logsc=TRUE, um=TRUE, noise=TRUE,cex=0.5)
 p2 = plotexpmap(sc, 'Foxa2', logsc=TRUE, um=TRUE, noise=FALSE,cex=0.5)
@@ -505,15 +560,19 @@ dev.off()
 ngenes_1 <- diffNoisyGenesTB(noise, cl, set=c(2), bgr = c(1), no_cores=32)
 ngenes_2 <- diffNoisyGenesTB(noise, cl, set=c(3), bgr = c(1), no_cores=32)
 ngenes_3 <- diffNoisyGenesTB(noise, cl, set=c(3), bgr = c(2), no_cores=32)
+ngenes_4 <- diffNoisyGenesTB(noise, cl, set=c(1), bgr = c(2), no_cores=32)
+ngenes_5 <- diffNoisyGenesTB(noise, cl, set=c(1), bgr = c(3), no_cores=32)
+ngenes_6 <- diffNoisyGenesTB(noise, cl, set=c(2), bgr = c(3), no_cores=32)
 
-save(ngenes_1, ngenes_2, ngenes_3, file = paste0(outDir, '/out_varID2_noise_diffNoisyGenes_bgs_v2.Rdata'))
+save(ngenes_1, ngenes_2, ngenes_3, ngenes_4, ngenes_5, ngenes_6,
+     file = paste0(outDir, '/out_varID2_noise_diffNoisyGenes_allpairComps.Rdata'))
 
 #xx = ngenes_1[order(ngenes_1$pvalue), ] 
 #maxNoisyGenesTB(noise,cl=cl,set=3)
 
 plotDiffNoise(ngenes_1, pthr = 10^-40, lthr = 0.5)
 
-plotexpmap(sc, 'Zfp42', logsc=TRUE, um=TRUE, noise=TRUE,cex=0.5)
+plotexpmap(sc, 'Lef1', logsc=TRUE, um=TRUE, noise=FALSE, cex=1)
 #ngenes = ngenes[order(ngenes$pvalue), ]
 #head(ngenes, 50)
 
@@ -526,8 +585,9 @@ plotexpmap(sc, 'Zfp42', logsc=TRUE, um=TRUE, noise=TRUE,cex=0.5)
 # cl_new[which(cl$partition == 3)] = 6
 # 
 # cl_new = cl_new[order(cl_new)]
-load(file = paste0(outDir, '/out_varID2_noise_diffNoisyGenes_bgs_v2.Rdata'))
-select_highNoisey_genes = function(ngenes, logfc_cutoff = 1, pval_cutoff = 10^-50)
+load(file = paste0(outDir, '/out_varID2_noise_diffNoisyGenes_allpairComps.Rdata'))
+
+select_highNoisey_genes = function(ngenes, logfc_cutoff = 1, pval_cutoff = 10^-20)
 {
   ngenes = ngenes[which(abs(ngenes$log2FC) > logfc_cutoff & ngenes$pvalue < pval_cutoff), ]
   mm = match(rownames(ngenes), c(tfs, sps, gene_examples))
@@ -538,13 +598,19 @@ select_highNoisey_genes = function(ngenes, logfc_cutoff = 1, pval_cutoff = 10^-5
 ngenes_1 = select_highNoisey_genes(ngenes_1)
 ngenes_2 = select_highNoisey_genes(ngenes_2)
 ngenes_3 = select_highNoisey_genes(ngenes_3)
+ngenes_4 = select_highNoisey_genes(ngenes_4)
+ngenes_5 = select_highNoisey_genes(ngenes_5)
+ngenes_6 = select_highNoisey_genes(ngenes_6)
 
-genes = unique(c(rownames(ngenes_1), rownames(ngenes_2), rownames(ngenes_3), 'Pax6', 'Dhrs3'))
+
+genes = unique(c(rownames(ngenes_1), rownames(ngenes_2), rownames(ngenes_3), 
+                 c(rownames(ngenes_4), rownames(ngenes_5), rownames(ngenes_6),
+                 'Pax6', 'Dhrs3', 'Lef1')))
 
 #genes = head(genes, 400)
 
-pdfname = paste0(outDir, '/plot_highNoise_genes_conditionsComparisions_top40.pdf')
-pdf(pdfname, width=8, height = 14)
+pdfname = paste0(outDir, '/plot_highNoise_genes_conditionsComparisions_tops.pdf')
+pdf(pdfname, width=8, height = 20)
 
 ph <- plotmarkergenes(sc, genes=genes, noise=TRUE,
                       cluster_rows=TRUE, 
@@ -559,53 +625,52 @@ ph <- plotmarkergenes(sc, genes=genes, noise=TRUE,
 dev.off()
 
 
-genes = rownames(ngenes)[which(abs(ngenes$log2FC)>1 | ngenes$pvalue<10^-10)]
-genes <- genes[which(!is.na(match(genes, unique(c(tfs, sps)))))]
+# genes = rownames(ngenes)[which(abs(ngenes$log2FC)>1 | ngenes$pvalue<10^-10)]
+# genes <- genes[which(!is.na(match(genes, unique(c(tfs, sps)))))]
+# 
+# pdfname = paste0(outDir, '/plot_noise_markGenes_all_v3.pdf')
+# pdf(pdfname, width=8, height = 24)
+# 
+# ph <- plotmarkergenes(sc, genes=genes, noise=TRUE,
+#                       cluster_rows=TRUE, 
+#                       cells = names(cl_new), order.cells = TRUE,
+#                       cluster_set = FALSE,
+#                       cluster_cols = FALSE,
+#                       cap = 5, #flo = -3,
+#                       zsc=TRUE, 
+#                       logscale = TRUE)
+# dev.off()
 
 
-pdfname = paste0(outDir, '/plot_noise_markGenes_all_v3.pdf')
-pdf(pdfname, width=8, height = 24)
-
-ph <- plotmarkergenes(sc, genes=genes, noise=TRUE,
-                      cluster_rows=TRUE, 
-                      cells = names(cl_new), order.cells = TRUE,
-                      cluster_set = FALSE,
-                      cluster_cols = FALSE,
-                      cap = 5, #flo = -3,
-                      zsc=TRUE, 
-                      logscale = TRUE)
-dev.off()
-
-
-##########################################
-# To further investigate transcriptome variability and related quantities, 
-# the function quantKnn allows computation of average noise levels across cells, 
-# cell-to-cell transcriptome correlation, and total UMI counts.
-##########################################
-library(parallel)
-load(file =  paste0(outDir, '/out_varID2_noise_diffNoisyGenes_v2.Rdata'))
-
-parallel::detectCores()
-
-tic()
-qn <- quantKnn(res, noise, sc, pvalue = 0.01, minN = 5, no_cores = 64)
-toc()
-
-
-#sc <- compumap(sc, min_dist=0.1, n_neighbors =20)
-
-StemCluster <- 1
-#plotQuantMap(qn,"noise.av",sc,um=TRUE,ceil=.6,cex=1)
-
-plotQuantMap(qn,"noise.av",sc,box=TRUE,cluster=StemCluster,  set = c(1, 2, 4, 6, 3, 7, 8, 9, 10, 11))
-
-#plotQuantMap(qn,"local.corr",sc,um=TRUE,logsc=TRUE,cex=1)
-
-plotQuantMap(qn,"umi",sc,box=TRUE,logsc=TRUE,cluster=StemCluster)
-
-pdfname = paste0(outDir, '/boxplot_cell_cell_correlation_neighborhood.pdf')
-pdf(pdfname, width=7, height = 5)
-plotQuantMap(qn,"local.corr",sc,box=TRUE,logsc=TRUE,cluster=StemCluster, set = c(1, 2, 4,5, 6, 3, 7, 8, 9, 10, 11))
-
-dev.off()
-
+# ##########################################
+# # To further investigate transcriptome variability and related quantities, 
+# # the function quantKnn allows computation of average noise levels across cells, 
+# # cell-to-cell transcriptome correlation, and total UMI counts.
+# ##########################################
+# library(parallel)
+# load(file =  paste0(outDir, '/out_varID2_noise_diffNoisyGenes_v2.Rdata'))
+# 
+# parallel::detectCores()
+# 
+# tic()
+# qn <- quantKnn(res, noise, sc, pvalue = 0.01, minN = 5, no_cores = 64)
+# toc()
+# 
+# 
+# #sc <- compumap(sc, min_dist=0.1, n_neighbors =20)
+# 
+# StemCluster <- 1
+# #plotQuantMap(qn,"noise.av",sc,um=TRUE,ceil=.6,cex=1)
+# 
+# plotQuantMap(qn,"noise.av",sc,box=TRUE,cluster=StemCluster,  set = c(1, 2, 4, 6, 3, 7, 8, 9, 10, 11))
+# 
+# #plotQuantMap(qn,"local.corr",sc,um=TRUE,logsc=TRUE,cex=1)
+# 
+# plotQuantMap(qn,"umi",sc,box=TRUE,logsc=TRUE,cluster=StemCluster)
+# 
+# pdfname = paste0(outDir, '/boxplot_cell_cell_correlation_neighborhood.pdf')
+# pdf(pdfname, width=7, height = 5)
+# plotQuantMap(qn,"local.corr",sc,box=TRUE,logsc=TRUE,cluster=StemCluster, set = c(1, 2, 4,5, 6, 3, 7, 8, 9, 10, 11))
+# 
+# dev.off()
+# 
