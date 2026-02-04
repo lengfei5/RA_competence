@@ -140,10 +140,10 @@ sps = readRDS(file = paste0('../data/annotations/curated_signaling.pathways_gene
 #               reduction.name = "wnn.umap", 
 #               reduction.key = "wnnUMAP_", min.dist = 0.1)
 
-FeaturePlot(aa, features = c('Pax6', 'Foxa2'), reduction = 'wnn.umap')
+FeaturePlot(aa, features = c('Pax6', 'Foxa2', 'Cdh1', 'Cdh2'), reduction = 'wnn.umap')
 
-ggsave(filename = paste0(outDir, '/multiome_snRNA_scATAC_wnnUMAP_featurePlot_Pax6_Foxa2.pdf'), 
-       height = 6, width = 17)
+ggsave(filename = paste0(outDir, '/multiome_snRNA_scATAC_wnnUMAP_featurePlot_Pax6_Foxa2_Cdh1.2.pdf'), 
+       height = 12, width = 17)
 
 ## # naive pluripotency
 genes = c('Nanog', 'Nr5a2', 'Prdm14', 'Klf4', 'Fgf4', 'Esrrb', 'Tcf3', 'Tbx3')
@@ -287,50 +287,108 @@ saveRDS(aa, file = paste0(outDir, 'scRNAseq_d2_d2.5_d3_cleaned.rds'))
 ##########################################
 # test clustering and find markers 
 ##########################################
-aa <- FindNeighbors(aa, dims = 1:20)
-aa <- FindClusters(aa, verbose = FALSE, algorithm = 3, resolution = 0.7)
+aa = readRDS(file = paste0(outDir, 'scRNAseq_d2_d2.5_d3_cleaned.rds'))
 
-p1 = DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'condition', raster=FALSE)
-p2 = DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'seurat_clusters', raster=FALSE)
-p1 + p2
+Drop_cellCycleGenes = TRUE
+if(Drop_cellCycleGenes){
+  ## remove cell cycle related genes
+  scaledMatrix = GetAssayData(aa, slot = c("scale.data"))
+  
+  diff <- scater::getVarianceExplained(scaledMatrix, data.frame(phase = aa$Phase))
+  diff = data.frame(diff, gene = rownames(diff))
+  diff = diff[order(-diff$phase), ]
+  
+  hist(diff$phase, breaks = 100); abline(v = c(1:5), col = 'red')
+  
+  genes_discard = diff$gene[which(diff$phase > 5)]
+  cat(length(genes_discard), 'genes to discard \n')
+  
+  aa = subset(aa, features = setdiff(rownames(aa), genes_discard))
+  
+}
 
-p1 = DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'RNA_snn_res.0.6', raster=FALSE)
-p2 = DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'RNA_snn_res.0.7', raster=FALSE)
+saveRDS(aa, file = paste0(outDir, 'scRNAseq_d2_d2.5_d3_cleaned_dropcellCycleGenes.rds'))
 
-p1 + p2
-
-aa$clusters = aa$RNA_snn_res.0.7
-aa$clusters[which(aa$clusters == '7')] = '2'
-aa$clusters = droplevels(aa$clusters)
-
-p1 = DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'clusters', raster=FALSE)
-p2 = DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'Phase', raster=FALSE)
-
-p1 + p2
-
-
-markers = FindMarkers(aa, ident.1 = c('2'), ident.2 = c('5'))
-
-all.markers <- FindAllMarkers(aa, only.pos = TRUE, min.pct = 0.2, logfc.threshold = 0.4)
-all.markers %>%
-  group_by(cluster) %>%
-  top_n(n = 20, wt = avg_log2FC) -> top10
-
-DoHeatmap(aa, features = top10$gene) + NoLegend()
-
-ggsave(filename = paste0(outDir, '/mNTs_scRNA_clusters_heatmap_markerGenes.pdf'), 
-       width = 14, height = 30)
-
-all.markers %>%
-  group_by(cluster) %>%
-  top_n(n = 20, wt = avg_log2FC) -> top20
-
+subclustering_eachTimepoint = FALSE
+if(subclustering_eachTimepoint){
+  
+  aa = readRDS(file = paste0(outDir, 'scRNAseq_d2_d2.5_d3_cleaned_dropcellCycleGenes.rds'))
+  
+  c = "day3_RA.rep1"
+  aa = subset(aa, cells = colnames(aa)[which(aa$condition == c)])
+  aa$condition = droplevels(aa$condition)
+  
+  aa <- FindVariableFeatures(aa, selection.method = "vst", nfeatures = 1000)
+  aa <- RunPCA(aa, verbose = FALSE, weight.by.var = FALSE)
+  ElbowPlot(aa, ndims = 50)
+  
+  Idents(aa) = aa$condition
+  aa <- RunUMAP(aa, dims = 1:10, n.neighbors = 30, min.dist = 0.1)
+  
+  p1 = DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'condition', raster=FALSE)
+  p2 = DimPlot(aa, group.by = 'Phase', label = TRUE, repel = TRUE) 
+  
+  p1 + p2
+  
+  aa <- FindNeighbors(aa, dims = 1:10)
+  aa <- FindClusters(aa, verbose = FALSE, algorithm = 3, resolution = 0.5)
+  
+  aa <- FindClusters(aa, verbose = FALSE, algorithm = 3, resolution = 0.4)
+  
+  
+  p1 = DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'condition', raster=FALSE)
+  p2 = DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'seurat_clusters', raster=FALSE)
+  p1 + p2
+  
+  #p1 = DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'RNA_snn_res.0.5', raster=FALSE)
+  #p2 = DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'RNA_snn_res.0.7', raster=FALSE)
+  #p1 + p2
+  
+  aa$clusters = aa$seurat_clusters
+  #aa$clusters[which(aa$clusters == '7')] = '2'
+  #aa$clusters = droplevels(aa$clusters)
+  
+  p1 = DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'clusters', raster=FALSE)
+  p2 = DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'Phase', raster=FALSE)
+  
+  p1 + p2
+  
+  ggsave(filename = paste0(outDir, '/scRNAseq_dropcellCycleGenes_clusters_condition_', c, '.pdf'), 
+         height = 12, width = 18)
+  
+  
+  FeaturePlot(aa, features = c('Pax6', 'Foxa2'))
+  
+  #markers = FindMarkers(aa, ident.1 = c('2'), ident.2 = c('5'))
+  
+  all.markers <- FindAllMarkers(aa, only.pos = TRUE)
+  all.markers %>%
+    group_by(cluster) %>%
+    top_n(n = 20, wt = avg_log2FC) -> top10
+  
+  DoHeatmap(aa, features = top10$gene) + NoLegend()
+  
+  ggsave(filename = paste0(outDir, '/mNTs_scRNA_clusters_heatmap_markerGenes_condition_', c, '.pdf'), 
+         width = 14, height = 24)
+  
+  FeaturePlot(aa, features = c('Cdh1', 'Sox17'))
+  
+  ggsave(filename = paste0(outDir, '/scRNAseq_dropcellCycleGenes_featureExamples_', c, '.pdf'), 
+         height = 12, width = 18)
+  
+  
+  #FeaturePlot(aa, features = c('Atoh1'))
+  
+}
 
 
 ##########################################
 # gene noise with VarID2
 ##########################################
 aa = readRDS(file = paste0(outDir, 'scRNAseq_d2_d2.5_d3_cleaned.rds'))
+outDir = paste0(resDir, '/mNTs_multiome_RA_searching_earlyBias/gene_Noise_day2_2.5_3_scRNAseq')
+system(paste0('mkdir -p ', outDir))
+
 ggsave(filename = paste0(outDir, '/UMAP_conditions_cellcyclePhase.pdf'), 
        width = 16, height = 6)
 
@@ -362,6 +420,7 @@ if(Drop_cellCycleGenes){
   cat(length(genes_discard), 'genes to discard \n')
   
   aa = subset(aa, features = setdiff(rownames(aa), genes_discard))
+  
   
 }
 
