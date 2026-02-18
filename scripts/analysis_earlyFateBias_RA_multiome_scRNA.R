@@ -529,7 +529,7 @@ for(gamma in c(2.0, 2.5, 3, 3.5, 4, 5)) # search for the optimal value of gamma
   
   tic()
   noise <- compTBNoise(res, x, gamma = gamma, 
-                       pvalue=0.01, no_cores=64) # take 40 minutes  
+                       pvalue=0.01, no_cores=64) # take 40 minutes, required ~80G memory  
   toc()
   
   
@@ -547,8 +547,8 @@ for(gamma in c(2.0, 2.5, 3, 3.5, 4, 5)) # search for the optimal value of gamma
   save(sc, noise, cl, res, 
        file = paste0(outDir, '/out_varID2_noise_gamma_', gamma, '_all.Rdata'))
   
-  
 }
+
 
 ########################################################
 # ## reload the results and make analysis
@@ -556,17 +556,17 @@ for(gamma in c(2.0, 2.5, 3, 3.5, 4, 5)) # search for the optimal value of gamma
 # The prior parameter gamma should be chosen such that 
 # the correlation between mean noise across cells and total UMI count per cell is minimal. 
 # This dependence can be analysed with the function plotUMINoise
-gamma = 4
+gamma = 5
 load(file = paste0(outDir, '/out_varID2_noise_gamma_', gamma, '_all.Rdata'))
 plotUMINoise(sc,noise,log.scale=TRUE)
 
-plotExpNoise("Foxa2", sc, noise,norm=TRUE,log="xy")
+plotExpNoise("Foxa2", sc, noise,norm=TRUE, log="xy")
 
 pdfname = paste0(outDir, '/plot_umap_varID_conditions.pdf')
 pdf(pdfname, width=8, height = 6)
 
-p1 = DimPlot(aa, group.by = 'condition', label = TRUE, repel = TRUE)
-plot(p1)
+#p1 = DimPlot(aa, group.by = 'condition', label = TRUE, repel = TRUE)
+#plot(p1)
 plotmap(sc, um=TRUE, tp = 1, cex = 0.3)
 
 dev.off()
@@ -582,12 +582,16 @@ dev.off()
 plotExpNoise("Foxa2", sc, noise,norm=TRUE,log="xy")
 
 # Gene expression (on logarithmic scale):
+plotexpmap(sc, 'Pax6', logsc=TRUE, um=TRUE, noise=FALSE, cex=1)
+
 plotexpmap(sc, 'Pax6', logsc=TRUE, um=TRUE, cex=1, noise = TRUE)
 
+plotexpmap(sc, 'Foxa2', logsc=TRUE, um=TRUE, noise=FALSE,cex=1)
 plotexpmap(sc, 'Foxa2', logsc=TRUE, um=TRUE, noise=TRUE,cex=1)
 
 # Biological noise (on logarithmic scale):
-plotexpmap(sc, 'Zfp42', logsc=TRUE, um=TRUE, noise=TRUE,cex=0.5)
+plotexpmap(sc, 'Zfp42', logsc=TRUE, um=TRUE, noise=TRUE,cex=1)
+plotexpmap(sc, 'Zfp42', logsc=TRUE, um=TRUE, noise=TRUE,cex=1)
 
 plotexpmap(sc, 'Mki67', logsc=TRUE, um=TRUE, noise=TRUE,cex=0.5)
 
@@ -596,10 +600,6 @@ p2 = plotexpmap(sc, 'Foxa2', logsc=TRUE, um=TRUE, noise=FALSE,cex=1)
 
 p1 / p2
 
-p1 = plotexpmap(sc, 'Foxa2', logsc=TRUE, um=TRUE, noise=TRUE,cex=1)
-p2 = plotexpmap(sc, 'Foxa2', logsc=TRUE, um=TRUE, noise=FALSE,cex=1)
-
-p1 + p2
 
 pdfname = paste0(outDir, '/plot_noise_geneExamples.pdf')
 pdf(pdfname, width=8, height = 6)
@@ -608,7 +608,8 @@ for(n in 1:length(gene_examples))
 {
   if(!is.na(match(gene_examples[n], sc@genes))){
     cat(n, '--', gene_examples[n], '\n')
-    plotexpmap(sc, gene_examples[n], logsc=TRUE, um=TRUE, noise=TRUE, cex=0.5)
+    plotexpmap(sc, gene_examples[n], logsc=TRUE, um=TRUE, noise=FALSE, cex=1)
+    plotexpmap(sc, gene_examples[n], logsc=TRUE, um=TRUE, noise=TRUE, cex=1)
   }else{
     cat(n, '--', gene_examples[n], ' missing \n')
   }
@@ -617,9 +618,39 @@ for(n in 1:length(gene_examples))
 
 dev.off()
 
+genes <- gene_examples
+mm = match(genes, rownames(sc@noise))
+genes = genes[!is.na(mm)]
+
+pdfname = paste0(outDir, '/plot_expression_noise_geneExamples_heatmap.pdf')
+pdf(pdfname, width=8, height = 12)
+
+ph <- plotmarkergenes(sc,genes=genes,noise=FALSE, )
+
+plotmarkergenes(sc,genes=genes[ph$tree_row$order], noise=TRUE,cluster_rows=FALSE)
+
+dev.off()
+
 ##########################################
-# how to select noisy genes
+# Select noisy genes for each time point 
 ##########################################
+mgenes1 <- maxNoisyGenesTB(noise,cl=cl, set=1)
+head(mgenes1)
+
+mgenes2 <- maxNoisyGenesTB(noise,cl=cl, set=2)
+
+mgenes3 <- maxNoisyGenesTB(noise,cl=cl, set=3)
+
+##     Reg3b   Tmem38b    Hspa1b    Hspa1a     H2afx     Reg3g 
+## 1.5410659 1.0669050 1.0629981 0.9270232 0.8132892 0.7873700
+
+save(mgenes1, mgenes2, mgenes3, 
+     file = paste0(outDir, '/out_varID2_noise_maxNoisyGenesTB.Rdata'))
+
+
+
+plotmarkergenes(sc,genes=head(names(mgenes),50), noise=TRUE)
+
 # test = noise$epsilon
 # ss = apply(test, 1, function(x) sum(x>1, na.rm = TRUE))
 # genes = rownames(test)[which(ss>50)]
@@ -634,22 +665,18 @@ dev.off()
 #plotmarkergenes(sc,genes=genes[ph$tree_row$order],noise=TRUE,cluster_rows=FALSE)
 #fractDotPlot(sc, genes, zsc=TRUE)
 
-ngenes_1 <- diffNoisyGenesTB(noise, cl, set=c(2), bgr = c(1), no_cores=32)
-ngenes_2 <- diffNoisyGenesTB(noise, cl, set=c(3), bgr = c(1), no_cores=32)
-ngenes_3 <- diffNoisyGenesTB(noise, cl, set=c(3), bgr = c(2), no_cores=32)
-ngenes_4 <- diffNoisyGenesTB(noise, cl, set=c(1), bgr = c(2), no_cores=32)
-ngenes_5 <- diffNoisyGenesTB(noise, cl, set=c(1), bgr = c(3), no_cores=32)
-ngenes_6 <- diffNoisyGenesTB(noise, cl, set=c(2), bgr = c(3), no_cores=32)
-
-save(ngenes_1, ngenes_2, ngenes_3, ngenes_4, ngenes_5, ngenes_6,
-     file = paste0(outDir, '/out_varID2_noise_diffNoisyGenes_allpairComps.Rdata'))
+# ngenes_1 <- diffNoisyGenesTB(noise, cl, set=c(2), bgr = c(1), no_cores=32)
+# ngenes_2 <- diffNoisyGenesTB(noise, cl, set=c(3), bgr = c(1), no_cores=32)
+# ngenes_3 <- diffNoisyGenesTB(noise, cl, set=c(3), bgr = c(2), no_cores=32)
+# ngenes_4 <- diffNoisyGenesTB(noise, cl, set=c(1), bgr = c(2), no_cores=32)
+# ngenes_5 <- diffNoisyGenesTB(noise, cl, set=c(1), bgr = c(3), no_cores=32)
+# ngenes_6 <- diffNoisyGenesTB(noise, cl, set=c(2), bgr = c(3), no_cores=32)
 
 #xx = ngenes_1[order(ngenes_1$pvalue), ] 
 #maxNoisyGenesTB(noise,cl=cl,set=3)
 
-plotDiffNoise(ngenes_1, pthr = 10^-40, lthr = 0.5)
-
-plotexpmap(sc, 'Lef1', logsc=TRUE, um=TRUE, noise=FALSE, cex=1)
+#plotDiffNoise(ngenes_1, pthr = 10^-40, lthr = 0.5)
+#plotexpmap(sc, 'Lef1', logsc=TRUE, um=TRUE, noise=FALSE, cex=1)
 #ngenes = ngenes[order(ngenes$pvalue), ]
 #head(ngenes, 50)
 
