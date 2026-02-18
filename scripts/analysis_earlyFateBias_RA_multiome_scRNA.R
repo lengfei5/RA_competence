@@ -40,6 +40,13 @@ library(edgeR)
 library(future)
 library(tictoc)
 
+library(RColorBrewer)
+require(Matrix)
+library(RaceID)
+require(tictoc)
+require(gridExtra)
+require(cowplot)
+
 options(future.globals.maxSize = 200 * 1024^3)
 set.seed(1234)
 mem_used()
@@ -228,11 +235,6 @@ ggsave(filename = paste0(outDir, '/multiome_snRNA_scATAC_wnnUMAP_featurePlot_BMP
 # 
 ########################################################
 ########################################################
-library(RColorBrewer)
-require(Matrix)
-library(RaceID)
-require(tictoc)
-
 cc = c('day2_beforeRA', 'day2.5_RA', 'day3_RA.rep1')
 
 outDir = paste0(resDir, '/mNTs_multiome_RA_searching_earlyBias/gene_Noise_day2_2.5_3_scRNAseq')
@@ -386,6 +388,7 @@ if(subclustering_eachTimepoint){
 # gene noise with VarID2
 ##########################################
 aa = readRDS(file = paste0(outDir, 'scRNAseq_d2_d2.5_d3_cleaned.rds'))
+
 outDir = paste0(resDir, '/mNTs_multiome_RA_searching_earlyBias/gene_Noise_day2_2.5_3_scRNAseq')
 system(paste0('mkdir -p ', outDir))
 
@@ -420,7 +423,6 @@ if(Drop_cellCycleGenes){
   cat(length(genes_discard), 'genes to discard \n')
   
   aa = subset(aa, features = setdiff(rownames(aa), genes_discard))
-  
   
 }
 
@@ -513,8 +515,9 @@ save(sc, cl, res,
 # If a positive correlation is observed, gamma should be increased in order to weaken the prior. 
 # If the correlation is negative, gamma should be decreased in order to increase the strength of the prior.
 ##########################################
-for(gamma in c(2.0, 2.5, 3, 3.5, 4)) # search for the optimal value of gamma
+for(gamma in c(2.0, 2.5, 3, 3.5, 4, 5)) # search for the optimal value of gamma
 {
+  # gamma = 5
   cat('gamma -- ', gamma, '\n')
   
   load(file = paste0(outDir, '/out_varID2_scSeq_pruneKnn_all.Rdata'))
@@ -544,17 +547,26 @@ for(gamma in c(2.0, 2.5, 3, 3.5, 4)) # search for the optimal value of gamma
   save(sc, noise, cl, res, 
        file = paste0(outDir, '/out_varID2_noise_gamma_', gamma, '_all.Rdata'))
   
+  
 }
 
 ########################################################
 # ## reload the results and make analysis
 ########################################################
+# The prior parameter gamma should be chosen such that 
+# the correlation between mean noise across cells and total UMI count per cell is minimal. 
+# This dependence can be analysed with the function plotUMINoise
 gamma = 4
 load(file = paste0(outDir, '/out_varID2_noise_gamma_', gamma, '_all.Rdata'))
+plotUMINoise(sc,noise,log.scale=TRUE)
+
+plotExpNoise("Foxa2", sc, noise,norm=TRUE,log="xy")
 
 pdfname = paste0(outDir, '/plot_umap_varID_conditions.pdf')
 pdf(pdfname, width=8, height = 6)
 
+p1 = DimPlot(aa, group.by = 'condition', label = TRUE, repel = TRUE)
+plot(p1)
 plotmap(sc, um=TRUE, tp = 1, cex = 0.3)
 
 dev.off()
@@ -567,6 +579,8 @@ dev.off()
 #plotmap(sc, um=TRUE, tp = 1, cex = 0.3)
 #sc <- updateSC(sc,res=res,cl=cl,noise=noise)
 
+plotExpNoise("Foxa2", sc, noise,norm=TRUE,log="xy")
+
 # Gene expression (on logarithmic scale):
 plotexpmap(sc, 'Pax6', logsc=TRUE, um=TRUE, cex=1, noise = TRUE)
 
@@ -577,9 +591,13 @@ plotexpmap(sc, 'Zfp42', logsc=TRUE, um=TRUE, noise=TRUE,cex=0.5)
 
 plotexpmap(sc, 'Mki67', logsc=TRUE, um=TRUE, noise=TRUE,cex=0.5)
 
+p1 = plotexpmap(sc, 'Pax6', logsc=TRUE, um=TRUE, noise=FALSE,cex=1)
+p2 = plotexpmap(sc, 'Foxa2', logsc=TRUE, um=TRUE, noise=FALSE,cex=1)
 
-p1 = plotexpmap(sc, 'Foxa2', logsc=TRUE, um=TRUE, noise=TRUE,cex=0.5)
-p2 = plotexpmap(sc, 'Foxa2', logsc=TRUE, um=TRUE, noise=FALSE,cex=0.5)
+p1 / p2
+
+p1 = plotexpmap(sc, 'Foxa2', logsc=TRUE, um=TRUE, noise=TRUE,cex=1)
+p2 = plotexpmap(sc, 'Foxa2', logsc=TRUE, um=TRUE, noise=FALSE,cex=1)
 
 p1 + p2
 
@@ -700,36 +718,3 @@ dev.off()
 #                       logscale = TRUE)
 # dev.off()
 
-
-# ##########################################
-# # To further investigate transcriptome variability and related quantities, 
-# # the function quantKnn allows computation of average noise levels across cells, 
-# # cell-to-cell transcriptome correlation, and total UMI counts.
-# ##########################################
-# library(parallel)
-# load(file =  paste0(outDir, '/out_varID2_noise_diffNoisyGenes_v2.Rdata'))
-# 
-# parallel::detectCores()
-# 
-# tic()
-# qn <- quantKnn(res, noise, sc, pvalue = 0.01, minN = 5, no_cores = 64)
-# toc()
-# 
-# 
-# #sc <- compumap(sc, min_dist=0.1, n_neighbors =20)
-# 
-# StemCluster <- 1
-# #plotQuantMap(qn,"noise.av",sc,um=TRUE,ceil=.6,cex=1)
-# 
-# plotQuantMap(qn,"noise.av",sc,box=TRUE,cluster=StemCluster,  set = c(1, 2, 4, 6, 3, 7, 8, 9, 10, 11))
-# 
-# #plotQuantMap(qn,"local.corr",sc,um=TRUE,logsc=TRUE,cex=1)
-# 
-# plotQuantMap(qn,"umi",sc,box=TRUE,logsc=TRUE,cluster=StemCluster)
-# 
-# pdfname = paste0(outDir, '/boxplot_cell_cell_correlation_neighborhood.pdf')
-# pdf(pdfname, width=7, height = 5)
-# plotQuantMap(qn,"local.corr",sc,box=TRUE,logsc=TRUE,cluster=StemCluster, set = c(1, 2, 4,5, 6, 3, 7, 8, 9, 10, 11))
-# 
-# dev.off()
-# 
