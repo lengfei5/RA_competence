@@ -235,11 +235,13 @@ ggsave(filename = paste0(outDir, '/multiome_snRNA_scATAC_wnnUMAP_featurePlot_BMP
 # 
 ########################################################
 ########################################################
-cc = c('day2_beforeRA', 'day2.5_RA', 'day3_RA.rep1')
+outDir = paste0(resDir, '/mNTs_multiome_RA_searching_earlyBias/',
+                'gene_Noise_day2_2.5_3_scRNAseq_rmCellCycleGenes')
 
-outDir = paste0(resDir, '/mNTs_multiome_RA_searching_earlyBias/gene_Noise_day2_2.5_3_scRNAseq')
 system(paste0('mkdir -p ', outDir))
 
+
+cc = c('day2_beforeRA', 'day2.5_RA', 'day3_RA.rep1')
 aa = readRDS(file = paste0('../results/Rdata/', 
                            'seuratObject_RA.symmetry.breaking_doublet.rm_mt.ribo.filtered_regressout.nCounts_',
                            'cellCycleScoring_annot.v2_newUMAP_clusters_sparseFeatures', '_timePoint_',
@@ -289,32 +291,11 @@ saveRDS(aa, file = paste0(outDir, 'scRNAseq_d2_d2.5_d3_cleaned.rds'))
 ##########################################
 # test clustering and find markers 
 ##########################################
-aa = readRDS(file = paste0(outDir, 'scRNAseq_d2_d2.5_d3_cleaned.rds'))
-
-Drop_cellCycleGenes = TRUE
-if(Drop_cellCycleGenes){
-  ## remove cell cycle related genes
-  scaledMatrix = GetAssayData(aa, slot = c("scale.data"))
-  
-  diff <- scater::getVarianceExplained(scaledMatrix, data.frame(phase = aa$Phase))
-  diff = data.frame(diff, gene = rownames(diff))
-  diff = diff[order(-diff$phase), ]
-  
-  hist(diff$phase, breaks = 100); abline(v = c(1:5), col = 'red')
-  
-  genes_discard = diff$gene[which(diff$phase > 5)]
-  cat(length(genes_discard), 'genes to discard \n')
-  
-  aa = subset(aa, features = setdiff(rownames(aa), genes_discard))
-  
-}
-
-saveRDS(aa, file = paste0(outDir, 'scRNAseq_d2_d2.5_d3_cleaned_dropcellCycleGenes.rds'))
-
 subclustering_eachTimepoint = FALSE
 if(subclustering_eachTimepoint){
   
-  aa = readRDS(file = paste0(outDir, 'scRNAseq_d2_d2.5_d3_cleaned_dropcellCycleGenes.rds'))
+  aa = readRDS(file = paste0(outDir, 'scRNAseq_d2_d2.5_d3_cleaned.rds'))
+  #aa = readRDS(file = paste0(outDir, 'scRNAseq_d2_d2.5_d3_cleaned_dropcellCycleGenes.rds'))
   
   c = "day3_RA.rep1"
   aa = subset(aa, cells = colnames(aa)[which(aa$condition == c)])
@@ -389,8 +370,13 @@ if(subclustering_eachTimepoint){
 ##########################################
 aa = readRDS(file = paste0(outDir, 'scRNAseq_d2_d2.5_d3_cleaned.rds'))
 
-outDir = paste0(resDir, '/mNTs_multiome_RA_searching_earlyBias/gene_Noise_day2_2.5_3_scRNAseq')
-system(paste0('mkdir -p ', outDir))
+#outDir = paste0(resDir, '/mNTs_multiome_RA_searching_earlyBias/gene_Noise_day2_2.5_3_scRNAseq')
+#system(paste0('mkdir -p ', outDir))
+
+p1 = DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'condition', raster=FALSE)
+p2 = DimPlot(aa, group.by = 'Phase', label = TRUE, repel = TRUE) 
+
+p1 + p2
 
 ggsave(filename = paste0(outDir, '/UMAP_conditions_cellcyclePhase.pdf'), 
        width = 16, height = 6)
@@ -410,6 +396,7 @@ ggsave(filename = paste0(outDir, '/scRNAseq_featurePlot_PluripotencyMarkers.pdf'
 ### drop the cell cycle related genes or not
 Drop_cellCycleGenes = FALSE
 if(Drop_cellCycleGenes){
+  
   ## remove cell cycle related genes
   scaledMatrix = GetAssayData(aa, slot = c("scale.data"))
   
@@ -515,7 +502,7 @@ save(sc, cl, res,
 # If a positive correlation is observed, gamma should be increased in order to weaken the prior. 
 # If the correlation is negative, gamma should be decreased in order to increase the strength of the prior.
 ##########################################
-for(gamma in c(2.0, 2.5, 3, 3.5, 4, 5)) # search for the optimal value of gamma
+for(gamma in c(2, 3, 4, 5, 6)) # search for the optimal value of gamma
 {
   # gamma = 5
   cat('gamma -- ', gamma, '\n')
@@ -556,7 +543,7 @@ for(gamma in c(2.0, 2.5, 3, 3.5, 4, 5)) # search for the optimal value of gamma
 # The prior parameter gamma should be chosen such that 
 # the correlation between mean noise across cells and total UMI count per cell is minimal. 
 # This dependence can be analysed with the function plotUMINoise
-gamma = 5
+gamma = 3
 load(file = paste0(outDir, '/out_varID2_noise_gamma_', gamma, '_all.Rdata'))
 plotUMINoise(sc,noise,log.scale=TRUE)
 
@@ -641,15 +628,11 @@ mgenes2 <- maxNoisyGenesTB(noise,cl=cl, set=2)
 
 mgenes3 <- maxNoisyGenesTB(noise,cl=cl, set=3)
 
-##     Reg3b   Tmem38b    Hspa1b    Hspa1a     H2afx     Reg3g 
-## 1.5410659 1.0669050 1.0629981 0.9270232 0.8132892 0.7873700
-
 save(mgenes1, mgenes2, mgenes3, 
      file = paste0(outDir, '/out_varID2_noise_maxNoisyGenesTB.Rdata'))
 
 
-
-plotmarkergenes(sc,genes=head(names(mgenes),50), noise=TRUE)
+plotmarkergenes(sc,genes=head(names(mgenes1),50), noise=TRUE)
 
 # test = noise$epsilon
 # ss = apply(test, 1, function(x) sum(x>1, na.rm = TRUE))
@@ -689,44 +672,99 @@ plotmarkergenes(sc,genes=head(names(mgenes),50), noise=TRUE)
 # cl_new[which(cl$partition == 3)] = 6
 # 
 # cl_new = cl_new[order(cl_new)]
-load(file = paste0(outDir, '/out_varID2_noise_diffNoisyGenes_allpairComps.Rdata'))
-
-select_highNoisey_genes = function(ngenes, logfc_cutoff = 1, pval_cutoff = 10^-20)
-{
-  ngenes = ngenes[which(abs(ngenes$log2FC) > logfc_cutoff & ngenes$pvalue < pval_cutoff), ]
-  mm = match(rownames(ngenes), c(tfs, sps, gene_examples))
-  ngenes = ngenes[which(!is.na(mm)), ]
-  return(ngenes)
-}
-
-ngenes_1 = select_highNoisey_genes(ngenes_1)
-ngenes_2 = select_highNoisey_genes(ngenes_2)
-ngenes_3 = select_highNoisey_genes(ngenes_3)
-ngenes_4 = select_highNoisey_genes(ngenes_4)
-ngenes_5 = select_highNoisey_genes(ngenes_5)
-ngenes_6 = select_highNoisey_genes(ngenes_6)
+#load(file = paste0(outDir, '/out_varID2_noise_diffNoisyGenes_allpairComps.Rdata'))
 
 
-genes = unique(c(rownames(ngenes_1), rownames(ngenes_2), rownames(ngenes_3), 
-                 c(rownames(ngenes_4), rownames(ngenes_5), rownames(ngenes_6),
-                 'Pax6', 'Dhrs3', 'Lef1')))
 
+# select_highNoisey_genes = function(ngenes, logfc_cutoff = 1, pval_cutoff = 10^-20)
+# {
+#   ngenes = ngenes[which(abs(ngenes$log2FC) > logfc_cutoff & ngenes$pvalue < pval_cutoff), ]
+#   mm = match(rownames(ngenes), c(tfs, sps, gene_examples))
+#   ngenes = ngenes[which(!is.na(mm)), ]
+#   return(ngenes)
+# }
+# 
+# ngenes_1 = select_highNoisey_genes(ngenes_1)
+# ngenes_2 = select_highNoisey_genes(ngenes_2)
+# ngenes_3 = select_highNoisey_genes(ngenes_3)
+# ngenes_4 = select_highNoisey_genes(ngenes_4)
+# ngenes_5 = select_highNoisey_genes(ngenes_5)
+# ngenes_6 = select_highNoisey_genes(ngenes_6)
+
+# genes = unique(c(rownames(ngenes_1), rownames(ngenes_2), rownames(ngenes_3), 
+#                  c(rownames(ngenes_4), rownames(ngenes_5), rownames(ngenes_6),
+#                  'Pax6', 'Dhrs3', 'Lef1')))
+
+genes = unique(c(names(mgenes1)[which(mgenes1 > 0.7)], 
+                 names(mgenes2)[which(mgenes2 > 0.7)], 
+                 names(mgenes3)[which(mgenes3 > 0.7)],          
+                 'Pax6', 'Dhrs3', 'Lef1'))
+mm = match(genes, c(tfs, sps, gene_examples))
+genes = genes[which(!is.na(mm))]        
+                 
 #genes = head(genes, 400)
+plotmarkergenes(sc,genes=head(names(mgenes1),50), noise=TRUE)
 
-pdfname = paste0(outDir, '/plot_highNoise_genes_conditionsComparisions_tops.pdf')
-pdf(pdfname, width=8, height = 20)
 
-ph <- plotmarkergenes(sc, genes=genes, noise=TRUE,
+pdfname = paste0(outDir, '/plot_highNoise_genes_byTimpoint_tops.pdf')
+pdf(pdfname, width=8, height = 16)
+
+ph <- plotmarkergenes(sc, genes=genes, 
+                      noise=TRUE,
                       cluster_rows=TRUE, 
                       #cells = names(cl_new), 
                       order.cells = TRUE,
                       cluster_set = FALSE,
                       cluster_cols = FALSE,
                       cap = 5, #flo = -3,
-                      zsc=TRUE, 
+                      zsc=FALSE, 
                       logscale = TRUE)
 
 dev.off()
+
+
+##########################################
+# GO term test for each time point 
+##########################################
+library(enrichplot)
+library(clusterProfiler)
+library(stringr)
+library(org.Mm.eg.db)
+
+genes = unique(c(names(mgenes1)[which(mgenes2 > 0.6)]))
+
+ego <-  enrichGO(gene         = genes,
+                 #universe     = bgs0.df$ENSEMBL,
+                 #OrgDb         = org.Hs.eg.db,
+                 OrgDb         = org.Mm.eg.db,
+                 #keyType       = 'ENSEMBL',
+                 keyType =  "SYMBOL",
+                 ont           = "BP",
+                 pAdjustMethod = "BH",
+                 #pvalueCutoff  = 0.01,
+                 #qvalueCutoff  = 0.2,
+                 readable=FALSE)
+#head(ego)
+
+pdfname = paste0(outDir, '/Goterm_enrichment_cluster2.pdf')
+pdf(pdfname, width=8, height = 12)
+
+barplot(ego, showCategory=20) + ggtitle("Go term enrichment")
+
+dev.off()
+
+write.csv2(ego, file = paste0(outDir, "/GO_term_enrichmenet_highNoisyGenes_cluster2.csv"), 
+          row.names = TRUE)
+
+
+# select_highNoisey_genes = function(ngenes, logfc_cutoff = 1, pval_cutoff = 10^-20)
+# {
+#   ngenes = ngenes[which(abs(ngenes$log2FC) > logfc_cutoff & ngenes$pvalue < pval_cutoff), ]
+#   mm = match(rownames(ngenes), c(tfs, sps, gene_examples))
+#   ngenes = ngenes[which(!is.na(mm)), ]
+#   return(ngenes)
+# }
+# 
 
 
 # genes = rownames(ngenes)[which(abs(ngenes$log2FC)>1 | ngenes$pvalue<10^-10)]
