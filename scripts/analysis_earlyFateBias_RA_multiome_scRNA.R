@@ -568,8 +568,14 @@ dev.off()
 
 plotExpNoise("Foxa2", sc, noise,norm=TRUE,log="xy")
 
+
+plotexpmap(sc, 'Hdac1', logsc=TRUE, um=TRUE, noise=FALSE, cex=1)
+
+
 # Gene expression (on logarithmic scale):
 plotexpmap(sc, 'Pax6', logsc=TRUE, um=TRUE, noise=FALSE, cex=1)
+
+
 
 plotexpmap(sc, 'Pax6', logsc=TRUE, um=TRUE, cex=1, noise = TRUE)
 
@@ -731,8 +737,11 @@ library(clusterProfiler)
 library(stringr)
 library(org.Mm.eg.db)
 
-genes = unique(c(names(mgenes1)[which(mgenes2 > 0.6)]))
 
+index_cluster = 3
+mgenes = mgenes3
+
+genes = unique(c(names(mgenes)[which(mgenes > 0.6)]))
 ego <-  enrichGO(gene         = genes,
                  #universe     = bgs0.df$ENSEMBL,
                  #OrgDb         = org.Hs.eg.db,
@@ -745,41 +754,17 @@ ego <-  enrichGO(gene         = genes,
                  #qvalueCutoff  = 0.2,
                  readable=FALSE)
 #head(ego)
+barplot(ego, showCategory=20) + ggtitle("Go term enrichment")
 
-pdfname = paste0(outDir, '/Goterm_enrichment_cluster2.pdf')
+
+pdfname = paste0(outDir, '/Goterm_enrichment_cluster', index_cluster, '.pdf')
 pdf(pdfname, width=8, height = 12)
 
 barplot(ego, showCategory=20) + ggtitle("Go term enrichment")
 
 dev.off()
 
-write.csv2(ego, file = paste0(outDir, "/GO_term_enrichmenet_highNoisyGenes_cluster2.csv"), 
+write.csv2(ego, file = paste0(outDir, "/GO_term_enrichmenet_highNoisyGenes_cluster", index_cluster, ".csv"), 
           row.names = TRUE)
 
-
-# select_highNoisey_genes = function(ngenes, logfc_cutoff = 1, pval_cutoff = 10^-20)
-# {
-#   ngenes = ngenes[which(abs(ngenes$log2FC) > logfc_cutoff & ngenes$pvalue < pval_cutoff), ]
-#   mm = match(rownames(ngenes), c(tfs, sps, gene_examples))
-#   ngenes = ngenes[which(!is.na(mm)), ]
-#   return(ngenes)
-# }
-# 
-
-
-# genes = rownames(ngenes)[which(abs(ngenes$log2FC)>1 | ngenes$pvalue<10^-10)]
-# genes <- genes[which(!is.na(match(genes, unique(c(tfs, sps)))))]
-# 
-# pdfname = paste0(outDir, '/plot_noise_markGenes_all_v3.pdf')
-# pdf(pdfname, width=8, height = 24)
-# 
-# ph <- plotmarkergenes(sc, genes=genes, noise=TRUE,
-#                       cluster_rows=TRUE, 
-#                       cells = names(cl_new), order.cells = TRUE,
-#                       cluster_set = FALSE,
-#                       cluster_cols = FALSE,
-#                       cap = 5, #flo = -3,
-#                       zsc=TRUE, 
-#                       logscale = TRUE)
-# dev.off()
 
