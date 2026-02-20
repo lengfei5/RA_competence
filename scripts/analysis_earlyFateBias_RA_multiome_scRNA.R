@@ -229,6 +229,8 @@ ggsave(filename = paste0(outDir, '/multiome_snRNA_scATAC_wnnUMAP_featurePlot_BMP
        height = 21, width = 27)
 
 
+
+
 ########################################################
 ########################################################
 # Section II: VarID method to identify the high expression noise
