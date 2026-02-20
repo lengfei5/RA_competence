@@ -230,7 +230,6 @@ ggsave(filename = paste0(outDir, '/multiome_snRNA_scATAC_wnnUMAP_featurePlot_BMP
 
 
 
-
 ########################################################
 ########################################################
 # Section II: VarID method to identify the high expression noise
@@ -768,5 +767,81 @@ dev.off()
 
 write.csv2(ego, file = paste0(outDir, "/GO_term_enrichmenet_highNoisyGenes_cluster", index_cluster, ".csv"), 
           row.names = TRUE)
+
+
+##########################################
+# Visualize gene examples from noisy gene analysis by VarID2
+##########################################
+# Nodal/Msx1/Neurod1/Ets2/Ttn/Gpc3
+# /Id1/Msx1/Smad7/Egr1/
+genes = c('Nodal', "Msx1", "Neurod1", 'Ets2', 'Ttn', 'Gpc3', 'Id1', 'Egr1', 'Smad7')
+
+p1 = FeaturePlot(aa, features = genes, reduction = 'wnn.umap')
+plot(p1)
+
+ggsave(filename = paste0(outDir, '/multiome_snRNA_scATAC_wnnUMAP_featurePlot_cluster1.pdf'), 
+       height = 21, width = 27)
+
+#Dppa3/Tdrd12/Fkbp6/Mov10l1
+genes = c('Dppa3', "Tdrd12", "Fkbp6", 'Mov10l1', 'Piwil2', 'Exd1', 'Dnmt1', 'Dnmt3a', 'Dnmt3b',
+          "Tet1", "Tet2", "Tet3")
+
+p1 = FeaturePlot(aa, features = genes, reduction = 'wnn.umap')
+plot(p1)
+
+ggsave(filename = paste0(outDir, '/multiome_snRNA_scATAC_wnnUMAP_featurePlot_cluster1_DNAmethylation.pdf'), 
+       height = 21, width = 27)
+
+
+# Aldh1a3/Cyp26b1/Crabp2/Cyp26a1 ALDH1A1, ALDH1A2
+genes = c("Aldh1a3", "Aldh1a1", "Aldh1a2",
+          "Cyp26b1", "Cyp26a1", "Crabp2", 
+          "Rara", "Rarb", "Rarg")
+
+p1 = FeaturePlot(aa, features = genes, reduction = 'wnn.umap')
+plot(p1)
+
+ggsave(filename = paste0(outDir, '/multiome_snRNA_scATAC_wnnUMAP_featurePlot_cluster_RAresponse.pdf'), 
+       height = 16, width = 27)
+
+# Pbld2/Cflar/Zeb2/Cdkn1c/Fgfbp1/Gata3/Fgfbp3/Fgf4/Folr1/Hes1
+genes = c("Pbld2", "Cflar", "Zeb2",
+          "Cdkn1c", "Fgfbp1", "Gata3", 
+          "Fgfbp3", "Fgf4", "Folr1", "Hes1", 'Foxa2')
+
+p1 = FeaturePlot(aa, features = genes, reduction = 'wnn.umap')
+plot(p1)
+
+ggsave(filename = paste0(outDir, '/multiome_snRNA_scATAC_wnnUMAP_featurePlot_cluster_GrowthFactor.pdf'), 
+       height = 16, width = 27)
+
+# Tcf15/Zeb2/Cyp26b1/Gbx2/Sox17/Hoxb1/Cdx1/Hoxb2/Pax6/Cyp26a1/Tshz1/Ooep/Folr1/Hes1/Lef1
+
+genes = c("Tcf15", "Zeb2", "Gbx2",
+          "Sox17", "Hoxb1", "Cdx1", 
+          "Hoxb2", "Ooep", "Lef1")
+
+p1 = FeaturePlot(aa, features = genes, reduction = 'wnn.umap')
+plot(p1)
+
+ggsave(filename = paste0(outDir, 
+                         '/multiome_snRNA_scATAC_wnnUMAP_featurePlot_cluster_patternSpecification.pdf'), 
+       height = 16, width = 27)
+
+# Msx1/Mafb/Sox17/Foxa2/Lhx1/Fst/Nr2f2/Cyp26a1/Fgf3/Hoxb1/Pax6/Nr2f1/Ifitm1/Hoxb2/
+# Gdf3/Hes1/Folr1/Zic3/Robo2/Gbx2/Sema3a/Sp8/Hes3/Sfrp1/Dll1
+genes = c("Mafb", "Lhx1", "Fst",
+          "Nr2f2", "Fgf3", "Nr2f1", 
+          "Ifitm1", "Gdf3", "Hes1", 
+          "Zic3", "Robo2", "Gbx2", "Sema3a", "Sp8", "Sfrp1", "Dll1")
+
+p1 = FeaturePlot(aa, features = genes, reduction = 'wnn.umap')
+plot(p1)
+
+ggsave(filename = paste0(outDir, 
+                         '/multiome_snRNA_scATAC_wnnUMAP_featurePlot_cluster_cluster3_patterning.pdf'), 
+       height = 21, width = 27)
+
+
 
 
