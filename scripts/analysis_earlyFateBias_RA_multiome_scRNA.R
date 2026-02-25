@@ -856,7 +856,6 @@ outDir = paste0(resDir, '/mNTs_multiome_RA_searching_earlyBias/',
 system(paste0('mkdir -p ', outDir))
 
 
-
 ##########################################
 # import the RA samples and cleaning
 # subseting the cells for OT test
@@ -1053,6 +1052,46 @@ saveRDS(aa, file = paste0(outDir, 'scRNAseq_RA_d2_d2.5_d3_d4_d5_metacellAnnot_fo
 ##########################################
 library(SeuratDisk)
 
+aa = readRDS(file = paste0(outDir, 'scRNAseq_RA_d2_d2.5_d3_d4_d5_metacellAnnot_forOTtest.rds'))
+
+aa$condition = as.character(aa$condition)
+
+FeaturePlot(aa, features = c("Foxa2", "Pax6"))
+
+DimPlot(aa, group.by = "metacell_label", label = TRUE, repel = TRUE) + NoLegend()
+
+ggsave(filename = paste0(outDir, '/plot_UMAP_for_metacell_index_forOT_beforeMerge.pdf'), 
+       width = 12, height = 8)
+
+mm = match(aa$metacell_label, c("d5_1", "d5_2", "d5_3", "d5_5", "d5_6", "d5_7", "d5_9", 
+                                      "d5_10", "d5_15", "d5_18"))
+aa$metacell_label[!is.na(mm)] = 'd5_NP'
+
+DimPlot(aa, group.by = "metacell_label", label = TRUE, repel = TRUE) + NoLegend()
+
+mm = match(aa$metacell_label, c("d5_4", "d5_8", "d5_11", "d5_12", "d5_13", "d5_14", "d5_16", 
+                                "d5_17"))
+aa$metacell_label[!is.na(mm)] = 'd5_FP'
+
+DimPlot(aa, group.by = "metacell_label", label = TRUE, repel = TRUE) + NoLegend()
+
+
+mm = match(aa$metacell_label, c("d4_4", "d4_5", "d4_7", "d4_9"))
+aa$metacell_label[!is.na(mm)] = 'd4_NP'
+
+mm = match(aa$metacell_label, c("d4_1", "d4_2", "d4_3", "d4_6", "d4_8", "d4_10"))
+aa$metacell_label[!is.na(mm)] = 'd4_FP'
+
+DimPlot(aa, group.by = "metacell_label", label = TRUE, repel = TRUE) + NoLegend()
+
+saveRDS(aa, file = paste0(outDir, 'scRNAseq_RA_d2_d2.5_d3_d4_d5_metacellAnnot_manualPPFP_forOTtest.rds'))
+
+
+library(SeuratDisk)
+aa = readRDS(file = paste0(outDir, 'scRNAseq_RA_d2_d2.5_d3_d4_d5_metacellAnnot_manualPPFP_forOTtest.rds'))
+
+aa$condition = as.character(aa$condition)
+
 mnt = aa
 VariableFeatures(mnt) = NULL
 
@@ -1075,7 +1114,7 @@ Idents(mnt) = mnt$condition
 
 #mnt = subset(mnt, downsample = 1000)
 
-saveFile =  'scRNAseq_RA_d2_d2.5_d3_d4_d5_metacellAnnot_forOTtest.h5Seurat'
+saveFile =  'scRNAseq_RA_d2_d2.5_d3_d4_d5_metacellAnnot_forOTtest_v2.h5Seurat'
 
 SaveH5Seurat(mnt, filename = paste0(outDir, saveFile), 
              overwrite = TRUE)
