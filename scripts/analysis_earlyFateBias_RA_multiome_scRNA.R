@@ -97,6 +97,8 @@ tfs = readRDS(file = paste0('../data/annotations/curated_human_TFs_Lambert.rds')
 tfs = unique(tfs$`HGNC symbol`)
 tfs = as.character(unlist(sapply(tfs, firstup)))
 
+chromfactors = readRDS
+
 features_1 = unique(c('Sox2', 'Sox1', 'Tubb3', 'Elavl3', 
                       'Irx3', 'Irx5', 'Pax3', 'Pax7',
                       'Pax6', 'Olig2', 'Nkx2-9', 'Nkx2-2', 
@@ -1120,3 +1122,100 @@ SaveH5Seurat(mnt, filename = paste0(outDir, saveFile),
              overwrite = TRUE)
 
 Convert(paste0(outDir, saveFile), dest = "h5ad", overwrite = TRUE)
+
+
+##########################################
+# predict the priming genes with OT output 
+##########################################
+aa = readRDS(file = paste0(outDir, 'scRNAseq_RA_d2_d2.5_d3_d4_d5_metacellAnnot_manualPPFP_forOTtest.rds'))
+
+DimPlot(aa, group.by = "metacell_label", label = TRUE, repel = TRUE) + NoLegend()
+
+ggsave(filename = paste0(outDir, '/plot_UMAP_for_metacell_index_forOT_manual.day4.day5.pdf'), 
+       width = 12, height = 8)
+
+prob_cutoff = 0.55
+
+## day 2
+transition = read.csv(paste0(outDir, "first_OTtest_transitionProb_d2_d5.csv"), row.names = c(1))
+
+aa$ancestors = NA
+
+aa$ancestors[!is.na(match(aa$metacell_label, rownames(transition)))] = 'ancestor_NPorFP'
+subclusters = rownames(transition)[which(transition$d5_NP > prob_cutoff)]
+if(length(subclusters) > 0) aa$ancestors[!is.na(match(aa$metacell_label, subclusters))] = 'ancestor_NP'
+subclusters = rownames(transition)[which(transition$d5_FP > prob_cutoff)]
+if(length(subclusters) > 0) aa$ancestors[!is.na(match(aa$metacell_label, subclusters))] = 'ancestor_FP'
+
+subsets = subset(aa, cells = colnames(aa)[which(!is.na(aa$ancestors))])
+
+Idents(subsets) = factor(subsets$ancestors)
+
+all.markers <- FindAllMarkers(subsets, only.pos = TRUE)
+
+all.markers %>%
+  group_by(cluster) %>%
+  top_n(n = 20, wt = avg_log2FC) -> top10
+
+#DotPlot(subsets, features = rownames(all.markers), split.by = "ancestors")
+
+DoHeatmap(subsets, features = top10$gene) + NoLegend()
+
+ggsave(filename = paste0(outDir, '/heatmap_primingGenes_ancestor_NP_FP_day2.pdf'), 
+       width = 10, height = 16)
+
+## day2.5
+transition = read.csv(paste0(outDir, "first_OTtest_transitionProb_d2.5_d5.csv"), row.names = c(1))
+
+aa$ancestors = NA
+
+aa$ancestors[!is.na(match(aa$metacell_label, rownames(transition)))] = 'ancestor_NPorFP'
+subclusters = rownames(transition)[which(transition$d5_NP > prob_cutoff)]
+if(length(subclusters) > 0) aa$ancestors[!is.na(match(aa$metacell_label, subclusters))] = 'ancestor_NP'
+subclusters = rownames(transition)[which(transition$d5_FP > prob_cutoff)]
+if(length(subclusters) > 0) aa$ancestors[!is.na(match(aa$metacell_label, subclusters))] = 'ancestor_FP'
+
+subsets = subset(aa, cells = colnames(aa)[which(!is.na(aa$ancestors))])
+
+Idents(subsets) = factor(subsets$ancestors)
+
+all.markers <- FindAllMarkers(subsets, only.pos = TRUE)
+
+all.markers %>%
+  group_by(cluster) %>%
+  top_n(n = 50, wt = avg_log2FC) -> top10
+
+DoHeatmap(subsets, features = top10$gene) + NoLegend()
+
+ggsave(filename = paste0(outDir, '/heatmap_primingGenes_ancestor_NP_FP_day2.5.pdf'), 
+       width = 10, height = 24)
+
+
+# day 3
+transition = read.csv(paste0(outDir, "first_OTtest_transitionProb_d3_d5.csv"), row.names = c(1))
+
+aa$ancestors = NA
+
+aa$ancestors[!is.na(match(aa$metacell_label, rownames(transition)))] = 'ancestor_NPorFP'
+subclusters = rownames(transition)[which(transition$d5_NP > prob_cutoff)]
+if(length(subclusters) > 0) aa$ancestors[!is.na(match(aa$metacell_label, subclusters))] = 'ancestor_NP'
+subclusters = rownames(transition)[which(transition$d5_FP > prob_cutoff)]
+if(length(subclusters) > 0) aa$ancestors[!is.na(match(aa$metacell_label, subclusters))] = 'ancestor_FP'
+
+subsets = subset(aa, cells = colnames(aa)[which(!is.na(aa$ancestors))])
+
+Idents(subsets) = factor(subsets$ancestors)
+
+VlnPlot(subsets, features = c('Pax6', 'Foxa2', "Sox17"))
+
+all.markers <- FindAllMarkers(subsets, only.pos = TRUE)
+
+all.markers %>%
+  group_by(cluster) %>%
+  top_n(n = 40, wt = avg_log2FC) -> top10
+
+DoHeatmap(subsets, features = top10$gene) + NoLegend()
+
+ggsave(filename = paste0(outDir, '/heatmap_primingGenes_ancestor_NP_FP_day3.pdf'), 
+       width = 10, height = 24)
+
