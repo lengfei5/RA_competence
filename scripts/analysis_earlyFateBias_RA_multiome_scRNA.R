@@ -97,7 +97,8 @@ tfs = readRDS(file = paste0('../data/annotations/curated_human_TFs_Lambert.rds')
 tfs = unique(tfs$`HGNC symbol`)
 tfs = as.character(unlist(sapply(tfs, firstup)))
 
-chromfactors = readRDS
+chromfactors = readRDS(file = '../data/annotations/human_chromatin_remodelers_Epifactors.database.rds')
+chromfactors = as.character(unlist(sapply(chromfactors, firstup)))
 
 features_1 = unique(c('Sox2', 'Sox1', 'Tubb3', 'Elavl3', 
                       'Irx3', 'Irx5', 'Pax3', 'Pax7',
@@ -641,7 +642,7 @@ save(mgenes1, mgenes2, mgenes3,
      file = paste0(outDir, '/out_varID2_noise_maxNoisyGenesTB.Rdata'))
 
 
-plotmarkergenes(sc,genes=head(names(mgenes1),50), noise=TRUE)
+plotmarkergenes(sc,genes=head(names(mgenes1), 50), noise=TRUE)
 
 # test = noise$epsilon
 # ss = apply(test, 1, function(x) sum(x>1, na.rm = TRUE))
@@ -704,19 +705,23 @@ plotmarkergenes(sc,genes=head(names(mgenes1),50), noise=TRUE)
 #                  c(rownames(ngenes_4), rownames(ngenes_5), rownames(ngenes_6),
 #                  'Pax6', 'Dhrs3', 'Lef1')))
 
-genes = unique(c(names(mgenes1)[which(mgenes1 > 0.7)], 
-                 names(mgenes2)[which(mgenes2 > 0.7)], 
-                 names(mgenes3)[which(mgenes3 > 0.7)],          
+cutoff = 0.5
+genes = unique(c(names(mgenes1)[which(mgenes1 > cutoff)], 
+                 names(mgenes2)[which(mgenes2 > cutoff)], 
+                 names(mgenes3)[which(mgenes3 > cutoff)],          
                  'Pax6', 'Dhrs3', 'Lef1'))
-mm = match(genes, c(tfs, sps, gene_examples))
+mm = match(genes, c(tfs, chromfactors, sps, gene_examples))
 genes = genes[which(!is.na(mm))]        
-                 
+
+cat(length(genes), ' noisy gene found \n')                 
+
+genes[!is.na(match(genes, chromfactors))]
+
 #genes = head(genes, 400)
 plotmarkergenes(sc,genes=head(names(mgenes1),50), noise=TRUE)
 
-
-pdfname = paste0(outDir, '/plot_highNoise_genes_byTimpoint_tops.pdf')
-pdf(pdfname, width=8, height = 16)
+pdfname = paste0(outDir, '/plot_highNoise_genes_byTimpoint_tops_tfs.pdf')
+pdf(pdfname, width=8, height = 20)
 
 ph <- plotmarkergenes(sc, genes=genes, 
                       noise=TRUE,
@@ -730,6 +735,7 @@ ph <- plotmarkergenes(sc, genes=genes,
                       logscale = TRUE)
 
 dev.off()
+
 
 
 ##########################################
