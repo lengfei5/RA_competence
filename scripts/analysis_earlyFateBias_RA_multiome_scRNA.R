@@ -233,6 +233,7 @@ ggsave(filename = paste0(outDir, '/multiome_snRNA_scATAC_wnnUMAP_featurePlot_BMP
 
 
 
+
 ########################################################
 ########################################################
 # Section II: VarID method to identify the high expression noise
@@ -328,7 +329,7 @@ if(subclustering_eachTimepoint){
   }else{
     
     genes_sel = rownames(aa)
-    mm = match(genes_sel, c(tfs))
+    mm = match(genes_sel, c(tfs, sps))
     genes_sel = genes_sel[which(!is.na(mm))]        
     
     cat(length(genes_sel), ' left genes \n')
@@ -348,13 +349,11 @@ if(subclustering_eachTimepoint){
   #aa = readRDS()
   c = "day3_RA.rep1"
   
+  nb_hvg = 200
   subObj = subset(aa, cells = colnames(aa)[which(aa$condition == c)])
   subObj$condition = droplevels(subObj$condition)
   
-  subObj <- FindVariableFeatures(subObj, selection.method = "vst", nfeatures = 200)
-  
-  subObj <- RunPCA(subObj, verbose = FALSE, weight.by.var = FALSE)
-  ElbowPlot(subObj, ndims = 50)
+  subObj <- FindVariableFeatures(subObj, selection.method = "vst", nfeatures = nb_hvg)
   
   Idents(subObj) = subObj$condition
   subObj <- RunUMAP(subObj, features = VariableFeatures(subObj), n.neighbors = 50, min.dist = 0.1)
@@ -366,9 +365,7 @@ if(subclustering_eachTimepoint){
   
   subObj <- FindNeighbors(subObj, dims = NULL, features = VariableFeatures(subObj))
   #subObj <- FindClusters(subObj, verbose = FALSE, algorithm = 3, resolution = 0.5)
-  
   subObj <- FindClusters(subObj, verbose = FALSE, algorithm = 3, resolution = 0.5)
-  
   
   p1 = DimPlot(subObj, label = TRUE, repel = TRUE, group.by = 'Phase', raster=FALSE)
   p2 = DimPlot(subObj, label = TRUE, repel = TRUE, group.by = 'seurat_clusters', raster=FALSE)
@@ -381,6 +378,18 @@ if(subclustering_eachTimepoint){
   #p1 = DimPlot(subObj, label = TRUE, repel = TRUE, group.by = 'RNA_snn_res.0.5', raster=FALSE)
   #p2 = DimPlot(subObj, label = TRUE, repel = TRUE, group.by = 'RNA_snn_res.0.7', raster=FALSE)
   #p1 + p2
+  
+  subObj <- RunPCA(subObj, verbose = FALSE, weight.by.var = FALSE, features = VariableFeatures(subObj),
+                   npcs = nb_hvg, approx = FALSE)
+  ElbowPlot(subObj, ndims = nb_hvg)
+  
+  subObj <- RunUMAP(subObj, dims = c(1:(nb_hvg-1)), n.neighbors = 50, min.dist = 0.1)
+  
+  p1 = DimPlot(subObj, label = TRUE, repel = TRUE, group.by = 'condition', raster=FALSE)
+  p2 = DimPlot(subObj, group.by = 'Phase', label = TRUE, repel = TRUE)
+  
+  p1 + p2
+  
   
   subObj$clusters = subObj$seurat_clusters
   #subObj$clusters[which(subObj$clusters == '7')] = '2'
