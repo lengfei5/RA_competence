@@ -246,6 +246,7 @@ system(paste0('mkdir -p ', outDir))
 
 
 cc = c('day2_beforeRA', 'day2.5_RA', 'day3_RA.rep1')
+
 aa = readRDS(file = paste0('../results/Rdata/', 
                            'seuratObject_RA.symmetry.breaking_doublet.rm_mt.ribo.filtered_regressout.nCounts_',
                            'cellCycleScoring_annot.v2_newUMAP_clusters_sparseFeatures', '_timePoint_',
@@ -301,42 +302,92 @@ if(subclustering_eachTimepoint){
   aa = readRDS(file = paste0(outDir, 'scRNAseq_d2_d2.5_d3_cleaned.rds'))
   #aa = readRDS(file = paste0(outDir, 'scRNAseq_d2_d2.5_d3_cleaned_dropcellCycleGenes.rds'))
   
+  ## drop cell cycle related genes
+  rm_cellCycleCorrelatedGenes = FALSE
+  if(rm_cellCycleCorrelatedGenes){
+    scaledMatrix = GetAssayData(aa, slot = c("scale.data"))
+    
+    diff <- scater::getVarianceExplained(scaledMatrix, data.frame(phase = aa$Phase))
+    diff = data.frame(diff, gene = rownames(diff))
+    diff = diff[order(-diff$phase), ]
+    
+    hist(diff$phase, breaks = 100); abline(v = c(1:5), col = 'red')
+    
+    genes_discard = diff$gene[which(diff$phase > 1)]
+    cat(length(genes_discard), 'genes to discard \n')
+    
+    genes_sel = setdiff(rownames(aa), genes_discard)
+    
+    mm = match(genes_sel, c(tfs))
+    genes_sel = genes_sel[which(!is.na(mm))]        
+    
+    cat(length(genes_sel), ' left genes \n')    
+    
+    aa = subset(aa, features =  genes_sel)
+    
+  }else{
+    
+    genes_sel = rownames(aa)
+    mm = match(genes_sel, c(tfs))
+    genes_sel = genes_sel[which(!is.na(mm))]        
+    
+    cat(length(genes_sel), ' left genes \n')
+    
+    aa = subset(aa, features =  genes_sel)
+    
+    aa$CC.Difference <- aa$S.Score - aa$G2M.Score
+    
+    aa <- ScaleData(aa, vars.to.regress = c("nCount_RNA", "CC.Difference"), features = rownames(aa))
+    
+    saveRDS(aa, file = paste0(outDir, 'scRNAseq_d2_d2.5_d3_cellCycleRegressed.rds'))
+    
+  }
+  
+  
+  ### test subclustering for each time point
+  #aa = readRDS()
   c = "day3_RA.rep1"
-  aa = subset(aa, cells = colnames(aa)[which(aa$condition == c)])
-  aa$condition = droplevels(aa$condition)
   
-  aa <- FindVariableFeatures(aa, selection.method = "vst", nfeatures = 1000)
-  aa <- RunPCA(aa, verbose = FALSE, weight.by.var = FALSE)
-  ElbowPlot(aa, ndims = 50)
+  subObj = subset(aa, cells = colnames(aa)[which(aa$condition == c)])
+  subObj$condition = droplevels(subObj$condition)
   
-  Idents(aa) = aa$condition
-  aa <- RunUMAP(aa, dims = 1:10, n.neighbors = 30, min.dist = 0.1)
+  subObj <- FindVariableFeatures(subObj, selection.method = "vst", nfeatures = 200)
   
-  p1 = DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'condition', raster=FALSE)
-  p2 = DimPlot(aa, group.by = 'Phase', label = TRUE, repel = TRUE) 
+  subObj <- RunPCA(subObj, verbose = FALSE, weight.by.var = FALSE)
+  ElbowPlot(subObj, ndims = 50)
+  
+  Idents(subObj) = subObj$condition
+  subObj <- RunUMAP(subObj, features = VariableFeatures(subObj), n.neighbors = 50, min.dist = 0.1)
+  
+  p1 = DimPlot(subObj, label = TRUE, repel = TRUE, group.by = 'condition', raster=FALSE)
+  p2 = DimPlot(subObj, group.by = 'Phase', label = TRUE, repel = TRUE)
   
   p1 + p2
   
-  aa <- FindNeighbors(aa, dims = 1:10)
-  aa <- FindClusters(aa, verbose = FALSE, algorithm = 3, resolution = 0.5)
+  subObj <- FindNeighbors(subObj, dims = NULL, features = VariableFeatures(subObj))
+  #subObj <- FindClusters(subObj, verbose = FALSE, algorithm = 3, resolution = 0.5)
   
-  aa <- FindClusters(aa, verbose = FALSE, algorithm = 3, resolution = 0.4)
+  subObj <- FindClusters(subObj, verbose = FALSE, algorithm = 3, resolution = 0.5)
   
   
-  p1 = DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'condition', raster=FALSE)
-  p2 = DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'seurat_clusters', raster=FALSE)
+  p1 = DimPlot(subObj, label = TRUE, repel = TRUE, group.by = 'Phase', raster=FALSE)
+  p2 = DimPlot(subObj, label = TRUE, repel = TRUE, group.by = 'seurat_clusters', raster=FALSE)
   p1 + p2
   
-  #p1 = DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'RNA_snn_res.0.5', raster=FALSE)
-  #p2 = DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'RNA_snn_res.0.7', raster=FALSE)
+  FeaturePlot(subObj, features = c('Pax6', 'Foxa2'))
+  
+  DotPlot(subObj, features = c('Foxa2', 'Pax6', 'Rarg', 'Cyp26b1', 'Zfp42')) + RotatedAxis()
+  #VlnPlot(subObj, features = c('Foxa2', 'Pax6'))
+  #p1 = DimPlot(subObj, label = TRUE, repel = TRUE, group.by = 'RNA_snn_res.0.5', raster=FALSE)
+  #p2 = DimPlot(subObj, label = TRUE, repel = TRUE, group.by = 'RNA_snn_res.0.7', raster=FALSE)
   #p1 + p2
   
-  aa$clusters = aa$seurat_clusters
-  #aa$clusters[which(aa$clusters == '7')] = '2'
-  #aa$clusters = droplevels(aa$clusters)
+  subObj$clusters = subObj$seurat_clusters
+  #subObj$clusters[which(subObj$clusters == '7')] = '2'
+  #subObj$clusters = droplevels(subObj$clusters)
   
-  p1 = DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'clusters', raster=FALSE)
-  p2 = DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'Phase', raster=FALSE)
+  p1 = DimPlot(subObj, label = TRUE, repel = TRUE, group.by = 'clusters', raster=FALSE)
+  p2 = DimPlot(subObj, label = TRUE, repel = TRUE, group.by = 'Phase', raster=FALSE)
   
   p1 + p2
   
@@ -344,27 +395,26 @@ if(subclustering_eachTimepoint){
          height = 12, width = 18)
   
   
-  FeaturePlot(aa, features = c('Pax6', 'Foxa2'))
   
-  #markers = FindMarkers(aa, ident.1 = c('2'), ident.2 = c('5'))
   
-  all.markers <- FindAllMarkers(aa, only.pos = TRUE)
+  #markers = FindMarkers(subObj, ident.1 = c('2'), ident.2 = c('5'))
+  
+  all.markers <- FindAllMarkers(subObj, only.pos = TRUE)
   all.markers %>%
     group_by(cluster) %>%
     top_n(n = 20, wt = avg_log2FC) -> top10
   
-  DoHeatmap(aa, features = top10$gene) + NoLegend()
+  DoHeatmap(subObj, features = top10$gene) + NoLegend()
   
   ggsave(filename = paste0(outDir, '/mNTs_scRNA_clusters_heatmap_markerGenes_condition_', c, '.pdf'), 
          width = 14, height = 24)
   
-  FeaturePlot(aa, features = c('Cdh1', 'Sox17'))
+  FeaturePlot(subObj, features = c('Cdh1', 'Sox17'))
   
   ggsave(filename = paste0(outDir, '/scRNAseq_dropcellCycleGenes_featureExamples_', c, '.pdf'), 
          height = 12, width = 18)
   
   
-  #FeaturePlot(aa, features = c('Atoh1'))
   
 }
 
