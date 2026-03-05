@@ -231,10 +231,12 @@ plot(p1)
 ggsave(filename = paste0(outDir, '/multiome_snRNA_scATAC_wnnUMAP_featurePlot_BMP.TGFbeta.pdf'), 
        height = 21, width = 27)
 
-
-##########################################
-# test subclustering for each time point
-##########################################
+########################################################
+########################################################
+# Section I: test subclustering using TFs, SPs for each time point
+# 
+########################################################
+########################################################
 outDir = paste0(resDir, '/mNTs_multiome_RA_searching_earlyBias/',
                 'RAsample_subcluster_perTimePoint_test')
 
@@ -298,42 +300,55 @@ p2 = DimPlot(aa, group.by = 'Phase', label = TRUE, repel = TRUE)
 
 p1 + p2
 
+##########################################
+# try individual time point
+##########################################
+source("functions_utility.R")
 
-subclustering_eachTimepoint = FALSE
-if(subclustering_eachTimepoint){
-  
-  aa = readRDS(file = paste0(outDir, 'scRNAseq_RAsample_d2Tod5_cellCycleRegressed.rds'))
+aa = readRDS(file = paste0(outDir, 'scRNAseq_RAsample_d2Tod5_cellCycleRegressed.rds'))
+
+cc = unique(as.character(aa$condition))
+
+nb_hvg = 100
+
+for(c in cc)
+{
+  # c = c("day4_RA", "day5_RA")
+  #c = "day3.5_RA"
+  #c = "day3_RA.rep1"
+  #c = "day2.5_RA"
+  #c = "day2_beforeRA"
+  #sps = readRDS(file = paste0('../data/annotations/curated_signaling.pathways_gene.list_v3.rds'))
+  cat("condition -- ", c, "\n")
   
   genes_sel = rownames(aa)
-  mm = match(genes_sel, c(tfs))
-  genes_sel = genes_sel[which(!is.na(mm))]        
-  
+  mm = match(genes_sel, c(tfs, c("Cyp26a1", "Cyp26b1", "Dhrs3", "Esrrg", "Ezh2", "Klf2","Nr1h2", "Nr2c1",
+                                 'Zfp703')))
+  genes_sel = genes_sel[which(!is.na(mm))]
   cat(length(genes_sel), ' left genes \n')
   
-  aa = subset(aa, features =  genes_sel)
+  subObj = subset(aa, 
+                  cells = colnames(aa)[!is.na(match(aa$condition, c))],
+                  features = genes_sel)
   
-  #aa = readRDS()
-  c = "day3_RA.rep1"
-  c = "day3.5_RA"
-  c = "day4_RA"
-  c = "day5_RA"
-  
-  c = c("day4_RA", "day5_RA")
-  
-  nb_hvg = 100
-  subObj = subset(aa, cells = colnames(aa)[!is.na(match(aa$condition, c))])
-  cat(unique(as.charasubObj$condition), '\n')
+  print(unique(as.character(subObj$condition)))
   
   subObj$condition = droplevels(subObj$condition)
   
   subObj <- FindVariableFeatures(subObj, selection.method = "vst", nfeatures = nb_hvg)
+  
+  top10 <- head(VariableFeatures(subObj), 15)
+  # plot variable features with and without labels
+  plot1 <- VariableFeaturePlot(subObj)
+  plot2 <- LabelPoints(plot = plot1, points = top10, repel = TRUE)
+  #plot1 + plot2
   
   Idents(subObj) = subObj$condition
   subObj <- RunUMAP(subObj, slot = "data", metric = 'euclidean',
                     features = VariableFeatures(subObj), n.neighbors = 50, min.dist = 0.1)
   
   subObj <- FindNeighbors(subObj, dims = NULL, features = VariableFeatures(subObj))
-  subObj <- FindClusters(subObj, verbose = FALSE, algorithm = 3, resolution = 0.5)
+  subObj <- FindClusters(subObj, verbose = FALSE, algorithm = 3, resolution = 0.7)
   
   p1 = DimPlot(subObj, label = TRUE, repel = TRUE, group.by = 'Phase', raster=FALSE)
   p2 = DimPlot(subObj, label = TRUE, repel = TRUE, group.by = 'seurat_clusters', raster=FALSE)
@@ -342,53 +357,57 @@ if(subclustering_eachTimepoint){
   
   (p1 + p2) / p3
   
-  DotPlot(subObj, features = c('Foxa2', 'Pax6', 'Rarg', 'Cyp26b1', 'Zfp42')) + RotatedAxis()
+  ggsave(filename = paste0(outDir, '/scRNAseq_subClusters_usingTFs_condition_', c, '.pdf'), 
+         height = 8, width = 12)
   
-  subObj <- RunPCA(subObj, verbose = FALSE, weight.by.var = FALSE, features = VariableFeatures(subObj),
-                   npcs = nb_hvg, approx = FALSE)
-  ElbowPlot(subObj, ndims = nb_hvg)
+  pdfname = paste0(outDir, '/scRNAseq_subClusters_usingTFs_condition_', c, '_top100HVGs.pdf')
+  pdf(pdfname, width=12, height = 8)
   
-  subObj <- RunUMAP(subObj, dims = c(1:(nb_hvg-1)), metric = 'cosine', n.neighbors = 50, min.dist = 0.1)
+  plot_manyFeatures_seurat(subObj, features = unique(c("Pax6", "Foxa2", VariableFeatures(subObj))))
+  #FeaturePlot(subObj, features = unique(c(top10, c('Pax6', 'Foxa2'))))
+  dev.off()
   
-  p1 = DimPlot(subObj, label = TRUE, repel = TRUE, group.by = 'condition', raster=FALSE)
-  p2 = DimPlot(subObj, group.by = 'Phase', label = TRUE, repel = TRUE)
-  
-  p1 + p2
-  
-  
-  subObj$clusters = subObj$seurat_clusters
-  #subObj$clusters[which(subObj$clusters == '7')] = '2'
-  #subObj$clusters = droplevels(subObj$clusters)
-  
-  p1 = DimPlot(subObj, label = TRUE, repel = TRUE, group.by = 'clusters', raster=FALSE)
-  p2 = DimPlot(subObj, label = TRUE, repel = TRUE, group.by = 'Phase', raster=FALSE)
-  
-  p1 + p2
-  
-  ggsave(filename = paste0(outDir, '/scRNAseq_dropcellCycleGenes_clusters_condition_', c, '.pdf'), 
-         height = 12, width = 18)
+  # DotPlot(subObj, features = c('Foxa2', 'Pax6', 'Rarg', 'Cyp26b1', 'Zfp42')) + RotatedAxis()
+  # 
+  # subObj <- RunPCA(subObj, verbose = FALSE, weight.by.var = FALSE, features = VariableFeatures(subObj),
+  #                  npcs = nb_hvg, approx = FALSE)
+  # ElbowPlot(subObj, ndims = nb_hvg)
+  # 
+  # subObj <- RunUMAP(subObj, dims = c(1:(nb_hvg-1)), metric = 'cosine', n.neighbors = 50, min.dist = 0.1)
+  # 
+  # p1 = DimPlot(subObj, label = TRUE, repel = TRUE, group.by = 'condition', raster=FALSE)
+  # p2 = DimPlot(subObj, group.by = 'Phase', label = TRUE, repel = TRUE)
+  # 
+  # p1 + p2
   
   
+  # subObj$clusters = subObj$seurat_clusters
+  # #subObj$clusters[which(subObj$clusters == '7')] = '2'
+  # #subObj$clusters = droplevels(subObj$clusters)
+  # 
+  # p1 = DimPlot(subObj, label = TRUE, repel = TRUE, group.by = 'clusters', raster=FALSE)
+  # p2 = DimPlot(subObj, label = TRUE, repel = TRUE, group.by = 'Phase', raster=FALSE)
+  # 
+  # p1 + p2
   
   
   #markers = FindMarkers(subObj, ident.1 = c('2'), ident.2 = c('5'))
   
-  all.markers <- FindAllMarkers(subObj, only.pos = TRUE)
-  all.markers %>%
-    group_by(cluster) %>%
-    top_n(n = 20, wt = avg_log2FC) -> top10
-  
-  DoHeatmap(subObj, features = top10$gene) + NoLegend()
-  
-  ggsave(filename = paste0(outDir, '/mNTs_scRNA_clusters_heatmap_markerGenes_condition_', c, '.pdf'), 
-         width = 14, height = 24)
-  
-  FeaturePlot(subObj, features = c('Cdh1', 'Sox17'))
-  
-  ggsave(filename = paste0(outDir, '/scRNAseq_dropcellCycleGenes_featureExamples_', c, '.pdf'), 
-         height = 12, width = 18)
-  
-  
+  # all.markers <- FindAllMarkers(subObj, only.pos = TRUE)
+  # all.markers %>%
+  #   group_by(cluster) %>%
+  #   top_n(n = 20, wt = avg_log2FC) -> top10
+  # 
+  # DoHeatmap(subObj, features = top10$gene) + NoLegend()
+  # 
+  # ggsave(filename = paste0(outDir, '/mNTs_scRNA_clusters_heatmap_markerGenes_condition_', c, '.pdf'), 
+  #        width = 14, height = 24)
+  # 
+  # FeaturePlot(subObj, features = c('Cdh1', 'Sox17'))
+  # 
+  # ggsave(filename = paste0(outDir, '/scRNAseq_dropcellCycleGenes_featureExamples_', c, '.pdf'), 
+  #        height = 12, width = 18)
+  # 
   
 }
 
@@ -938,7 +957,7 @@ ggsave(filename = paste0(outDir,
 
 ########################################################
 ########################################################
-# Section III : prepare the scRNA-seq data for OT analysis
+# Section IV : prepare the scRNA-seq data for OT analysis
 # 
 ########################################################
 ########################################################
@@ -1037,7 +1056,7 @@ nb_var_genes = 3000 # number of the top variable genes to use for dimensionality
 nb_pc = 30 # the number of principal components to use.   
 cell_condition = sc_data$condition
 
-MC <- SuperCell::SCimplify(Seurat::GetAssayData(sc_data, slot = "data"),  
+MC <- SuperCell::SCimplify(Seurat::GetAssayData(sc_data, slot = "data"),
                            k.knn = k_knn,
                            gamma = gamma,
                            #n.var.genes = nb_var_genes,  
@@ -1048,9 +1067,8 @@ MC <- SuperCell::SCimplify(Seurat::GetAssayData(sc_data, slot = "data"),
 
 MC.GE <- supercell_GE(Seurat::GetAssayData(sc_data, slot = "counts"),
                       MC$membership,
-                      mode =  "sum"
-)
-dim(MC.GE) 
+                      mode =  "sum")
+dim(MC.GE)
 
 
 print(annotation_label)
