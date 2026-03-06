@@ -304,6 +304,7 @@ p1 + p2
 # try individual time point
 ##########################################
 source("functions_utility.R")
+require(SuperCell)
 
 aa = readRDS(file = paste0(outDir, 'scRNAseq_RAsample_d2Tod5_cellCycleRegressed.rds'))
 
@@ -317,7 +318,7 @@ for(c in cc)
   #c = "day3.5_RA"
   # c = "day3_RA.rep1"
   #c = "day2.5_RA"
-  #c = "day2_beforeRA"
+  # c = "day2_beforeRA"
   
   cat("condition -- ", c, "\n")
   
@@ -340,13 +341,12 @@ for(c in cc)
   # 
   # p1/p2
   
-  ggsave(filename = paste0(outDir, '/scRNAseq_subClusters_3000hvg_condition_', c, '.pdf'), 
-         height = 10, width = 12)
+  #ggsave(filename = paste0(outDir, '/scRNAseq_subClusters_3000hvg_condition_', c, '.pdf'), 
+  #       height = 10, width = 12)
   
   subObj = subset(aa, 
                   cells = colnames(aa)[!is.na(match(aa$condition, c))],
                   features = genes_sel)
-  
   
   print(unique(as.character(subObj$condition)))
   
@@ -358,14 +358,13 @@ for(c in cc)
   # plot variable features with and without labels
   plot1 <- VariableFeaturePlot(subObj)
   plot2 <- LabelPoints(plot = plot1, points = top10, repel = TRUE)
-  plot1 + plot2
-  
+  #plot1 + plot2
   
   Idents(subObj) = subObj$condition
   subObj <- RunUMAP(subObj, slot = "data", metric = 'euclidean',
                     features = VariableFeatures(subObj), n.neighbors = 50, min.dist = 0.1)
   
-  DimPlot(subObj, label = TRUE, repel = TRUE, group.by = 'Phase', raster=FALSE)
+  # DimPlot(subObj, label = TRUE, repel = TRUE, group.by = 'Phase', raster=FALSE)
   
   doubleCheck_PCs_computation = FALSE
   if(doubleCheck_PCs_computation){
@@ -403,13 +402,14 @@ for(c in cc)
     p22 = FeaturePlot(xx, features = c('Pax6', 'Foxa2'))
     
     p0 + p1 + p2
-    
     p00 / p11 / p22
     
   }
   
-  subObj <- FindNeighbors(subObj, dims = NULL, features = VariableFeatures(subObj))
-  subObj <- FindClusters(subObj, verbose = FALSE, algorithm = 3, resolution = 0.7)
+  subObj <- FindNeighbors(subObj, dims = NULL, features = VariableFeatures(subObj), 
+                          k.param = 20, annoy.metric = "euclidean")
+  
+  subObj <- FindClusters(subObj, verbose = FALSE, algorithm = 3, resolution = 1.0)
   
   p1 = DimPlot(subObj, label = TRUE, repel = TRUE, group.by = 'Phase', raster=FALSE)
   p2 = DimPlot(subObj, label = TRUE, repel = TRUE, group.by = 'seurat_clusters', raster=FALSE)
@@ -420,6 +420,7 @@ for(c in cc)
   
   ggsave(filename = paste0(outDir, '/scRNAseq_subClusters_usingTFs_condition_', c, '.pdf'), 
          height = 8, width = 12)
+  
   
   pdfname = paste0(outDir, '/scRNAseq_subClusters_usingTFs_condition_', c, '_top100HVGs.pdf')
   pdf(pdfname, width=12, height = 8)
@@ -1174,7 +1175,6 @@ ggsave(filename = paste0(outDir, '/plot_UMAP_for_metacell_index_forOT.pdf'),
 
 
 saveRDS(aa, file = paste0(outDir, 'scRNAseq_RA_d2_d2.5_d3_d4_d5_metacellAnnot_forOTtest.rds'))
-
 
 ##########################################
 # save file for OT moscot  
