@@ -315,10 +315,10 @@ for(c in cc)
 {
   # c = c("day4_RA", "day5_RA")
   #c = "day3.5_RA"
-  #c = "day3_RA.rep1"
+  # c = "day3_RA.rep1"
   #c = "day2.5_RA"
   #c = "day2_beforeRA"
-  #sps = readRDS(file = paste0('../data/annotations/curated_signaling.pathways_gene.list_v3.rds'))
+  
   cat("condition -- ", c, "\n")
   
   genes_sel = rownames(aa)
@@ -327,9 +327,26 @@ for(c in cc)
   genes_sel = genes_sel[which(!is.na(mm))]
   cat(length(genes_sel), ' left genes \n')
   
+  # xx = subset(aa, cells = colnames(aa)[!is.na(match(aa$condition, c))])
+  # xx <- FindVariableFeatures(xx, selection.method = "vst", nfeatures = 3000)
+  # xx <- RunPCA(xx, verbose = FALSE, weight.by.var = FALSE)
+  # ElbowPlot(xx, ndims = 50)
+  # 
+  # Idents(xx) = xx$condition
+  # xx <- RunUMAP(xx, dims = 1:30, n.neighbors = 30, min.dist = 0.1)
+  # p1 = DimPlot(xx, label = TRUE, repel = TRUE, group.by = 'Phase', raster=FALSE)
+  # 
+  # p2 = FeaturePlot(xx, features = c('Pax6', 'Foxa2'))
+  # 
+  # p1/p2
+  
+  ggsave(filename = paste0(outDir, '/scRNAseq_subClusters_3000hvg_condition_', c, '.pdf'), 
+         height = 10, width = 12)
+  
   subObj = subset(aa, 
                   cells = colnames(aa)[!is.na(match(aa$condition, c))],
                   features = genes_sel)
+  
   
   print(unique(as.character(subObj$condition)))
   
@@ -341,11 +358,55 @@ for(c in cc)
   # plot variable features with and without labels
   plot1 <- VariableFeaturePlot(subObj)
   plot2 <- LabelPoints(plot = plot1, points = top10, repel = TRUE)
-  #plot1 + plot2
+  plot1 + plot2
+  
   
   Idents(subObj) = subObj$condition
   subObj <- RunUMAP(subObj, slot = "data", metric = 'euclidean',
                     features = VariableFeatures(subObj), n.neighbors = 50, min.dist = 0.1)
+  
+  DimPlot(subObj, label = TRUE, repel = TRUE, group.by = 'Phase', raster=FALSE)
+  
+  doubleCheck_PCs_computation = FALSE
+  if(doubleCheck_PCs_computation){
+    
+    xx = subObj
+    hvgs = VariableFeatures(subObj)
+    pcs = as.matrix(xx@assays$RNA@data[match(hvgs, rownames(subObj)), ])
+    colnames(pcs) = colnames(xx)
+    pcs = t(pcs)
+    colnames(pcs) = paste0('PC_', c(1:ncol(pcs)))
+    xx[['pca']] = CreateDimReducObject(embeddings = pcs, key = "PC_", assay = DefaultAssay(xx))
+    xx = RunUMAP(xx, metric = 'euclidean', reduction = 'pca', dims = c(1:length(hvgs)),
+                 n.neighbors = 50, min.dist = 0.1)
+    
+    p1 = DimPlot(xx, label = TRUE, repel = TRUE, group.by = 'Phase', raster=FALSE)
+    p11 = FeaturePlot(xx, features = c('Pax6', 'Foxa2'))
+    
+    p0 = DimPlot(subObj, label = TRUE, repel = TRUE, group.by = 'Phase', raster=FALSE)
+    p00 = FeaturePlot(subObj, features = c('Pax6', 'Foxa2'))
+    
+    p0 + p1
+    
+    # Before running MDS, we first calculate a distance matrix between all pairs of cells.  Here
+    # we use a simple euclidean distance metric on all genes, using scale.data as input
+    pcs <- prcomp(t(as.matrix(xx@assays$RNA@data[match(hvgs, rownames(subObj)), ])),
+                 center = TRUE,
+                 scale. = FALSE)$x
+    colnames(pcs) = paste0('PC_', c(1:ncol(pcs)))
+    
+    xx[['pca']] = CreateDimReducObject(embeddings = pcs, key = "PC_", assay = DefaultAssay(xx))
+    xx = RunUMAP(xx, metric = 'euclidean', reduction = 'pca', dims = c(1:length(hvgs)),
+                 n.neighbors = 50, min.dist = 0.1)
+    
+    p2 = DimPlot(xx, label = TRUE, repel = TRUE, group.by = 'Phase', raster=FALSE)
+    p22 = FeaturePlot(xx, features = c('Pax6', 'Foxa2'))
+    
+    p0 + p1 + p2
+    
+    p00 / p11 / p22
+    
+  }
   
   subObj <- FindNeighbors(subObj, dims = NULL, features = VariableFeatures(subObj))
   subObj <- FindClusters(subObj, verbose = FALSE, algorithm = 3, resolution = 0.7)
@@ -367,50 +428,8 @@ for(c in cc)
   #FeaturePlot(subObj, features = unique(c(top10, c('Pax6', 'Foxa2'))))
   dev.off()
   
-  # DotPlot(subObj, features = c('Foxa2', 'Pax6', 'Rarg', 'Cyp26b1', 'Zfp42')) + RotatedAxis()
-  # 
-  # subObj <- RunPCA(subObj, verbose = FALSE, weight.by.var = FALSE, features = VariableFeatures(subObj),
-  #                  npcs = nb_hvg, approx = FALSE)
-  # ElbowPlot(subObj, ndims = nb_hvg)
-  # 
-  # subObj <- RunUMAP(subObj, dims = c(1:(nb_hvg-1)), metric = 'cosine', n.neighbors = 50, min.dist = 0.1)
-  # 
-  # p1 = DimPlot(subObj, label = TRUE, repel = TRUE, group.by = 'condition', raster=FALSE)
-  # p2 = DimPlot(subObj, group.by = 'Phase', label = TRUE, repel = TRUE)
-  # 
-  # p1 + p2
-  
-  
-  # subObj$clusters = subObj$seurat_clusters
-  # #subObj$clusters[which(subObj$clusters == '7')] = '2'
-  # #subObj$clusters = droplevels(subObj$clusters)
-  # 
-  # p1 = DimPlot(subObj, label = TRUE, repel = TRUE, group.by = 'clusters', raster=FALSE)
-  # p2 = DimPlot(subObj, label = TRUE, repel = TRUE, group.by = 'Phase', raster=FALSE)
-  # 
-  # p1 + p2
-  
-  
-  #markers = FindMarkers(subObj, ident.1 = c('2'), ident.2 = c('5'))
-  
-  # all.markers <- FindAllMarkers(subObj, only.pos = TRUE)
-  # all.markers %>%
-  #   group_by(cluster) %>%
-  #   top_n(n = 20, wt = avg_log2FC) -> top10
-  # 
-  # DoHeatmap(subObj, features = top10$gene) + NoLegend()
-  # 
-  # ggsave(filename = paste0(outDir, '/mNTs_scRNA_clusters_heatmap_markerGenes_condition_', c, '.pdf'), 
-  #        width = 14, height = 24)
-  # 
-  # FeaturePlot(subObj, features = c('Cdh1', 'Sox17'))
-  # 
-  # ggsave(filename = paste0(outDir, '/scRNAseq_dropcellCycleGenes_featureExamples_', c, '.pdf'), 
-  #        height = 12, width = 18)
-  # 
   
 }
-
 
 ########################################################
 ########################################################
