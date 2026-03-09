@@ -310,11 +310,11 @@ aa = readRDS(file = paste0(outDir, 'scRNAseq_RAsample_d2Tod5_cellCycleRegressed.
 aa$subclusters = NA
 
 cc = unique(as.character(aa$condition))
-
 nb_hvg = 100
 
 for(c in cc)
 {
+  # c = "day5_RA"
   # c = c("day4_RA", "day5_RA")
   #c = "day3.5_RA"
   # c = "day3_RA.rep1"
