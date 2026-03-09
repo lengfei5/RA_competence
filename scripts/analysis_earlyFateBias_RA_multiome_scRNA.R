@@ -307,6 +307,7 @@ source("functions_utility.R")
 require(SuperCell)
 
 aa = readRDS(file = paste0(outDir, 'scRNAseq_RAsample_d2Tod5_cellCycleRegressed.rds'))
+aa$subclusters = NA
 
 cc = unique(as.character(aa$condition))
 
@@ -411,6 +412,8 @@ for(c in cc)
   
   subObj <- FindClusters(subObj, verbose = FALSE, algorithm = 3, resolution = 1.0)
   
+  aa$subclusters[match(colnames(subObj), colnames(aa))] = paste0(c, "_", subObj$seurat_clusters)
+    
   p1 = DimPlot(subObj, label = TRUE, repel = TRUE, group.by = 'Phase', raster=FALSE)
   p2 = DimPlot(subObj, label = TRUE, repel = TRUE, group.by = 'seurat_clusters', raster=FALSE)
   
@@ -429,8 +432,11 @@ for(c in cc)
   #FeaturePlot(subObj, features = unique(c(top10, c('Pax6', 'Foxa2'))))
   dev.off()
   
-  
 }
+
+saveRDS(aa, file = paste0(outDir, 'scRNAseq_RAsample_d2Tod5_selectedGenes_',
+                          'cellCycleRegressed_subclusters.perTimepoint.rds'))
+
 
 ########################################################
 ########################################################
