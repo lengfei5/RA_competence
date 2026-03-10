@@ -315,10 +315,10 @@ nb_hvg = 100
 for(c in cc)
 {
   # c = "day5_RA"
-  # c = c("day4_RA", "day5_RA")
-  #c = "day3.5_RA"
+  # c = "day4_RA"
+  # c = "day3.5_RA"
   # c = "day3_RA.rep1"
-  #c = "day2.5_RA"
+  # c = "day2.5_RA"
   # c = "day2_beforeRA"
   
   cat("condition -- ", c, "\n")
@@ -328,22 +328,6 @@ for(c in cc)
                                  'Zfp703')))
   genes_sel = genes_sel[which(!is.na(mm))]
   cat(length(genes_sel), ' left genes \n')
-  
-  # xx = subset(aa, cells = colnames(aa)[!is.na(match(aa$condition, c))])
-  # xx <- FindVariableFeatures(xx, selection.method = "vst", nfeatures = 3000)
-  # xx <- RunPCA(xx, verbose = FALSE, weight.by.var = FALSE)
-  # ElbowPlot(xx, ndims = 50)
-  # 
-  # Idents(xx) = xx$condition
-  # xx <- RunUMAP(xx, dims = 1:30, n.neighbors = 30, min.dist = 0.1)
-  # p1 = DimPlot(xx, label = TRUE, repel = TRUE, group.by = 'Phase', raster=FALSE)
-  # 
-  # p2 = FeaturePlot(xx, features = c('Pax6', 'Foxa2'))
-  # 
-  # p1/p2
-  
-  #ggsave(filename = paste0(outDir, '/scRNAseq_subClusters_3000hvg_condition_', c, '.pdf'), 
-  #       height = 10, width = 12)
   
   subObj = subset(aa, 
                   cells = colnames(aa)[!is.na(match(aa$condition, c))],
@@ -359,7 +343,7 @@ for(c in cc)
   # plot variable features with and without labels
   plot1 <- VariableFeaturePlot(subObj)
   plot2 <- LabelPoints(plot = plot1, points = top10, repel = TRUE)
-  #plot1 + plot2
+  plot1 + plot2
   
   Idents(subObj) = subObj$condition
   subObj <- RunUMAP(subObj, slot = "data", metric = 'euclidean',
@@ -412,10 +396,11 @@ for(c in cc)
   
   subObj <- FindClusters(subObj, verbose = FALSE, algorithm = 3, resolution = 1.0)
   
-  aa$subclusters[match(colnames(subObj), colnames(aa))] = paste0(c, "_", subObj$seurat_clusters)
-    
+  #subObj <- FindClusters(subObj, verbose = FALSE, algorithm = 3, resolution = 0.8)
+  
   p1 = DimPlot(subObj, label = TRUE, repel = TRUE, group.by = 'Phase', raster=FALSE)
-  p2 = DimPlot(subObj, label = TRUE, repel = TRUE, group.by = 'seurat_clusters', raster=FALSE)
+  p2 = DimPlot(subObj, label = TRUE, repel = TRUE, group.by = 'seurat_clusters', raster=FALSE, 
+               label.size = 6)
   
   p3 = FeaturePlot(subObj, features = c('Pax6', 'Foxa2'))
   
@@ -423,6 +408,45 @@ for(c in cc)
   
   ggsave(filename = paste0(outDir, '/scRNAseq_subClusters_usingTFs_condition_', c, '.pdf'), 
          height = 8, width = 12)
+  
+  DotPlot(subObj, features = unique(c(top10, 'Tcf15', 'Lef1', 'Esrrb', 'Pou5f1'))) + RotatedAxis()
+  
+  DotPlot(subObj, features = unique(c('Pax6', 'Foxa2', 'Sox17', 'Msx1', 'Tcf15', 'Pou3f1', 'Hoxb2', 'Lef1'))) + 
+    RotatedAxis()
+  
+  ggsave(filename = paste0(outDir, '/scRNAseq_DotPlot_condition_', c, '.pdf'), 
+         height = 6, width = 8)
+  
+  #FeaturePlot(subObj, features = c('Pax6', 'Foxa2', 'Neurod4', 'Nkx2-2'))
+  
+  subObj$subclusters = as.character(subObj$seurat_clusters)
+  
+  ## manual merging and cleaning
+  #subObj$subclusters[which(subObj$subclusters == '5')] = NA
+  subObj$subclusters[!is.na(match(subObj$subclusters, c('0')))] = 'Lef1_Pou3f1_Pou5f1'
+  subObj$subclusters[!is.na(match(subObj$subclusters, c('1')))] = '1'
+  subObj$subclusters[!is.na(match(subObj$subclusters, c('2')))] = '2'
+  subObj$subclusters[!is.na(match(subObj$subclusters, c('3')))] = 'highZfp42'
+  subObj$subclusters[!is.na(match(subObj$subclusters, c('4')))] = '4'
+  subObj$subclusters[!is.na(match(subObj$subclusters, c('5')))] = 'highNeurod1_Pou3f1'
+  
+  #subObj$subclusters[!is.na(match(subObj$subclusters, c('0', '2')))] = 'double+_lowPax6FoxA2'
+  
+  
+  p1 = DimPlot(subObj, label = TRUE, repel = TRUE, group.by = 'Phase', raster=FALSE)
+  p2 = DimPlot(subObj, label = TRUE, repel = TRUE, group.by = 'subclusters', raster=FALSE)
+  
+  p3 = FeaturePlot(subObj, features = c('Pax6', 'Foxa2'))
+  
+  (p1 + p2) / p3
+  
+  ggsave(filename = paste0(outDir, '/scRNAseq_subClusters_usingTFs_condition_', c, '_manual.pdf'), 
+         height = 8, width = 12)
+  
+  
+  aa$subclusters[match(colnames(subObj), colnames(aa))] = paste0("d2_", subObj$subclusters)
+  DimPlot(aa, group.by = 'subclusters')
+  
   
   
   pdfname = paste0(outDir, '/scRNAseq_subClusters_usingTFs_condition_', c, '_top100HVGs.pdf')
@@ -435,8 +459,53 @@ for(c in cc)
 }
 
 saveRDS(aa, file = paste0(outDir, 'scRNAseq_RAsample_d2Tod5_selectedGenes_',
-                          'cellCycleRegressed_subclusters.perTimepoint.rds'))
+                          'cellCycleRegressed_subclusters.perTimepoint_manual.rds'))
 
+##########################################
+# check marker genes of subclusters with all genes
+##########################################
+aa = readRDS(file = paste0('../results/Rdata/', 
+                           'seuratObject_RA.symmetry.breaking_doublet.rm_mt.ribo.filtered_regressout.nCounts_',
+                           'cellCycleScoring_annot.v2_newUMAP_clusters_sparseFeatures', '_timePoint_',
+                           'mNT_scRNAseq', 
+                           '_R13547_10x_mNT_20220813', '.rds'))
+
+bb = readRDS(file = paste0(outDir, 'scRNAseq_RAsample_d2Tod5_selectedGenes_',
+                           'cellCycleRegressed_subclusters.perTimepoint_manual.rds'))
+
+
+aa$subclusters = NA
+aa$subclusters[match(colnames(bb), colnames(aa))] = bb$subclusters
+
+DimPlot(aa, group.by = 'subclusters')
+
+c = "day2_beforeRA"
+c =  "day3_RA.rep1"
+c = "day2.5_RA"
+c = "day3.5_RA"
+
+cat("condition -- ", c, "\n")
+
+subObj = subset(aa, 
+                cells = colnames(aa)[!is.na(match(aa$condition, c)) & !is.na(aa$subclusters)])
+
+print(unique(as.character(subObj$condition)))
+
+subObj$condition = droplevels(subObj$condition)
+
+subObj <- FindVariableFeatures(subObj, selection.method = "vst", nfeatures = 1000)
+
+Idents(subObj) = factor(subObj$subclusters)
+
+all.markers <- FindAllMarkers(subObj, only.pos = TRUE)
+all.markers %>%
+  group_by(cluster) %>%
+  top_n(n = 20, wt = avg_log2FC) -> top10
+
+DoHeatmap(subObj, features = top10$gene) + NoLegend()
+
+ggsave(filename = paste0(outDir, '/scRNAseq_heatmap_markerGenes_subClusters_condition_', c, '.pdf'), 
+       height = 20, width = 12)
 
 ########################################################
 ########################################################
