@@ -243,6 +243,9 @@ outDir = paste0(resDir, '/mNTs_multiome_RA_searching_earlyBias/',
 system(paste0('mkdir -p ', outDir))
 
 
+##########################################
+# subset the RA samples 
+##########################################
 aa = readRDS(file = paste0('../results/Rdata/', 
                            'seuratObject_RA.symmetry.breaking_doublet.rm_mt.ribo.filtered_regressout.nCounts_',
                            'cellCycleScoring_annot.v2_newUMAP_clusters_sparseFeatures', '_timePoint_',
@@ -308,6 +311,7 @@ require(SuperCell)
 
 aa = readRDS(file = paste0(outDir, 'scRNAseq_RAsample_d2Tod5_cellCycleRegressed.rds'))
 aa$subclusters = NA
+aa$subtypes = NA
 
 cc = unique(as.character(aa$condition))
 nb_hvg = 100
@@ -332,6 +336,8 @@ for(c in cc)
   subObj = subset(aa, 
                   cells = colnames(aa)[!is.na(match(aa$condition, c))],
                   features = genes_sel)
+  subaa = subset(aa, 
+                 cells = colnames(aa)[!is.na(match(aa$condition, c))])
   
   print(unique(as.character(subObj$condition)))
   
@@ -396,7 +402,7 @@ for(c in cc)
   
   subObj <- FindClusters(subObj, verbose = FALSE, algorithm = 3, resolution = 1.0)
   
-  #subObj <- FindClusters(subObj, verbose = FALSE, algorithm = 3, resolution = 0.8)
+  subObj <- FindClusters(subObj, verbose = FALSE, algorithm = 3, resolution = 0.8)
   
   p1 = DimPlot(subObj, label = TRUE, repel = TRUE, group.by = 'Phase', raster=FALSE)
   p2 = DimPlot(subObj, label = TRUE, repel = TRUE, group.by = 'seurat_clusters', raster=FALSE, 
@@ -417,7 +423,35 @@ for(c in cc)
   ggsave(filename = paste0(outDir, '/scRNAseq_DotPlot_condition_', c, '.pdf'), 
          height = 6, width = 8)
   
-  #FeaturePlot(subObj, features = c('Pax6', 'Foxa2', 'Neurod4', 'Nkx2-2'))
+  
+  subaa$subclusters = subObj$seurat_clusters
+  subaa[['umap']] = subObj[['umap']]
+  Idents(subaa) = subaa$subclusters
+  subaa = FindVariableFeatures(subaa, selection.method = "vst", nfeatures = nb_hvg)
+  
+  top10 <- head(VariableFeatures(subaa), 15)
+  plot1 <- VariableFeaturePlot(subaa)
+  plot2 <- LabelPoints(plot = plot1, points = top10, repel = TRUE)
+  plot1 + plot2
+  
+  FeaturePlot(subaa, features = c('Pax6', 'Foxa2', 'Gata3', 'Prdm1', 'Jun', 'Fos'))
+  
+  DotPlot(subaa, features = unique(c('Pax6', 'Foxa2', 'Gata3',  'Prdm1', 'Jun', 'Fos', 
+                                     VariableFeatures(subaa)))) + 
+    RotatedAxis()
+  
+  ggsave(filename = paste0(outDir, '/scRNAseq_DotPlot_condition_tfs.sps_', c, '.pdf'), 
+         height = 6, width = 27)
+  
+  
+  pdfname = paste0(outDir, '/scRNAseq_subClusters_usingTFs.SPs_condition_', c, '_top100HVGs.pdf')
+  pdf(pdfname, width=12, height = 8)
+  
+  plot_manyFeatures_seurat(subaa, features = unique(c("Pax6", "Foxa2", 'Gata3', 'Prdm1', 'Jun', 'Fos',
+                                                      VariableFeatures(subaa))))
+  
+  #FeaturePlot(subObj, features = unique(c(top10, c('Pax6', 'Foxa2'))))
+  dev.off()
   
   subObj$subclusters = as.character(subObj$seurat_clusters)
   
@@ -453,8 +487,10 @@ for(c in cc)
   pdf(pdfname, width=12, height = 8)
   
   plot_manyFeatures_seurat(subObj, features = unique(c("Pax6", "Foxa2", VariableFeatures(subObj))))
+  
   #FeaturePlot(subObj, features = unique(c(top10, c('Pax6', 'Foxa2'))))
   dev.off()
+  
   
 }
 
@@ -506,6 +542,11 @@ DoHeatmap(subObj, features = top10$gene) + NoLegend()
 
 ggsave(filename = paste0(outDir, '/scRNAseq_heatmap_markerGenes_subClusters_condition_', c, '.pdf'), 
        height = 20, width = 12)
+
+
+
+
+
 
 ########################################################
 ########################################################
