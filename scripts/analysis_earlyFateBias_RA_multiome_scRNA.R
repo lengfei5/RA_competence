@@ -506,7 +506,9 @@ aa = readRDS(file = paste0('../results/Rdata/',
                            'mNT_scRNAseq', 
                            '_R13547_10x_mNT_20220813', '.rds'))
 
-bb = readRDS(file = paste0(outDir, 'scRNAseq_RAsample_d2Tod5_selectedGenes_',
+bb = readRDS(file = paste0(resDir, '/mNTs_multiome_RA_searching_earlyBias/',
+                           'RAsample_subcluster_perTimePoint_test', 
+                           'scRNAseq_RAsample_d2Tod5_selectedGenes_',
                            'cellCycleRegressed_subclusters.perTimepoint_manual.rds'))
 
 
@@ -542,9 +544,6 @@ DoHeatmap(subObj, features = top10$gene) + NoLegend()
 
 ggsave(filename = paste0(outDir, '/scRNAseq_heatmap_markerGenes_subClusters_condition_', c, '.pdf'), 
        height = 20, width = 12)
-
-
-
 
 
 
@@ -735,6 +734,7 @@ dev.off()
 
 save(sc, cl, res, 
      file = paste0(outDir, '/out_varID2_scSeq_pruneKnn_all.Rdata'))
+
 
 ##########################################
 # ## compute noise from corrected variance
@@ -1102,7 +1102,6 @@ outDir = paste0(resDir, '/mNTs_multiome_RA_searching_earlyBias/',
 
 system(paste0('mkdir -p ', outDir))
 
-
 ##########################################
 # import the RA samples and cleaning
 # subseting the cells for OT test
@@ -1148,149 +1147,259 @@ p1 + p2
 saveRDS(aa, file = paste0(outDir, 'scRNAseq_d2_d2.5_d3_d4_d5_RA_cleaned.rds'))
 
 ##########################################
+# test subclusters  with TFs
+##########################################
+Test_subclusters_usingTFs = FALSE
+if(Test_subclusters_usingTFs){
+  
+  aa = readRDS(file = paste0('../results/Rdata/', 
+                             'seuratObject_RA.symmetry.breaking_doublet.rm_mt.ribo.filtered_regressout.nCounts_',
+                             'cellCycleScoring_annot.v2_newUMAP_clusters_sparseFeatures', '_timePoint_',
+                             'mNT_scRNAseq', 
+                             '_R13547_10x_mNT_20220813', '.rds'))
+  
+  bb = readRDS(file = paste0(resDir, '/mNTs_multiome_RA_searching_earlyBias/',
+                             'RAsample_subcluster_perTimePoint_test', 
+                             'scRNAseq_RAsample_d2Tod5_selectedGenes_',
+                             'cellCycleRegressed_subclusters.perTimepoint_manual.rds'))
+  
+  
+  aa$subclusters = NA
+  aa$subclusters[match(colnames(bb), colnames(aa))] = bb$subclusters
+  
+  DimPlot(aa, group.by = 'subclusters')
+  
+  aa = subset(aa, cells = colnames(aa)[which(!is.na(aa$subclusters))])
+  
+  ### use only TFs data as PCs
+  genes_sel = rownames(aa)
+  mm = match(genes_sel, c(tfs, c("Cyp26a1", "Cyp26b1", "Dhrs3", "Esrrg", "Ezh2", "Klf2","Nr1h2", "Nr2c1",
+                                 'Zfp703')))
+  genes_sel = genes_sel[which(!is.na(mm))]
+  cat(length(genes_sel), ' left genes \n')
+  
+  subObj = subset(aa, 
+                  cells = colnames(aa)[!is.na(match(aa$condition, c))],
+                  features = genes_sel)
+  subaa = subset(aa, 
+                 cells = colnames(aa)[!is.na(match(aa$condition, c))])
+  
+  print(unique(as.character(subObj$condition)))
+  
+  subObj$condition = droplevels(subObj$condition)
+  
+  subObj <- FindVariableFeatures(subObj, selection.method = "vst", nfeatures = nb_hvg)
+  
+  top10 <- head(VariableFeatures(subObj), 15)
+  # plot variable features with and without labels
+  plot1 <- VariableFeaturePlot(subObj)
+  plot2 <- LabelPoints(plot = plot1, points = top10, repel = TRUE)
+  plot1 + plot2
+  
+  Idents(subObj) = subObj$condition
+  subObj <- RunUMAP(subObj, slot = "data", metric = 'euclidean',
+                    features = VariableFeatures(subObj), n.neighbors = 50, min.dist = 0.1)
+  
+  # DimPlot(subObj, label = TRUE, repel = TRUE, group.by = 'Phase', raster=FALSE)
+  
+  doubleCheck_PCs_computation = FALSE
+  if(doubleCheck_PCs_computation){
+    
+    xx = subObj
+    hvgs = VariableFeatures(subObj)
+    pcs = as.matrix(xx@assays$RNA@data[match(hvgs, rownames(subObj)), ])
+    colnames(pcs) = colnames(xx)
+    pcs = t(pcs)
+    colnames(pcs) = paste0('PC_', c(1:ncol(pcs)))
+    xx[['pca']] = CreateDimReducObject(embeddings = pcs, key = "PC_", assay = DefaultAssay(xx))
+    xx = RunUMAP(xx, metric = 'euclidean', reduction = 'pca', dims = c(1:length(hvgs)),
+                 n.neighbors = 50, min.dist = 0.1)
+    
+    p1 = DimPlot(xx, label = TRUE, repel = TRUE, group.by = 'Phase', raster=FALSE)
+    p11 = FeaturePlot(xx, features = c('Pax6', 'Foxa2'))
+    
+    p0 = DimPlot(subObj, label = TRUE, repel = TRUE, group.by = 'Phase', raster=FALSE)
+    p00 = FeaturePlot(subObj, features = c('Pax6', 'Foxa2'))
+    
+    p0 + p1
+    
+    # Before running MDS, we first calculate a distance matrix between all pairs of cells.  Here
+    # we use a simple euclidean distance metric on all genes, using scale.data as input
+    pcs <- prcomp(t(as.matrix(xx@assays$RNA@data[match(hvgs, rownames(subObj)), ])),
+                  center = TRUE,
+                  scale. = FALSE)$x
+    colnames(pcs) = paste0('PC_', c(1:ncol(pcs)))
+    
+    xx[['pca']] = CreateDimReducObject(embeddings = pcs, key = "PC_", assay = DefaultAssay(xx))
+    xx = RunUMAP(xx, metric = 'euclidean', reduction = 'pca', dims = c(1:length(hvgs)),
+                 n.neighbors = 50, min.dist = 0.1)
+    
+    p2 = DimPlot(xx, label = TRUE, repel = TRUE, group.by = 'Phase', raster=FALSE)
+    p22 = FeaturePlot(xx, features = c('Pax6', 'Foxa2'))
+    
+    p0 + p1 + p2
+    p00 / p11 / p22
+    
+  }
+  
+  
+  
+  
+  
+}
+
+
+
+##########################################
 #  test metacell to have small clusters for OT
 ##########################################
 ## test metacell approach 
 ## original code from 
 ## https://gfellerlab.github.io/MetacellAnalysisTutorial/Metacell-
 ## construction-chapter.html#SuperCell-construction
-library(SuperCell)
-
-## subsampling cell at each time point
-aa = readRDS(file = paste0(outDir, 'scRNAseq_d2_d2.5_d3_d4_d5_RA_cleaned.rds'))
-
-set.seed(2026)
-Idents(aa) = aa$condition
-aa = subset(aa, downsample = 2000)
-
-
-sc_data = aa
-annotation_label = 'condition'
-
-#sc_data <- NormalizeData(sc_data, normalization.method = "LogNormalize")
-sc_data <- FindVariableFeatures(sc_data, nfeatures = 3000)
-#sc_data <- ScaleData(sc_data)
-#> Centering and scaling data matrix
-sc_data <- RunPCA(sc_data, npcs = 100, verbose = F)
-
-sc_data <- RunUMAP(sc_data, reduction = "pca", dims = c(1:30), n.neighbors = 30, verbose = F, 
-                   min.dist = 0.1)
-UMAPPlot(sc_data, group.by = "condition")
-
-ggsave(filename = paste0(outDir, '/plot_UMAP_for_metacell.pdf'), 
-       width = 10, height = 6)
-
-FeaturePlot(sc_data, features = c('Foxa2', 'Pax6'))
-
-ggsave(filename = paste0(outDir, '/plot_UMAP_for_metacell_FoxA2_Pax6.pdf'), 
-       width = 14, height = 6)
-
-
-gamma = 200 # the requested graining level.
-k_knn = 20 # the number of neighbors considered to build the knn network.
-nb_var_genes = 3000 # number of the top variable genes to use for dimensionality reduction 
-nb_pc = 30 # the number of principal components to use.   
-cell_condition = sc_data$condition
-
-MC <- SuperCell::SCimplify(Seurat::GetAssayData(sc_data, slot = "data"),
-                           k.knn = k_knn,
-                           gamma = gamma,
-                           #n.var.genes = nb_var_genes,  
-                           cell.split.condition = cell_condition,
-                           n.pc = nb_pc,
-                           genes.use = Seurat::VariableFeatures(sc_data)
-)
-
-MC.GE <- supercell_GE(Seurat::GetAssayData(sc_data, slot = "counts"),
-                      MC$membership,
-                      mode =  "sum")
-dim(MC.GE)
-
-
-print(annotation_label)
-
-MC$annotation <- supercell_assign(clusters = sc_data@meta.data[, annotation_label], # single-cell annotation
-                                  supercell_membership = MC$membership, # single-cell assignment to metacells
-                                  method = "absolute"
-)
-
-head(MC$annotation)
-
-table(MC$annotation)
-
-pdfname = paste0(outDir, '/plot_metacell_graph_v2.pdf')
-pdf(pdfname, width=10, height = 6)
-
-supercell_plot(
-  MC$graph.supercells, 
-  group = MC$annotation,
-  lay.method = 'fr',
-  seed = 1, 
-  alpha = -pi/2,
-  min.cell.size = 20,
-  main  = "Metacells colored by condition"
-)
-
-dev.off()
-
-
-## save the metacell into Seurat object
-mcs  = MC$membership
-aa$metacell = mcs[match(colnames(aa), names(mcs))]
-
-cc = as.character(unique(aa$condition))
-for(n in 1:length(cc))
-{
-  cat(cc[n], '-- nb of metacells ', 
-      length(unique(aa$metacell[which(aa$condition == cc[n])])), '\n')
-}
-
-mc_size = table(aa$metacell)
-mc_small = names(mc_size)[which(mc_size < 50)]
-
-aa$metacell[!is.na(match(aa$metacell, mc_small))] = NA
-
-cc = as.character(unique(aa$condition))
-for(n in 1:length(cc))
-{
-  cat(cc[n], '-- nb of metacells ', 
-      length(unique(aa$metacell[which(aa$condition == cc[n] & !is.na(aa$metacell))])), '\n')
-}
-
-DimPlot(aa, group.by = "metacell", label = TRUE, repel = TRUE) + NoLegend()
-
-## processing the metacell labels
-aa = subset(aa, cells = colnames(aa)[which(!is.na(aa$metacell))])
-
-cc = as.character(unique(aa$condition))
-aa$metacell_label = NA
-for(c in cc)
-{
-  # c = "day2_beforeRA"
-  kk = which(aa$condition == c)
-  index = unique(aa$metacell[kk])
+use_metacell_for_subclusters = FALSE
+if(use_metacell_for_subclusters){
   
-  for(n in 1:length(index)) 
+  library(SuperCell)
+  
+  ## subsampling cell at each time point
+  aa = readRDS(file = paste0(outDir, 'scRNAseq_d2_d2.5_d3_d4_d5_RA_cleaned.rds'))
+  
+  set.seed(2026)
+  Idents(aa) = aa$condition
+  aa = subset(aa, downsample = 2000)
+  
+  
+  sc_data = aa
+  annotation_label = 'condition'
+  
+  #sc_data <- NormalizeData(sc_data, normalization.method = "LogNormalize")
+  sc_data <- FindVariableFeatures(sc_data, nfeatures = 3000)
+  #sc_data <- ScaleData(sc_data)
+  #> Centering and scaling data matrix
+  sc_data <- RunPCA(sc_data, npcs = 100, verbose = F)
+  
+  sc_data <- RunUMAP(sc_data, reduction = "pca", dims = c(1:30), n.neighbors = 30, verbose = F, 
+                     min.dist = 0.1)
+  UMAPPlot(sc_data, group.by = "condition")
+  
+  ggsave(filename = paste0(outDir, '/plot_UMAP_for_metacell.pdf'), 
+         width = 10, height = 6)
+  
+  FeaturePlot(sc_data, features = c('Foxa2', 'Pax6'))
+  
+  ggsave(filename = paste0(outDir, '/plot_UMAP_for_metacell_FoxA2_Pax6.pdf'), 
+         width = 14, height = 6)
+  
+  
+  gamma = 200 # the requested graining level.
+  k_knn = 20 # the number of neighbors considered to build the knn network.
+  nb_var_genes = 3000 # number of the top variable genes to use for dimensionality reduction 
+  nb_pc = 30 # the number of principal components to use.   
+  cell_condition = sc_data$condition
+  
+  MC <- SuperCell::SCimplify(Seurat::GetAssayData(sc_data, slot = "data"),
+                             k.knn = k_knn,
+                             gamma = gamma,
+                             #n.var.genes = nb_var_genes,  
+                             cell.split.condition = cell_condition,
+                             n.pc = nb_pc,
+                             genes.use = Seurat::VariableFeatures(sc_data)
+  )
+  
+  MC.GE <- supercell_GE(Seurat::GetAssayData(sc_data, slot = "counts"),
+                        MC$membership,
+                        mode =  "sum")
+  dim(MC.GE)
+  
+  
+  print(annotation_label)
+  
+  MC$annotation <- supercell_assign(clusters = sc_data@meta.data[, annotation_label], # single-cell annotation
+                                    supercell_membership = MC$membership, # single-cell assignment to metacells
+                                    method = "absolute"
+  )
+  
+  head(MC$annotation)
+  
+  table(MC$annotation)
+  
+  pdfname = paste0(outDir, '/plot_metacell_graph_v2.pdf')
+  pdf(pdfname, width=10, height = 6)
+  
+  supercell_plot(
+    MC$graph.supercells, 
+    group = MC$annotation,
+    lay.method = 'fr',
+    seed = 1, 
+    alpha = -pi/2,
+    min.cell.size = 20,
+    main  = "Metacells colored by condition"
+  )
+  
+  dev.off()
+  
+  
+  ## save the metacell into Seurat object
+  mcs  = MC$membership
+  aa$metacell = mcs[match(colnames(aa), names(mcs))]
+  
+  cc = as.character(unique(aa$condition))
+  for(n in 1:length(cc))
   {
-    aa$metacell_label[which(aa$condition == c & aa$metacell == index[n])] = paste0(c, '_', n)
+    cat(cc[n], '-- nb of metacells ', 
+        length(unique(aa$metacell[which(aa$condition == cc[n])])), '\n')
   }
   
+  mc_size = table(aa$metacell)
+  mc_small = names(mc_size)[which(mc_size < 50)]
+  
+  aa$metacell[!is.na(match(aa$metacell, mc_small))] = NA
+  
+  cc = as.character(unique(aa$condition))
+  for(n in 1:length(cc))
+  {
+    cat(cc[n], '-- nb of metacells ', 
+        length(unique(aa$metacell[which(aa$condition == cc[n] & !is.na(aa$metacell))])), '\n')
+  }
+  
+  DimPlot(aa, group.by = "metacell", label = TRUE, repel = TRUE) + NoLegend()
+  
+  ## processing the metacell labels
+  aa = subset(aa, cells = colnames(aa)[which(!is.na(aa$metacell))])
+  
+  cc = as.character(unique(aa$condition))
+  aa$metacell_label = NA
+  for(c in cc)
+  {
+    # c = "day2_beforeRA"
+    kk = which(aa$condition == c)
+    index = unique(aa$metacell[kk])
+    
+    for(n in 1:length(index)) 
+    {
+      aa$metacell_label[which(aa$condition == c & aa$metacell == index[n])] = paste0(c, '_', n)
+    }
+    
+  }
+  
+  aa$metacell_label = gsub('day2_beforeRA_', 'd2_', aa$metacell_label)
+  aa$metacell_label = gsub('day2.5_RA_', 'd2.5_', aa$metacell_label)
+  aa$metacell_label = gsub('day3_RA.rep1_', 'd3_', aa$metacell_label)
+  aa$metacell_label = gsub('day3.5_RA_', 'd3.5_', aa$metacell_label)
+  aa$metacell_label = gsub('day4_RA_', 'd4_', aa$metacell_label)
+  aa$metacell_label = gsub('day5_RA_', 'd5_', aa$metacell_label)
+  
+  DimPlot(aa, group.by = "metacell_label", label = TRUE, repel = TRUE) + NoLegend()
+  
+  ggsave(filename = paste0(outDir, '/plot_UMAP_for_metacell_index_forOT.pdf'), 
+         width = 12, height = 8)
+  
+  
+  saveRDS(aa, file = paste0(outDir, 'scRNAseq_RA_d2_d2.5_d3_d4_d5_metacellAnnot_forOTtest.rds'))
+  
 }
 
-aa$metacell_label = gsub('day2_beforeRA_', 'd2_', aa$metacell_label)
-aa$metacell_label = gsub('day2.5_RA_', 'd2.5_', aa$metacell_label)
-aa$metacell_label = gsub('day3_RA.rep1_', 'd3_', aa$metacell_label)
-aa$metacell_label = gsub('day3.5_RA_', 'd3.5_', aa$metacell_label)
-aa$metacell_label = gsub('day4_RA_', 'd4_', aa$metacell_label)
-aa$metacell_label = gsub('day5_RA_', 'd5_', aa$metacell_label)
-
-DimPlot(aa, group.by = "metacell_label", label = TRUE, repel = TRUE) + NoLegend()
-
-ggsave(filename = paste0(outDir, '/plot_UMAP_for_metacell_index_forOT.pdf'), 
-       width = 12, height = 8)
-
-
-saveRDS(aa, file = paste0(outDir, 'scRNAseq_RA_d2_d2.5_d3_d4_d5_metacellAnnot_forOTtest.rds'))
 
 ##########################################
 # save file for OT moscot  
