@@ -1171,21 +1171,21 @@ if(Test_subclusters_usingTFs){
   
   aa = subset(aa, cells = colnames(aa)[which(!is.na(aa$subclusters))])
   
+  cc = unique(aa$condition)
+  nb_hvg = 150
+  
   ### use only TFs data as PCs
-  genes_sel = rownames(aa)
+  genes_sel = rownames(bb)
   mm = match(genes_sel, c(tfs, c("Cyp26a1", "Cyp26b1", "Dhrs3", "Esrrg", "Ezh2", "Klf2","Nr1h2", "Nr2c1",
                                  'Zfp703')))
   genes_sel = genes_sel[which(!is.na(mm))]
   cat(length(genes_sel), ' left genes \n')
   
-  subObj = subset(aa, 
-                  cells = colnames(aa)[!is.na(match(aa$condition, c))],
+  subObj = subset(bb, 
+                  cells = colnames(bb)[!is.na(match(bb$condition, cc))],
                   features = genes_sel)
-  subaa = subset(aa, 
-                 cells = colnames(aa)[!is.na(match(aa$condition, c))])
   
   print(unique(as.character(subObj$condition)))
-  
   subObj$condition = droplevels(subObj$condition)
   
   subObj <- FindVariableFeatures(subObj, selection.method = "vst", nfeatures = nb_hvg)
@@ -1200,54 +1200,34 @@ if(Test_subclusters_usingTFs){
   subObj <- RunUMAP(subObj, slot = "data", metric = 'euclidean',
                     features = VariableFeatures(subObj), n.neighbors = 50, min.dist = 0.1)
   
-  # DimPlot(subObj, label = TRUE, repel = TRUE, group.by = 'Phase', raster=FALSE)
+  DimPlot(subObj, label = TRUE, repel = TRUE, group.by = 'condition', raster=FALSE)
   
-  doubleCheck_PCs_computation = FALSE
-  if(doubleCheck_PCs_computation){
-    
-    xx = subObj
-    hvgs = VariableFeatures(subObj)
-    pcs = as.matrix(xx@assays$RNA@data[match(hvgs, rownames(subObj)), ])
-    colnames(pcs) = colnames(xx)
-    pcs = t(pcs)
-    colnames(pcs) = paste0('PC_', c(1:ncol(pcs)))
-    xx[['pca']] = CreateDimReducObject(embeddings = pcs, key = "PC_", assay = DefaultAssay(xx))
-    xx = RunUMAP(xx, metric = 'euclidean', reduction = 'pca', dims = c(1:length(hvgs)),
-                 n.neighbors = 50, min.dist = 0.1)
-    
-    p1 = DimPlot(xx, label = TRUE, repel = TRUE, group.by = 'Phase', raster=FALSE)
-    p11 = FeaturePlot(xx, features = c('Pax6', 'Foxa2'))
-    
-    p0 = DimPlot(subObj, label = TRUE, repel = TRUE, group.by = 'Phase', raster=FALSE)
-    p00 = FeaturePlot(subObj, features = c('Pax6', 'Foxa2'))
-    
-    p0 + p1
-    
-    # Before running MDS, we first calculate a distance matrix between all pairs of cells.  Here
-    # we use a simple euclidean distance metric on all genes, using scale.data as input
-    pcs <- prcomp(t(as.matrix(xx@assays$RNA@data[match(hvgs, rownames(subObj)), ])),
-                  center = TRUE,
-                  scale. = FALSE)$x
-    colnames(pcs) = paste0('PC_', c(1:ncol(pcs)))
-    
-    xx[['pca']] = CreateDimReducObject(embeddings = pcs, key = "PC_", assay = DefaultAssay(xx))
-    xx = RunUMAP(xx, metric = 'euclidean', reduction = 'pca', dims = c(1:length(hvgs)),
-                 n.neighbors = 50, min.dist = 0.1)
-    
-    p2 = DimPlot(xx, label = TRUE, repel = TRUE, group.by = 'Phase', raster=FALSE)
-    p22 = FeaturePlot(xx, features = c('Pax6', 'Foxa2'))
-    
-    p0 + p1 + p2
-    p00 / p11 / p22
-    
-  }
+  hvgs = VariableFeatures(subObj)
+  pcs = as.matrix(subObj@assays$RNA@data[match(hvgs, rownames(subObj)), ])
+  colnames(pcs) = colnames(subObj)
+  pcs = t(pcs)
+  colnames(pcs) = paste0('PC_', c(1:ncol(pcs)))
+  
+  aa[['pca']] = CreateDimReducObject(embeddings = pcs, key = "PC_", assay = DefaultAssay(aa))
+  
+  aa = RunUMAP(aa, metric = 'euclidean', reduction = 'pca', dims = c(1:length(hvgs)),
+               n.neighbors = 50, min.dist = 0.1)
+  
+  p1 = DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'condition', raster=FALSE)
+  p2 =DimPlot(aa, label = TRUE, repel = TRUE, group.by = 'Phase', raster=FALSE)
+  p3 = FeaturePlot(aa, features = c('Foxa2', 'Pax6'))
+  
+  (p1 + p2)/p3
+  
+  ggsave(filename = paste0(outDir, 
+                           '/scRNAseq_UMAP_RA_d2_d2.5_d3_d4_d5_TFsubclustersPCA.pdf'), 
+         height = 8, width = 12)
   
   
-  
+  saveRDS(aa, file = paste0(outDir, 'scRNAseq_RA_d2_d2.5_d3_d4_d5_TFsubclustersPCA_forOTtest.rds'))
   
   
 }
-
 
 
 ##########################################
@@ -1406,45 +1386,48 @@ if(use_metacell_for_subclusters){
 ##########################################
 library(SeuratDisk)
 
-aa = readRDS(file = paste0(outDir, 'scRNAseq_RA_d2_d2.5_d3_d4_d5_metacellAnnot_forOTtest.rds'))
+#aa = readRDS(file = paste0(outDir, 'scRNAseq_RA_d2_d2.5_d3_d4_d5_metacellAnnot_forOTtest.rds'))
+aa = readRDS(file = paste0(outDir, 'scRNAseq_RA_d2_d2.5_d3_d4_d5_TFsubclustersPCA_forOTtest.rds'))
 
 aa$condition = as.character(aa$condition)
 
 FeaturePlot(aa, features = c("Foxa2", "Pax6"))
 
-DimPlot(aa, group.by = "metacell_label", label = TRUE, repel = TRUE) + NoLegend()
+DimPlot(aa, group.by = "subclusters", label = TRUE, repel = TRUE)
 
-ggsave(filename = paste0(outDir, '/plot_UMAP_for_metacell_index_forOT_beforeMerge.pdf'), 
+ggsave(filename = paste0(outDir, '/plot_UMAP_for_subclusters_labels_forOT.pdf'), 
        width = 12, height = 8)
 
-mm = match(aa$metacell_label, c("d5_1", "d5_2", "d5_3", "d5_5", "d5_6", "d5_7", "d5_9", 
-                                      "d5_10", "d5_15", "d5_18"))
-aa$metacell_label[!is.na(mm)] = 'd5_NP'
 
-DimPlot(aa, group.by = "metacell_label", label = TRUE, repel = TRUE) + NoLegend()
-
-mm = match(aa$metacell_label, c("d5_4", "d5_8", "d5_11", "d5_12", "d5_13", "d5_14", "d5_16", 
-                                "d5_17"))
-aa$metacell_label[!is.na(mm)] = 'd5_FP'
-
-DimPlot(aa, group.by = "metacell_label", label = TRUE, repel = TRUE) + NoLegend()
-
-
-mm = match(aa$metacell_label, c("d4_4", "d4_5", "d4_7", "d4_9"))
-aa$metacell_label[!is.na(mm)] = 'd4_NP'
-
-mm = match(aa$metacell_label, c("d4_1", "d4_2", "d4_3", "d4_6", "d4_8", "d4_10"))
-aa$metacell_label[!is.na(mm)] = 'd4_FP'
-
-DimPlot(aa, group.by = "metacell_label", label = TRUE, repel = TRUE) + NoLegend()
-
-saveRDS(aa, file = paste0(outDir, 'scRNAseq_RA_d2_d2.5_d3_d4_d5_metacellAnnot_manualPPFP_forOTtest.rds'))
-
-
-library(SeuratDisk)
-aa = readRDS(file = paste0(outDir, 'scRNAseq_RA_d2_d2.5_d3_d4_d5_metacellAnnot_manualPPFP_forOTtest.rds'))
-
-aa$condition = as.character(aa$condition)
+manual_merging_subclusters = FALSE
+if(manual_merging_subclusters){
+  mm = match(aa$metacell_label, c("d5_1", "d5_2", "d5_3", "d5_5", "d5_6", "d5_7", "d5_9", 
+                                  "d5_10", "d5_15", "d5_18"))
+  aa$metacell_label[!is.na(mm)] = 'd5_NP'
+  
+  DimPlot(aa, group.by = "metacell_label", label = TRUE, repel = TRUE) + NoLegend()
+  
+  mm = match(aa$metacell_label, c("d5_4", "d5_8", "d5_11", "d5_12", "d5_13", "d5_14", "d5_16", 
+                                  "d5_17"))
+  aa$metacell_label[!is.na(mm)] = 'd5_FP'
+  
+  DimPlot(aa, group.by = "metacell_label", label = TRUE, repel = TRUE) + NoLegend()
+  
+  
+  mm = match(aa$metacell_label, c("d4_4", "d4_5", "d4_7", "d4_9"))
+  aa$metacell_label[!is.na(mm)] = 'd4_NP'
+  
+  mm = match(aa$metacell_label, c("d4_1", "d4_2", "d4_3", "d4_6", "d4_8", "d4_10"))
+  aa$metacell_label[!is.na(mm)] = 'd4_FP'
+  
+  DimPlot(aa, group.by = "metacell_label", label = TRUE, repel = TRUE) + NoLegend()
+  
+  saveRDS(aa, file = paste0(outDir, 'scRNAseq_RA_d2_d2.5_d3_d4_d5_metacellAnnot_manualPPFP_forOTtest.rds'))
+  
+  aa = readRDS(file = paste0(outDir, 
+                             'scRNAseq_RA_d2_d2.5_d3_d4_d5_metacellAnnot_manualPPFP_forOTtest.rds'))
+  
+}
 
 mnt = aa
 VariableFeatures(mnt) = NULL
@@ -1468,7 +1451,7 @@ Idents(mnt) = mnt$condition
 
 #mnt = subset(mnt, downsample = 1000)
 
-saveFile =  'scRNAseq_RA_d2_d2.5_d3_d4_d5_metacellAnnot_forOTtest_v2.h5Seurat'
+saveFile =  'scRNAseq_RA_d2_d2.5_d3_d4_d5_TFsubclustersAnnot_forOTtest.h5Seurat'
 
 SaveH5Seurat(mnt, filename = paste0(outDir, saveFile), 
              overwrite = TRUE)
