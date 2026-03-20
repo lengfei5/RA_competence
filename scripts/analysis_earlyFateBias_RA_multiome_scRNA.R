@@ -1172,7 +1172,8 @@ if(Test_subclusters_usingTFs){
   aa = subset(aa, cells = colnames(aa)[which(!is.na(aa$subclusters))])
   
   cc = unique(aa$condition)
-  nb_hvg = 150
+  
+  nb_hvg = 200
   
   ### use only TFs data as PCs
   genes_sel = rownames(bb)
@@ -1203,10 +1204,22 @@ if(Test_subclusters_usingTFs){
   DimPlot(subObj, label = TRUE, repel = TRUE, group.by = 'condition', raster=FALSE)
   
   hvgs = VariableFeatures(subObj)
-  pcs = as.matrix(subObj@assays$RNA@data[match(hvgs, rownames(subObj)), ])
-  colnames(pcs) = colnames(subObj)
-  pcs = t(pcs)
-  colnames(pcs) = paste0('PC_', c(1:ncol(pcs)))
+  
+  makePCA_fromTFs = FALSE
+  if(makePCA_fromTFs){
+    pcs = as.matrix(subObj@assays$RNA@data[match(hvgs, rownames(subObj)), ])
+    colnames(pcs) = colnames(subObj)
+    pcs = t(pcs)
+    colnames(pcs) = paste0('PC_', c(1:ncol(pcs)))
+    
+  }else{
+    pcs <- prcomp(t(as.matrix(subObj@assays$RNA@data[match(hvgs, rownames(subObj)), ])),
+                  center = TRUE,
+                  scale. = FALSE)$x
+    colnames(pcs) = paste0('PC_', c(1:ncol(pcs)))
+  }
+  
+  #xx[['pca']] = CreateDimReducObject(embeddings = pcs, key = "PC_", assay = DefaultAssay(xx))
   
   aa[['pca']] = CreateDimReducObject(embeddings = pcs, key = "PC_", assay = DefaultAssay(aa))
   
@@ -1220,11 +1233,11 @@ if(Test_subclusters_usingTFs){
   (p1 + p2)/p3
   
   ggsave(filename = paste0(outDir, 
-                           '/scRNAseq_UMAP_RA_d2_d2.5_d3_d4_d5_TFsubclustersPCA.pdf'), 
+                           '/scRNAseq_UMAP_RA_d2_d2.5_d3_d4_d5_TFsubclusters_tfsPCA.pdf'), 
          height = 8, width = 12)
   
   
-  saveRDS(aa, file = paste0(outDir, 'scRNAseq_RA_d2_d2.5_d3_d4_d5_TFsubclustersPCA_forOTtest.rds'))
+  saveRDS(aa, file = paste0(outDir, 'scRNAseq_RA_d2_d2.5_d3_d4_d5_TFsubclusters_tfsPCA_forOTtest.rds'))
   
   
 }
@@ -1386,8 +1399,25 @@ if(use_metacell_for_subclusters){
 ##########################################
 library(SeuratDisk)
 
+outDir = paste0(resDir, '/mNTs_multiome_RA_searching_earlyBias/',
+                'Test_OT/')
 #aa = readRDS(file = paste0(outDir, 'scRNAseq_RA_d2_d2.5_d3_d4_d5_metacellAnnot_forOTtest.rds'))
-aa = readRDS(file = paste0(outDir, 'scRNAseq_RA_d2_d2.5_d3_d4_d5_TFsubclustersPCA_forOTtest.rds'))
+#aa = readRDS(file = paste0(outDir, 'scRNAseq_RA_d2_d2.5_d3_d4_d5_TFsubclustersPCA_forOTtest.rds'))
+aa = readRDS(file = paste0(outDir, 'scRNAseq_RA_d2_d2.5_d3_d4_d5_TFsubclusters_tfsPCA_forOTtest.rds'))
+
+table(aa$subclusters)
+aa = subset(aa, cells = colnames(aa)[which(aa$subclusters != "d5_NA")])
+
+Idents(aa) = factor(aa$condition)
+aa = subset(aa, downsample = 2000)
+
+table(aa$subclusters)
+
+pcs = aa[['pca']]@cell.embeddings
+pcs = pcs[, c(1:30)]
+
+aa[['pca']] = CreateDimReducObject(embeddings = pcs, key = "PC_", assay = DefaultAssay(aa))
+
 
 aa$condition = as.character(aa$condition)
 
@@ -1395,8 +1425,38 @@ FeaturePlot(aa, features = c("Foxa2", "Pax6"))
 
 DimPlot(aa, group.by = "subclusters", label = TRUE, repel = TRUE)
 
-ggsave(filename = paste0(outDir, '/plot_UMAP_for_subclusters_labels_forOT.pdf'), 
+ggsave(filename = paste0(outDir, '/plot_UMAP_for_TFsubclusters_tfsPCs30_forOT.pdf'), 
        width = 12, height = 8)
+
+
+mnt = aa
+VariableFeatures(mnt) = NULL
+
+DefaultAssay(mnt) = 'RNA'
+
+mnt = DietSeurat(mnt, 
+                 counts = TRUE, 
+                 data = TRUE,
+                 scale.data = FALSE,
+                 features = rownames(mnt), 
+                 assays = c('RNA'), 
+                 dimreducs = c('umap', 'pca'), graphs = NULL, 
+                 misc = TRUE
+)
+
+DefaultAssay(mnt) = 'RNA'
+VariableFeatures(mnt)
+
+Idents(mnt) = mnt$condition
+
+#mnt = subset(mnt, downsample = 1000)
+
+saveFile =  'scRNAseq_RA_d2_d2.5_d3_d4_d5_TFsubclustersAnnot_forOTtest_downsampled2000_tfsPCs30.h5Seurat'
+
+SaveH5Seurat(mnt, filename = paste0(outDir, saveFile), 
+             overwrite = TRUE)
+
+Convert(paste0(outDir, saveFile), dest = "h5ad", overwrite = TRUE)
 
 
 manual_merging_subclusters = FALSE
@@ -1429,34 +1489,8 @@ if(manual_merging_subclusters){
   
 }
 
-mnt = aa
-VariableFeatures(mnt) = NULL
 
-DefaultAssay(mnt) = 'RNA'
 
-mnt = DietSeurat(mnt, 
-                 counts = TRUE, 
-                 data = TRUE,
-                 scale.data = FALSE,
-                 features = rownames(mnt), 
-                 assays = c('RNA'), 
-                 dimreducs = c('umap', 'pca'), graphs = NULL, 
-                 misc = TRUE
-)
-
-DefaultAssay(mnt) = 'RNA'
-VariableFeatures(mnt)
-
-Idents(mnt) = mnt$condition
-
-#mnt = subset(mnt, downsample = 1000)
-
-saveFile =  'scRNAseq_RA_d2_d2.5_d3_d4_d5_TFsubclustersAnnot_forOTtest.h5Seurat'
-
-SaveH5Seurat(mnt, filename = paste0(outDir, saveFile), 
-             overwrite = TRUE)
-
-Convert(paste0(outDir, saveFile), dest = "h5ad", overwrite = TRUE)
 
 
 ##########################################
