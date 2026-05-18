@@ -154,7 +154,6 @@ design = meta[which(meta$modality == 'ATAC'), ]
 ##########################################
 ## first merge called peaks from different samples
 ##########################################
-
 for(n in 1:nrow(design))
 {
   # n = 1
