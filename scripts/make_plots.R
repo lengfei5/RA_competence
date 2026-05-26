@@ -651,7 +651,7 @@ allMarker %>%
   slice_head(n = 20) %>%
   ungroup() -> top10
 
-write.csv(allMarker, file = paste0(resDir, '/Table_S1_clusters_markerGenes_all.csv'),
+write.csv2(allMarker, file = paste0(resDir, '/Table_S1_clusters_markerGenes_all.csv'),
           row.names = FALSE)
 
 write.csv(top10, file = paste0(resDir, '/Table_S1_clusters_markerGenes_top20_FigS1D.csv'),

@@ -288,7 +288,6 @@ for(n in 1:nrow(design))
   saveRDS(bb, file = paste0(RdataDir, 'seuratObj_snATAC_', design$condition[n], '.rds'))
   
  
-  
 }
 
 Merge_allSamples = FALSE
@@ -311,6 +310,7 @@ saveRDS(srat_cr, file = (paste0(RdataDir, 'seuratObj_scATAC_beforeMerged.peaks.c
 srat_cr = readRDS(file = paste0(RdataDir, 'seuratObj_scATAC_beforeMerged.peaks.cellranger_v1.rds'))
 srat_cr = Reduce(merge, srat_cr)
 saveRDS(srat_cr, file = (paste0(RdataDir, 'seuratObj_scATAC_merged.peaks.cellranger_v1.rds')))
+
 
 ########################################################
 ########################################################
@@ -1459,8 +1459,6 @@ if(Test_discard_matureNeurons.smallClusters_wnn){
 }
 
 
-
-
 ########################################################
 ########################################################
 # Section IV : Integrate the scRNA-seq data and multiome
@@ -1598,8 +1596,8 @@ if(Integrate_scRNAseq_Multiome){
   dimplot_main_sample
   dimplot_main_chem
   
-  
 }
+
 
 ########################################################
 ########################################################
@@ -1759,6 +1757,5 @@ if(Subset_RAtreated){
   ggsave(filename = paste0(outDir, '/Pax6_enhancers_v1.pdf'), height = 10, width = 18)
   
 }
-
 
 
