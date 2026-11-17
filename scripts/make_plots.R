@@ -651,10 +651,11 @@ allMarker %>%
   slice_head(n = 20) %>%
   ungroup() -> top10
 
-write.csv2(allMarker, file = paste0(resDir, '/Table_S1_clusters_markerGenes_all.csv'),
+
+write.csv2(allMarker[, c(6,7,1:5)], file = paste0(resDir, '/Table_S1_clusters_markerGenes_all.csv'),
           row.names = FALSE)
 
-write.csv(top10, file = paste0(resDir, '/Table_S1_clusters_markerGenes_top20_FigS1D.csv'),
+write.csv2(top10[, c(6, 7, 1:5)], file = paste0(resDir, '/Table_S1_clusters_markerGenes_top20_FigS1D.csv'),
           row.names = FALSE)
 
 xx$clusters = droplevels(xx$clusters)
@@ -1063,6 +1064,13 @@ if(Merge_sparseFeatures_mutlipleMethods){
   
   ### save the sparse features for Table_S1
   ggs = readRDS(file = paste0(resDir, '/geneList_sparseFeatureSelection_v2.rds'))
+  xx = c('Mdk', 'Sox11', 'Cdh1', 'Shh', 'Pou3f2', 'Rfx4', 'Cyp26a1', 'Apoe', 'Nedd4', 'Meis2', 'Cdh2', 
+         'Foxa1',
+         'Tshz1', 'Peg10', 'Pax6', 'Pou3f3', 'Tfap2c', 'Cebpb', 'Dll1', 'Gpc3', 'Peg3', 'Vcp', 'Ddx3x', 
+         'Zic1',
+         'Wnt6', 'Pfdn5', 'Rack1', 'Foxa2', 'Nkx6-2', 'Prrx2', 'Plagl1')
+  dataDir = paste0("../results/scRNAseq_R13547_10x_mNT_20220813/",
+                   "RA_symetryBreaking/sparse_featureSelection_d2_d2.5_d3_d3.5_d4_d5/")
   
   ggs = data.frame(features = ggs, geneBasis = rep(NA, length(ggs)), 
                    dubstep = rep(NA, length(ggs)), SMD = rep(NA, length(ggs)))
@@ -1085,8 +1093,7 @@ if(Merge_sparseFeatures_mutlipleMethods){
   
   ggs = ggs[o1, ]
   
-  write.csv(ggs, file = paste0(resDir, '/Table_S1_sparseFeatures.csv'),
-            row.names = FALSE)
+  write.csv2(ggs, file = paste0(resDir, '/Table_S1_sparseFeatures.csv'), row.names = FALSE)
   
   
   #### umap of samples only using selected sparse features
