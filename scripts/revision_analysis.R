@@ -175,6 +175,11 @@ coexpcol = c("Not" = "grey", "CoExp" = "purple")
 ## subset cell types
 Idents(bb) = as.factor(bb$celltype)
 
+VlnPlot(bb, features = c('Foxa2', 'Pax6'), group.by = 'celltype', ncol = 1)
+
+ggsave(filename = paste0(resDir, '/mouse_gastrulation_VlnPlot_Foxa2_Pax6.pdf'), 
+       width = 12, height = 8)
+
 ## select the follow cell types specified by Hannah
 'Spinal cord'
 'Forebrain/Midbrain/Hindbrain'
@@ -182,13 +187,23 @@ Idents(bb) = as.factor(bb$celltype)
 'Caudal neurectoderm'
 "Forebrain/Midbrain/Hindbrain"
 
-celltypes_sels = c('Spinal cord', 
+## select the cell types expressed either Pax6 or FoxA2
+celltypes_sels = c('Anterior Primitive Streak',
+                   'Caudal epiblast',
+                   'Caudal Mesoderm',
+                   'Caudal neurectoderm',
+                   'Def. endoderm', 
+                   'Epiblast', 
+                   'Forebrain/Midbrain/Hindbrain',
+                   'Gut', 
+                   'NMP', 
+                   'Notochord', 
+  'Spinal cord', 
                    'Forebrain/Midbrain/Hindbrain',
                    'Rostral neurectoderm',
                    'Caudal neurectoderm')
 
 sub.obj = subset(bb, idents = celltypes_sels)
-
 
 FeatureScatter(sub.obj, feature1 = 'Foxa2', feature2 = 'Pax6', 
                group.by = 'stage', cols = stage_colours, raster = FALSE, pt.size = 1.5) +
