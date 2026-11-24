@@ -189,21 +189,29 @@ ggsave(filename = paste0(resDir, '/mouse_gastrulation_VlnPlot_Foxa2_Pax6.pdf'),
 
 ## select the cell types expressed either Pax6 or FoxA2
 celltypes_sels = c('Anterior Primitive Streak',
-                   'Caudal epiblast',
-                   'Caudal Mesoderm',
-                   'Caudal neurectoderm',
+                   
                    'Def. endoderm', 
                    'Epiblast', 
                    'Forebrain/Midbrain/Hindbrain',
                    'Gut', 
                    'NMP', 
-                   'Notochord', 
-  'Spinal cord', 
+                   'Notochord',
+                   'Primitive Streak',
+                   'Rostral neurectoderm',
+                   'Spinal cord', 
+                   'Surface ectoderm',
+                   'Visceral endoderm',
+                   
                    'Forebrain/Midbrain/Hindbrain',
                    'Rostral neurectoderm',
                    'Caudal neurectoderm')
 
+celltypes_sels = unique(celltypes_sels)
+
 sub.obj = subset(bb, idents = celltypes_sels)
+
+VlnPlot(sub.obj, features = c('Foxa2', 'Pax6'), group.by = 'celltype', ncol = 1)
+
 
 FeatureScatter(sub.obj, feature1 = 'Foxa2', feature2 = 'Pax6', 
                group.by = 'stage', cols = stage_colours, raster = FALSE, pt.size = 1.5) +
@@ -213,22 +221,33 @@ FeatureScatter(sub.obj, feature1 = 'Foxa2', feature2 = 'Pax6',
         axis.text.y = element_text(angle = 0, size = 12))
 
 ## or subset the FoxA2+ & Pax6+ cells
-sub.obj = subset(x = bb, subset = Foxa2 > 0 & Pax6 > 0)
+# sub.obj = subset(x = bb, subset = Foxa2 > 0 & Pax6 > 0)
+# 
+# counts = table(sub.obj$celltype)
+# 
+# pcts = counts
+# for(n in 1:length(pcts))
+# {
+#   pcts[n] = pcts[n]/length(which(bb$celltype == names(pcts)[n]))
+# }
+# 
+# pcts = pcts[order(-pcts)]
 
-counts = table(sub.obj$celltype)
+sub.obj <- FindVariableFeatures(sub.obj, selection.method = "vst", nfeatures = 5000) # find subset-specific HVGs
 
-pcts = counts
-for(n in 1:length(pcts))
-{
-  pcts[n] = pcts[n]/length(which(bb$celltype == names(pcts)[n]))
-}
+sub.obj = ScaleData(sub.obj)
 
-pcts = pcts[order(-pcts)]
+sub.obj <- RunPCA(sub.obj, verbose = FALSE, weight.by.var = TRUE)
+ElbowPlot(sub.obj, ndims = 50)
 
+#Idents(sub.obj) = sub.obj$condition
 
+sub.obj <- RunUMAP(sub.obj, reduction = 'pca.corrected', dims = 1:30, n.neighbors = 50, min.dist = 0.1)
 
+p1 = DimPlot(sub.obj, group.by = 'celltype', label = TRUE, repel = TRUE, raster = FALSE)
 
+p2 = FeaturePlot(sub.obj, features = c('Foxa2', 'Pax6'))
 
-
+p1 / p2
 
 
