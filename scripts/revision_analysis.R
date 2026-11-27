@@ -429,6 +429,7 @@ ggsave(paste0(resDir, "mNTO_mEmbryo_correlationAnalysis.pdf"), width=8, height=6
 
 ##########################################
 # try reference mapping
+# similar code https://satijalab.org/seurat/articles/integration_mapping
 ##########################################
 Test_Seurat_query_ref_mapping = FALSE 
 if(Test_Seurat_query_ref_mapping){
@@ -463,154 +464,242 @@ if(Test_Seurat_query_ref_mapping){
   aa = subset(aa, features = tfs_sps[mm])
   
   
-  #ElbowPlot(ref, ndims = 50, reduction = 'pca')
-  #ref = RunUMAP(ref, reduction = "pca", dims = 1:30, n.neighbors = 30, 
-  #              min.dist = 0.1, return.model = TRUE) 
+  # pre-process dataset (without integration)
+  ref <- NormalizeData(ref)
+  ref <- FindVariableFeatures(ref, nfeatures = 1000)
+  ref <- ScaleData(ref)
+  ref <- RunPCA(ref)
+  #ref <- FindNeighbors(ref, dims=1:30)
+  #ref <- FindClusters(ref)
+  ref = RunUMAP(ref, reduction = "pca", dims = 1:30, n.neighbors = 30, 
+                min.dist = 0.1, return.model = TRUE) 
   
   DimPlot(ref, reduction = "umap", 
-          group.by = "celltype", label = TRUE,
+          group.by = c("celltype", "sample"), label = TRUE,
           repel = TRUE, raster=FALSE) 
   
-  ref$labels = factor(paste0(ref$celltype, '_', ref$stage))
+  #ref <- RunUMAP(ref, dims = 1:30)
+  #DimPlot(ref, group.by = c("celltype","tech"))
+  
+  #ElbowPlot(ref, ndims = 50, reduction = 'pca')
+  
+  #ref$labels = factor(paste0(ref$celltype, '_', ref$stage))
+  ref$labels = ref$celltype
+  
+  query = subset(aa, downsample = 2000)
+  
+  DimPlot(query, group.by = c('condition', 'celltype'), label = TRUE)
   
   # In data transfer, Seurat has an option (set by default) to project the PCA structure of a reference 
   # onto the query, instead of learning a joint structure with CCA. 
   # We generally suggest using this option when projecting data between scRNA-seq datasets.
   anchors <- FindTransferAnchors(reference = ref, 
-                                 query = aa, 
-                                 dims = 1:50,
+                                 query = query, 
+                                 dims = 1:30,
                                  normalization.method = "LogNormalize",
                                  reference.assay = 'originalexp',
                                  query.assay = 'RNA', 
-                                 features = rownames(aa),
-                                 #reference.reduction = "pca.corrected",
-                                 max.features = 200,
-                                 k.anchor = 10,
-                                 reduction = "cca" 
+                                 #features = rownames(aa),
+                                 reference.reduction = "pca",
+                                 #max.features = 200,
+                                 #k.anchor = 10,
+                                 #reduction = "cca", 
+                                 reduction = "pcaproject"
   )
-  saveRDS(anchors, file = paste0(RdataDir, '/cca_anchors.rds'))
+  
+  #saveRDS(anchors, file = paste0(RdataDir, '/cca_anchors.rds'))
   
   #pancreas.anchors <- FindTransferAnchors(reference = pancreas.ref, query = pancreas.query, dims = 1:30,
   #                                        reference.reduction = "pca")
-  anchors = readRDS( file = paste0(RdataDir, '/cca_anchors.rds'))
-  predictions <- TransferData(anchorset = anchors, refdata = ref$labels, 
+  #anchors = readRDS( file = paste0(RdataDir, '/cca_anchors.rds'))
+  
+  #predictions <- TransferData(anchorset = pancreas.anchors, refdata = pancreas.ref$celltype, 
+  # dims = 1:30)
+  
+  #pancreas.query <- AddMetaData(pancreas.query, metadata = predictions)
+  # query = aa
+  predictions <- TransferData(anchorset = anchors, refdata = ref$celltype, 
                               reference = ref,
-                              query = aa,
-                              weight.reduction = 'cca',
+                              query = query,
+                              #weight.reduction = 'cca',
                               dims = 1:30)
   
-  
-  
-  query = aa;
   query$predicted.id = predictions$predicted.id 
   query$predicted.score = predictions$predicted.id.score
   
   
   p1 = DimPlot(query, reduction = "umap", 
-               group.by = "predicted.id", label = TRUE,
+               group.by = c("predicted.id", 'celltype'), label = TRUE,
                repel = TRUE, raster=FALSE) 
   p2 = FeaturePlot(query, features = 'predicted.score')
   
   p1
-  ggsave(paste0(outDir, '/transfer_learning_seurat_cca.ref_v3.pdf'), 
-         width = 16, height = 8)
+  
+  ggsave(paste0(resDir, '/transfer_learning_seurat_pcaproject.ref_v3.pdf'), 
+         width = 18, height = 8)
   
   
   
   ## visualize the query cells alongside our reference and didn't work well
   ## (MapQuery in Seurat didn't work well)
-  # query <- Seurat::MapQuery(anchorset = anchors, 
-  #                   reference = ref, 
-  #                   query = aa,
-  #                   refdata = list(labels = "labels"),
-  #                   #refdata = list(celltype = "celltype"), 
-  #                   transferdata.args = list(weight.reduction = 'rpca.ref'), 
-  #                   reference.reduction = "pca", 
-  #                   reduction.model = "umap")
-  # 
-  # p1 <- DimPlot(ref, reduction = "umap", group.by = "celltype", 
-  #               label = TRUE, label.size = 3,
-  #               repel = TRUE) + NoLegend() + ggtitle("Reference annotations")
-  # p2 <- DimPlot(query, reduction = "ref.umap", group.by = "predicted.labels", 
-  #               label = TRUE,
-  #               label.size = 3, repel = TRUE) + NoLegend() + ggtitle("Query transferred labels")
-  # p1 + p2
+  query <- Seurat::MapQuery(anchorset = anchors,
+                    reference = ref,
+                    query = query,
+                    #refdata = list(labels = "labels"),
+                    refdata = list(celltype = "celltype"),
+                    #transferdata.args = list(weight.reduction = 'rpca.ref'),
+                    reference.reduction = "pca",
+                    reduction.model = "umap")
+
+  p1 <- DimPlot(ref, reduction = "umap", group.by = "celltype",
+                label = TRUE, label.size = 3,
+                repel = TRUE) + NoLegend() + ggtitle("Reference annotations")
+  p2 <- DimPlot(query, reduction = "ref.umap", 
+                group.by = "predicted.celltype", label = TRUE, 
+                label.size = 3 ,repel = TRUE) + NoLegend() + ggtitle("Query transferred labels")
+  p1 + p2
   
   
 }
 
-
-
-ref.list <- SplitObject(refs.merged, split.by = "dataset")
-
-#ref.list <- SplitObject(refs.merged, split.by = "dataset")
-#rm(list = c('refs.merged')) # remove big seurat objects to clear memory
-
-# normalize and identify variable features for each dataset independently
-features.common = rownames(refs.merged)
-
-ref.list <- lapply(X = ref.list, FUN = function(x) {
-  x <- NormalizeData(x, normalization.method = "LogNormalize")
-  x <- ScaleData(x, features = features.common, verbose = TRUE)
-  x <- RunPCA(x, features = features.common, verbose = FALSE)
+##########################################
+# try the data integration 
+# running Seurat v5 https://satijalab.org/seurat/articles/integration_introduction
+##########################################
+Test_Seurat_dataIntegration = FALSE
+if(Test_Seurat_dataIntegration){
   
-})
+  xx = CreateSeuratObject(counts = ref@assays$originalexp@counts, assay = 'RNA', 
+                             meta.data = ref@meta.data)
+  
+  refs.merged = merge(aa, y = xx, add.cell.ids = c("mNT", "mouseGastrulation"), 
+                      project = "RA_competence", merge.data = TRUE)
+    
+  #refs.merged[["RNA"]] <- split(refs.merged[["RNA"]], f = refs.merged$dataset)
+  #ref.list
+  #ref.list <- refs.merged
+  
+  refs.merged <- NormalizeData(refs.merged)
+  refs.merged <- FindVariableFeatures(refs.merged, nfeatures = 1000)
+  refs.merged <- ScaleData(refs.merged)
+  refs.merged <- RunPCA(refs.merged)
+  
+  
+  #rm(refs.merged)
+  rm(xx)
+  
+  refs.merged <- RunUMAP(refs.merged, dims = 1:30, reduction = 'pca', n.neighbors = 50, 
+                      min.dist = 0.2,
+                      reduction.name = 'umap.unintegrated')
+  
+  DimPlot(refs.merged, reduction = 'umap.unintegrated', group.by=c('dataset','celltype'), 
+          label = TRUE)
+  
+  saveRDS(refs.merged, file = paste0(RdataDir, 
+                                     'mergedSeuratObject_EmbryoAtlasData_subsetCelltypes_mNTO_tfs_',
+                                     'dataIntegration_test.rds'))
+  
+  
+  #### test cca integration
+  ref.list <- refs.merged
+  ref.list <- IntegrateLayers(
+    object = ref.list, method = CCAIntegration,
+    orig.reduction = "pca", new.reduction = 'integrated.cca',
+    verbose = FALSE)
+  
+  # re-join layers after integration
+  ref.list[["RNA"]] <- JoinLayers(ref.list[["RNA"]])
+  
+  #ref.list <- FindNeighbors(ref.list, reduction = "integrated.cca", dims = 1:30)
+  #ref.list <- FindClusters(ref.list, resolution = 1)
+  
+  ref.list <- RunUMAP(ref.list,dims = 1:30,reduction = 'integrated.cca', 
+                      n.neighbors = 50, 
+                      min.dist = 0.1)
+  
+  # Visualization
+  DimPlot(ref.list, reduction = 'umap', group.by=c('dataset','celltype'), label = TRUE)
+  
+  ggsave(paste0(resDir, '/mouseEmbryo_mNTOs_dataIntegration_integrated.cca.pdf'), 
+         width = 18, height = 8)
+  
+  ## test rpca
+  ref.list <- refs.merged
+  
+  ref.list <- IntegrateLayers(
+    object = ref.list, method = RPCAIntegration,
+    orig.reduction = "pca", new.reduction = 'integrated.rpca',
+    verbose = FALSE)
+  
+  # re-join layers after integration
+  ref.list[["RNA"]] <- JoinLayers(ref.list[["RNA"]])
+  ref.list <- RunUMAP(ref.list,dims = 1:30,reduction = 'integrated.rpca', 
+                      n.neighbors = 50, 
+                      min.dist = 0.1)
+  # Visualization
+  DimPlot(ref.list, reduction = 'umap', group.by=c('dataset','celltype'), label = TRUE)
+  
+  ggsave(paste0(resDir, '/mouseEmbryo_mNTOs_dataIntegration_integrated.rpca.pdf'), 
+         width = 18, height = 8)
+  
+  
+  ## test JointPCAIntegration
+  ref.list <- refs.merged
+  
+  ref.list <- IntegrateLayers(
+    object = ref.list, method = RPCAIntegration,
+    orig.reduction = "pca", new.reduction = 'JointPCAIntegration',
+    verbose = FALSE)
+  
+  # re-join layers after integration
+  ref.list[["RNA"]] <- JoinLayers(ref.list[["RNA"]])
+  ref.list <- RunUMAP(ref.list,dims = 1:30,reduction = 'JointPCAIntegration', 
+                      n.neighbors = 50, 
+                      min.dist = 0.1)
+  # Visualization
+  DimPlot(ref.list, reduction = 'umap', group.by=c('dataset', 'celltype'), label = TRUE)
+  
+  ggsave(paste0(resDir, '/mouseEmbryo_mNTOs_dataIntegration_integrated.JointPCAIntegration.pdf'), 
+         width = 18, height = 8)
+  
+  
+  ## test Harmony
+  ref.list <- refs.merged
+  
+  ref.list <- IntegrateLayers(
+    object = ref.list, method = RPCAIntegration,
+    orig.reduction = "pca", new.reduction = 'HarmonyIntegration',
+    verbose = FALSE)
+  
+  # re-join layers after integration
+  ref.list[["RNA"]] <- JoinLayers(ref.list[["RNA"]])
+  ref.list <- RunUMAP(ref.list,dims = 1:30, reduction = 'HarmonyIntegration', 
+                      n.neighbors = 50, 
+                      min.dist = 0.1)
+  # Visualization
+  DimPlot(ref.list, reduction = 'umap', group.by=c('dataset','celltype'), label = TRUE)
+  
+  ggsave(paste0(resDir, '/mouseEmbryo_mNTOs_dataIntegration_integrated.HarmonyIntegration.pdf'), 
+         width = 18, height = 8)
+  
+  
+  
+  Idents(ref.list) <- "celltype"
+  
+  nk.markers <- FindConservedMarkers(ref.list, ident.1 = "NK", grouping.var = "stim", verbose = FALSE)
+  head(nk.markers)
+  
+  Idents(ref.list) <- factor(
+    Idents(ref.list),
+    levels = c("pDC", "Eryth","Mk", "DC", "CD14 Mono", "CD16 Mono", "B Activated", "B", "CD8 T", "NK", "T activated", "CD4 Naive T", "CD4 Memory T"))
+  
+  markers.to.plot <- c("CD3D","CREM","HSPH1","SELL","GIMAP5","CACYBP","GNLY","NKG7","CCL5","CD8A","MS4A1","CD79A","MIR155HG","NME1","FCGR3A","VMO1","CCL2","S100A9","HLA-DQA1","GPR183","PPBP","GNG11","HBA2","HBB","TSPAN13","IL3RA","IGJ","PRSS57")
+  DotPlot(ref.list, features = markers.to.plot, cols = c('blue', 'red'), dot.scale = 8, split.by = "stim") + RotatedAxis()
+  
+  
+  
+}
 
-
-ref.anchors <- FindIntegrationAnchors(object.list = ref.list, 
-                                      anchor.features = features.common, 
-                                      reference = c(2),
-                                      reduction = "cca", 
-                                      #reduction = 'rpca',
-                                      k.anchor = 5,
-                                      dims = 1:50)
-
-rm(ref.list)
-
-# this command creates an 'integrated' data assay
-ref.combined <- IntegrateData(anchorset = ref.anchors, features.to.integrate = features.common, 
-                              dims = 1:50) ## take ~80G memory
-
-rm(ref.anchors)
-
-# specify that we will perform downstream analysis on the corrected data note that the
-# original unmodified data still resides in the 'RNA' assay
-DefaultAssay(ref.combined) <- "integrated"
-
-ref.combined <- ScaleData(ref.combined, verbose = FALSE)
-ref.combined <- RunPCA(ref.combined, npcs = 50, verbose = FALSE)
-
-ElbowPlot(ref.combined, ndims = 50)
-
-#kk = which(ref.combined$dataset == 'mNT') 
-#ref.combined$celltype[kk] = paste0('mNT_', ref.combined$condition[kk])
-#names(cols_sel) = paste0('mNT_', names(cols_sel))
-
-#cols_used = c(cols_mouse, cols_sel)
-#ref.combined <- FindNeighbors(ref.combined, reduction = "pca", dims = 1:20)
-#ref.combined <- FindClusters(ref.combined, resolution = 0.2)
-
-ref.combined <- RunUMAP(ref.combined, reduction = "pca", dims = 1:50, n.neighbors = 50, 
-                        min.dist = 0.2) 
-
-DimPlot(ref.combined, reduction = "umap", group.by = "celltypes", label = TRUE,
-        repel = TRUE, raster=FALSE)
-
-saveRDS(ref.combined, file = paste0(RdataDir, '/integrated_mNT_mouseGastrulation_SeuratCCA.rds'))
-
-ref.combined = readRDS(file = paste0(RdataDir, '/integrated_mNT_mouseGastrulation_SeuratCCA.rds'))
-
-
-saveRDS(cols_used, file = paste0(outDir, '/integrated_mNT_mouseGastrulation_colorsUsed.rds'))
-
-# Visualization
-DimPlot(ref.combined, reduction = "umap", group.by = "celltype", label = TRUE,
-        repel = TRUE, raster=FALSE, cols = c(cols_mouse, cols_sel)) 
-
-ggsave(paste0(outDir, '/Integration_mNT_celltypes_noref.batchcorrection.pdf'), 
-       width = 16, height = 8)
-
-#DimPlot(ref.combined, reduction = "umap")
 
 
 
